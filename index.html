@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slot Protocol</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0a0a0f;
+  font-family: 'Courier New', monospace;
+  color: #00f0ff;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-container {
+  position: relative;
+  width: 480px;
+  height: 700px;
+  background: #0a0a0f;
+  border: 2px solid #00f0ff;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.3), inset 0 0 60px rgba(0, 240, 255, 0.05);
+  overflow: hidden;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* CRT scanline overlay */
+#crt-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* CRT flicker */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+}
+
+#game-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.3) 100%);
+  pointer-events: none;
+  z-index: 11;
+}
+
+/* HUD */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40px;
+  background: rgba(10, 10, 15, 0.9);
+  border-bottom: 1px solid #00f0ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  z-index: 20;
+  letter-spacing: 1px;
+}
+
+#hud-left { display: flex; gap: 16px; }
+#hud-right { display: flex; gap: 12px; align-items: center; }
+
+.hud-label { color: #666; font-size: 9px; }
+.hud-value { color: #00f0ff; text-shadow: 0 0 8px #00f0ff; }
+
+#floor-indicator { color: #ff00aa; text-shadow: 0 0 8px #ff00aa; }
+#score-value { color: #00f0ff; }
+#balls-display { display: flex; gap: 3px; }
+.ball-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #00f0ff;
+  box-shadow: 0 0 6px #00f0ff;
+}
+.ball-dot.empty { background: #333; box-shadow: none; }
+
+#shop-btn {
+  background: transparent;
+  border: 1px solid #ff00aa;
+  color: #ff00aa;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+#shop-btn:hover {
+  background: #ff00aa;
+  color: #0a0a0f;
+  box-shadow: 0 0 10px #ff00aa;
+}
+
+/* Objective bar */
+#objective-bar {
+  position: absolute;
+  top: 40px; left: 0; right: 0;
+  height: 6px;
+  background: #1a1a2e;
+  z-index: 20;
+}
+#objective-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff, #00ffaa);
+  width: 0%;
+  transition: width 0.3s;
+  box-shadow: 0 0 10px #00f0ff;
+}
+#objective-label {
+  position: absolute;
+  top: 48px; right: 10px;
+  font-size: 9px;
+  color: #666;
+  z-index: 20;
+}
+
+/* Payload display */
+#payload-display {
+  position: absolute;
+  bottom: 10px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+.payload-slot {
+  width: 36px; height: 36px;
+  border: 1px solid #00f0ff44;
+  background: rgba(0, 240, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #00f0ff88;
+}
+.payload-slot.active {
+  border-color: #00f0ff;
+  background: rgba(0, 240, 255, 0.15);
+  color: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff44;
+}
+
+/* Menu overlay */
+#menu-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 15, 0.97);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+
+#menu-overlay.hidden { display: none; }
+
+.game-title {
+  font-size: 28px;
+  letter-spacing: 6px;
+  color: #00f0ff;
+  text-shadow: 0 0 20px #00f0ff, 0 0 40px #00f0ff;
+  animation: glitch 3s infinite;
+}
+
+@keyframes glitch {
+  0%, 90%, 100% { transform: translate(0); filter: none; }
+  91% { transform: translate(-2px, 1px); filter: hue-rotate(90deg); }
+  92% { transform: translate(2px, -1px); filter: hue-rotate(-90deg); }
+  93% { transform: translate(0); filter: none; }
+}
+
+.subtitle {
+  font-size: 11px;
+  color: #ff00aa;
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px #ff00aa;
+}
+
+.menu-stats {
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+  line-height: 1.8;
+}
+
+.stat-value { color: #00f0ff; }
+.stat-rank { color: #ff00aa; }
+
+.game-btn {
+  background: transparent;
+  border: 2px solid #00f0ff;
+  color: #00f0ff;
+  padding: 12px 36px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 3px;
+  transition: all 0.2s;
+  text-shadow: 0 0 10px #00f0ff;
+}
+.game-btn:hover {
+  background: #00f0ff;
+  color: #0a0a0f;
+  box-shadow: 0 0 30px #00f0ff;
+}
+
+.game-btn.secondary {
+  border-color: #ff00aa;
+  color: #ff00aa;
+  font-size: 10px;
+  padding: 8px 20px;
+}
+.game-btn.secondary:hover {
+  background: #ff00aa;
+  color: #0a0a0f;
+  box-shadow: 0 0 20px #ff00aa;
+}
+
+/* Shop overlay */
+#shop-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 15, 0.97);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#shop-overlay.active { display: flex; }
+
+.shop-header {
+  text-align: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #00f0ff33;
+  padding-bottom: 15px;
+}
+
+.shop-title { font-size: 16px; letter-spacing: 4px; color: #ff00aa; text-shadow: 0 0 10px #ff00aa; }
+.shop-credits { font-size: 11px; color: #00f0ff; margin-top: 5px; }
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex: 1;
+}
+
+.shop-item {
+  border: 1px solid #00f0ff44;
+  background: rgba(0, 240, 255, 0.03);
+  padding: 12px;
+  transition: all 0.15s;
+}
+.shop-item:hover {
+  border-color: #00f0ff;
+  background: rgba(0, 240, 255, 0.08);
+}
+.shop-item.owned {
+  border-color: #ff00aa44;
+  background: rgba(255, 0, 170, 0.05);
+}
+
+.item-icon { font-size: 18px; margin-bottom: 5px; }
+.item-name { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
+.item-desc { font-size: 8px; color: #666; line-height: 1.4; margin-bottom: 8px; }
+.item-cost { font-size: 10px; color: #ffaa00; }
+.item-owned-badge { font-size: 8px; color: #ff00aa; margin-top: 5px; }
+
+.shop-buy-btn {
+  background: transparent;
+  border: 1px solid #00f0ff;
+  color: #00f0ff;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.15s;
+}
+.shop-buy-btn:hover:not(:disabled) {
+  background: #00f0ff;
+  color: #0a0a0f;
+}
+.shop-buy-btn:disabled {
+  border-color: #333;
+  color: #333;
+  cursor: not-allowed;
+}
+
+.shop-continue-btn {
+  margin-top: 15px;
+  text-align: center;
+}
+
+/* Floor complete overlay */
+#floor-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 15, 0.95);
+  z-index: 90;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+#floor-overlay.active { display: flex; }
+
+.floor-complete-title {
+  font-size: 20px;
+  letter-spacing: 4px;
+  color: #00ffaa;
+  text-shadow: 0 0 20px #00ffaa;
+  animation: pulse 0.5s ease-out;
+}
+@keyframes pulse {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.floor-stats {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  line-height: 2;
+}
+.floor-stat-value { color: #00f0ff; }
+
+/* Drop zone indicator */
+#drop-zone {
+  position: absolute;
+  top: 46px; left: 0; right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+#drop-indicator {
+  width: 40px; height: 40px;
+  border: 2px dashed #00f0ff44;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #00f0ff44;
+  transition: all 0.1s;
+}
+#drop-indicator.active {
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 15px #00f0ff44;
+}
+
+/* Multiplier display */
+#multiplier-display {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  font-size: 24px;
+  color: #ff00aa;
+  text-shadow: 0 0 15px #ff00aa;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#multiplier-display.show { opacity: 1; }
+
+/* Run end overlay */
+#runend-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 15, 0.97);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+#runend-overlay.active { display: flex; }
+
+.runend-title {
+  font-size: 18px;
+  letter-spacing: 4px;
+}
+.runend-title.win { color: #00ffaa; text-shadow: 0 0 20px #00ffaa; }
+.runend-title.lose { color: #ff2244; text-shadow: 0 0 20px #ff2244; }
+
+.runend-stats {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  line-height: 2.2;
+}
+.runend-stat-value { color: #00f0ff; }
+.runend-credit-gain { color: #ffaa00; }
+
+/* Instructions */
+.instructions {
+  font-size: 9px;
+  color: #444;
+  text-align: center;
+  max-width: 300px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="game-canvas" width="480" height="700"></canvas>
+  <div id="crt-overlay"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-left">
+      <div>
+        <div class="hud-label">FLOOR</div>
+        <div id="floor-indicator" class="hud-value">1/5</div>
+      </div>
+      <div>
+        <div class="hud-label">BREACH</div>
+        <div id="score-value" class="hud-value">0</div>
+      </div>
+    </div>
+    <div id="hud-right">
+      <div id="balls-display"></div>
+      <button id="shop-btn">SHOP</button>
+    </div>
+  </div>
+
+  <!-- Objective bar -->
+  <div id="objective-bar">
+    <div id="objective-fill"></div>
+  </div>
+  <div id="objective-label">CLEAR 20 PEGS</div>
+
+  <!-- Drop zone -->
+  <div id="drop-zone">
+    <div id="drop-indicator">◉</div>
+  </div>
+
+  <!-- Multiplier -->
+  <div id="multiplier-display">x1</div>
+
+  <!-- Payload slots -->
+  <div id="payload-display">
+    <div class="payload-slot" id="payload-slot-0">—</div>
+    <div class="payload-slot" id="payload-slot-1">—</div>
+  </div>
+
+  <!-- Menu overlay -->
+  <div id="menu-overlay">
+    <div class="game-title">SLOT PROTOCOL</div>
+    <div class="subtitle">// BREACH SEQUENCE INITIATED //</div>
+    <div class="menu-stats">
+      <div>RANK: <span class="stat-rank" id="menu-rank">SCRIPT KIDDIE</span></div>
+      <div>REPUTATION: <span class="stat-value" id="menu-rep">0</span></div>
+      <div>LIFETIME BREACH: <span class="stat-value" id="menu-breach">0</span></div>
+    </div>
+    <button class="game-btn" id="start-btn">INITIATE BREACH</button>
+    <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
+    <div class="instructions">
+      Click to drop ball • Stack payloads for combos • Clear pegs to breach
+    </div>
+  </div>
+
+  <!-- Shop overlay -->
+  <div id="shop-overlay">
+    <div class="shop-header">
+      <div class="shop-title">◈ NETSHOP ◈</div>
+      <div>CREDITS: <span id="shop-credits">0</span></div>
+    </div>
+    <div class="shop-grid" id="shop-grid"></div>
+    <div class="shop-continue-btn">
+      <button class="game-btn secondary" id="shop-continue-btn">CONTINUE →</button>
+    </div>
+  </div>
+
+  <!-- Floor complete overlay -->
+  <div id="floor-overlay">
+    <div class="floor-complete-title" id="floor-complete-title">FLOOR BREACHED</div>
+    <div class="floor-stats" id="floor-stats"></div>
+    <button class="game-btn" id="floor-continue-btn">PROCEED</button>
+  </div>
+
+  <!-- Run end overlay -->
+  <div id="runend-overlay">
+    <div class="runend-title" id="runend-title">RUN COMPLETE</div>
+    <div class="runend-stats" id="runend-stats"></div>
+    <button class="game-btn" id="runend-btn">RETURN TO MENU</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// SLOT PROTOCOL - Cyberpunk Pachinko
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const W = 480, H = 700;
+
+// ─── COLOR PALETTE ───────────────────────────────────────────
+const C = {
+  void: '#0a0a0f',
+  cyan: '#00f0ff',
+  magenta: '#ff00aa',
+  amber: '#ffaa00',
+  danger: '#ff2244',
+  green: '#00ffaa',
+  purple: '#aa44ff',
+  white: '#ffffff',
+  dim: '#333344',
+  gridLine: '#151525'
+};
+
+// ─── GAME STATE ─────────────────────────────────────────────
+const GS = {
+  screen: 'menu', // menu | playing | shop | floor_complete | run_end
+  floor: 1,
+  score: 0,
+  breachCredits: 0,
+  reputation: 0,
+  rank: 'Script Kiddie',
+  balls: 5,
+  ballsInPlay: [],
+  multiplier: 1,
+  multiplierTimer: 0,
+  chainTimer: 0,
+  currentPayloads: [],
+  board: [],
+  floorObjective: { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' },
+  pegsHit: new Set(),
+  unlockedPayloads: ['scrambler', 'trojan'],
+  unlockedUpgrades: [],
+  payloadInventory: [],
+  totalBallsUsed: 0,
+  totalPegsCleared: 0
+};
+
+// ─── PERSISTENT STATE ────────────────────────────────────────
+let PERSIST = {
+  reputation: 0,
+  lifetimeBreach: 0,
+  totalRuns: 0,
+  bestFloor: 0,
+  unlockedPayloads: ['scrambler', 'trojan'],
+  unlockedUpgrades: []
+};
+
+function loadPersist() {
+  try {
+    const d = localStorage.getItem('slotprotocol');
+    if (d) PERSIST = JSON.parse(d);
+    GS.unlockedPayloads = PERSIST.unlockedPayloads;
+    GS.unlockedUpgrades = PERSIST.unlockedUpgrades;
+  } catch(e) {}
+}
+function savePersist() {
+  PERSIST.unlockedPayloads = GS.unlockedPayloads;
+  PERSIST.unlockedUpgrades = GS.unlockedUpgrades;
+  PERSIST.reputation = GS.reputation;
+  PERSIST.lifetimeBreach = GS.lifetimeBreach;
+  PERSIST.totalRuns++;
+  if (GS.floor > PERSIST.bestFloor) PERSIST.bestFloor = GS.floor;
+  localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
+}
+
+// ─── PAYLOAD DEFINITIONS ─────────────────────────────────────
+const PAYLOADS = {
+  scrambler: { name: 'SCRAMBLER', icon: '◎', color: '#00f0ff', desc: 'Reverses ball', rarity: 'common', cost: 50 },
+  trojan: { name: 'TROJAN', icon: '◈', color: '#ff00aa', desc: 'Clone on hit', rarity: 'uncommon', cost: 100 },
+  worm: { name: 'WORM', icon: '≡', color: '#00ffaa', desc: 'Pierce pegs', rarity: 'rare', cost: 200 },
+  logicbomb: { name: 'LOGIC BOMB', icon: '✷', color: '#ffaa00', desc: 'Explode radius', rarity: 'rare', cost: 250 },
+  daemon: { name: 'DAEMON', icon: '✺', color: '#aa44ff', desc: 'Split x3', rarity: 'legendary', cost: 500 }
+};
+
+// ─── PEG DEFINITIONS ────────────────────────────────────────
+const PEG_TYPES = {
+  node:     { color: '#00f0ff', glow: '#00f0ff', radius: 6, bounce: 0.65, label: 'NODE' },
+  ice:      { color: '#ff8800', glow: '#ff8800', radius: 7, bounce: 0.5, label: 'ICE', hazard: true },
+  fiber:    { color: '#aa44ff', glow: '#aa44ff', radius: 5, bounce: 0.3, friction: 0.95, label: 'FIBER' },
+  mirror:   { color: '#ffffff', glow: '#ffffff', radius: 6, bounce: 0.9, reflect: true, label: 'MIRROR' },
+  cache:    { color: '#ffcc00', glow: '#ffcc00', radius: 8, bonus: true, bounce: 0.6, label: 'CACHE' },
+  honeypot: { color: '#ff2244', glow: '#ff2244', radius: 9, trap: true, bounce: 0.5, label: 'HONEYPOT' },
+  overload: { color: '#ff00aa', glow: '#ff00aa', radius: 7, explosive: true, bounce: 0.7, label: 'OVERLOAD' }
+};
+
+// ─── PHYSICS CONSTANTS ───────────────────────────────────────
+const GRAVITY = 0.18;
+const FRICTION = 0.995;
+const MAX_VEL = 14;
+const BALL_RADIUS = 7;
+
+// ─── BALL CLASS ──────────────────────────────────────────────
+class Ball {
+  constructor(x, y, vx, vy, payloads = []) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.payloads = [...payloads];
+    this.active = true;
+    this.trail = [];
+    this.hitPegs = new Set();
+    this.piercing = false;
+    this.cloneSpawned = false;
+  }
+
+  update() {
+    if (!this.active) return;
+
+    // Gravity
+    this.vy += GRAVITY;
+
+    // Friction
+    this.vx *= FRICTION;
+
+    // Velocity cap
+    const spd = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+    if (spd > MAX_VEL) {
+      this.vx = (this.vx / spd) * MAX_VEL;
+      this.vy = (this.vy / spd) * MAX_VEL;
+    }
+
+    // Move
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Trail
+    this.trail.unshift({ x: this.x, y: this.y, age: 0 });
+    if (this.trail.length > 12) this.trail.pop();
+    this.trail.forEach(t => t.age++);
+
+    // Wall bounce
+    if (this.x < BALL_RADIUS) { this.x = BALL_RADIUS; this.vx *= -0.8; }
+    if (this.x > W - BALL_RADIUS) { this.x = W - BALL_RADIUS; this.vx *= -0.8; }
+
+    // Exit bottom
+    if (this.y > H + 20) {
+      this.active = false;
+      resolveBallExit(this);
+    }
+  }
+
+  draw() {
+    if (!this.active) return;
+
+    // Trail
+    for (let i = this.trail.length - 1; i >= 1; i--) {
+      const t = this.trail[i];
+      const alpha = (1 - t.age / 20) * 0.5;
+      const r = BALL_RADIUS * (1 - t.age / 20);
+      if (alpha > 0) {
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, Math.max(1, r), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 240, 255, ${alpha})`;
+        ctx.fill();
+      }
+    }
+
+    // Ball
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 15;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Payload indicators
+    if (this.payloads.length > 0) {
+      this.payloads.forEach((p, i) => {
+        const angle = (Date.now() / 500 + i * Math.PI) % (Math.PI * 2);
+        const px = this.x + Math.cos(angle) * 14;
+        const py = this.y + Math.sin(angle) * 14;
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle = PAYLOADS[p].color;
+        ctx.fill();
+      });
+    }
+  }
+}
+
+// ─── PARTICLE SYSTEM ─────────────────────────────────────────
+const particles = [];
+
+function spawnParticles(x, y, color, count = 8, spread = 3) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * spread,
+      vy: (Math.random() - 0.5) * spread,
+      color,
+      life: 1,
+      decay: 0.03 + Math.random() * 0.02,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ─── FLOATING TEXT ───────────────────────────────────────────
+const floatTexts = [];
+
+function spawnFloatText(x, y, text, color = '#00f0ff') {
+  floatTexts.push({ x, y, text, color, life: 1, vy: -1.5 });
+}
+
+function updateFloatTexts() {
+  for (let i = floatTexts.length - 1; i >= 0; i--) {
+    const t = floatTexts[i];
+    t.y += t.vy;
+    t.life -= 0.02;
+    if (t.life <= 0) floatTexts.splice(i, 1);
+  }
+}
+
+function drawFloatTexts() {
+  floatTexts.forEach(t => {
+    ctx.globalAlpha = t.life;
+    ctx.font = 'bold 14px Courier New';
+    ctx.fillStyle = t.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ─── SCREEN EFFECTS ──────────────────────────────────────────
+let screenShake = 0;
+let screenFlash = 0;
+let screenFlashColor = '#00f0ff';
+
+function triggerShake(intensity = 5) {
+  screenShake = intensity;
+}
+function triggerFlash(color = '#00f0ff', intensity = 0.3) {
+  screenFlash = intensity;
+  screenFlashColor = color;
+}
+
+// ─── BOARD GENERATION ───────────────────────────────────────
+function generateBoard(floor) {
+  const board = [];
+
+  if (floor <= 2) {
+    // Simple grid, generous spacing
+    for (let row = 0; row < 8; row++) {
+      const cols = 7 - (row % 2);
+      const y = 120 + row * 55;
+      const offset = (row % 2) === 0 ? 0 : 30;
+      for (let col = 0; col < cols; col++) {
+        const x = 50 + offset + col * 60;
+        const type = Math.random() < 0.15 ? 'ice' : 'node';
+        board.push({ x, y, type, hitCount: 0, id: board.length });
+      }
+    }
+    // Cache pegs
+    for (let i = 0; i < 4; i++) {
+      board.push({
+        x: 80 + Math.random() * 320,
+        y: 150 + Math.random() * 300,
+        type: 'cache',
+        hitCount: 0, id: board.length
+      });
+    }
+  } else if (floor <= 4) {
+    // Tighter, hazards
+    for (let row = 0; row < 10; row++) {
+      const cols = 8 - (row % 2);
+      const y = 100 + row * 48;
+      const offset = (row % 2) === 0 ? 0 : 25;
+      for (let col = 0; col < cols; col++) {
+        const x = 40 + offset + col * 50;
+        const r = Math.random();
+        let type = 'node';
+        if (r < 0.1) type = 'ice';
+        else if (r < 0.18) type = 'fiber';
+        else if (r < 0.22) type = 'mirror';
+        else if (r < 0.26) type = 'honeypot';
+        else if (r < 0.30) type = 'overload';
+        board.push({ x, y, type, hitCount: 0, id: board.length });
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      board.push({
+        x: 60 + Math.random() * 360,
+        y: 130 + Math.random() * 320,
+        type: 'cache',
+        hitCount: 0, id: board.length
+      });
+    }
+  } else {
+    // Floor 5: Boss vault
+    // Vault target at bottom
+    board.push({ x: W/2, y: H - 120, type: 'cache', boss: true, hits: 0, maxHits: 15, hitCount: 0, id: board.length });
+    // Obstacle pegs
+    for (let row = 0; row < 8; row++) {
+      const cols = 6 - (row % 2);
+      const y = 100 + row * 50;
+      const offset = (row % 2) === 0 ? 0 : 30;
+      for (let col = 0; col < cols; col++) {
+        const x = 50 + offset + col * 65;
+        const r = Math.random();
+        let type = 'node';
+        if (r < 0.15) type = 'ice';
+        else if (r < 0.25) type = 'overload';
+        else if (r < 0.30) type = 'honeypot';
+        board.push({ x, y, type, hitCount: 0, id: board.length });
+      }
+    }
+  }
+
+  return board;
+}
+
+// ─── OBJECTIVE SETUP ─────────────────────────────────────────
+function setupObjective(floor) {
+  switch (floor) {
+    case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
+    case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
+    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE - NO ICE HITS' };
+    case 4: return { type: 'standard', target: 35, progress: 0, label: 'CLEAR 35 PEGS' };
+    case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT' };
+  }
+}
+
+// ─── COLLISION DETECTION ─────────────────────────────────────
+function checkCollisions() {
+  for (const ball of GS.ballsInPlay) {
+    if (!ball.active) continue;
+
+    for (const peg of GS.board) {
+      if (ball.hitPegs.has(peg.id)) continue;
+      if (peg.destroyed) continue;
+
+      const dx = ball.x - peg.x;
+      const dy = ball.y - peg.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const pegR = PEG_TYPES[peg.type].radius;
+      const minDist = BALL_RADIUS + pegR;
+
+      if (dist < minDist) {
+        // Collision!
+        handlePegHit(ball, peg, dx, dy, dist, minDist);
+      }
+    }
+  }
+}
+
+function handlePegHit(ball, peg, dx, dy, dist, minDist) {
+  const pegDef = PEG_TYPES[peg.type];
+  ball.hitPegs.add(peg.id);
+
+  // Normalize collision vector
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  // Separate ball from peg
+  const overlap = minDist - dist;
+  ball.x += nx * overlap;
+  ball.y += ny * overlap;
+
+  // Bounce velocity
+  const dot = ball.vx * nx + ball.vy * ny;
+  const bounce = pegDef.bounce || 0.65;
+
+  if (pegDef.reflect) {
+    // Mirror: reflect across surface
+    ball.vx -= 2 * dot * nx;
+    ball.vy -= 2 * dot * ny;
+    ball.vx *= bounce;
+    ball.vy *= bounce;
+  } else if (pegDef.friction) {
+    // Fiber: slide along
+    ball.vx *= pegDef.friction;
+    ball.vy = ball.vy * 0.5 + Math.abs(ball.vy) * 0.5;
+  } else {
+    // Normal bounce
+    ball.vx -= (1 + bounce) * dot * nx;
+    ball.vy -= (1 + bounce) * dot * ny;
+  }
+
+  // Apply worm (pierce) payload
+  if (ball.piercing) {
+    ball.vx += nx * 2;
+    ball.vy += ny * 2;
+  }
+
+  // Effects based on peg type
+  peg.hitCount++;
+  spawnParticles(peg.x, peg.y, pegDef.color, 10, 4);
+
+  // Scoring
+  const baseScore = pegDef.bonus ? 200 : 50;
+  GS.score += baseScore * GS.multiplier;
+  GS.floorObjective.progress++;
+  GS.totalPegsCleared++;
+
+  // Chain multiplier
+  GS.chainTimer = 30; // ~0.5s at 60fps
+  GS.multiplier = Math.min(7, GS.multiplier + 1);
+  updateMultiplierDisplay();
+
+  // Multiplier text
+  if (GS.multiplier > 1) {
+    spawnFloatText(peg.x, peg.y - 10, `x${GS.multiplier}`, '#ff00aa');
+  }
+
+  // Peg-specific effects
+  if (pegDef.hazard && pegDef.label === 'ICE') {
+    if (peg.hitCount >= 3) {
+      // Lose a ball
+      triggerHoneypotEffect();
+      spawnFloatText(peg.x, peg.y, 'ICE TRIP', '#ff8800');
+    }
+    triggerFlash('#ff880044', 0.1);
+  }
+
+  if (pegDef.bonus) {
+    GS.breachCredits += 10 * GS.multiplier;
+    spawnFloatText(peg.x, peg.y, `+${10 * GS.multiplier}`, '#ffcc00');
+    triggerFlash('#ffcc0033', 0.1);
+  }
+
+  if (pegDef.trap) {
+    // Honeypot: end ball, steal payload
+    triggerHoneypotEffect();
+    if (ball.payloads.length > 0) {
+      ball.payloads.pop(); // steal last payload
+    }
+    ball.active = false;
+    spawnFloatText(peg.x, peg.y, 'HONEYPOT!', '#ff2244');
+    return;
+  }
+
+  if (pegDef.explosive) {
+    // Overload: chain explosion
+    triggerFlash('#ff00aa22', 0.15);
+    triggerShake(4);
+    spawnFloatText(peg.x, peg.y, 'OVERLOAD!', '#ff00aa');
+    // Damage nearby pegs
+    for (const other of GS.board) {
+      if (other === peg || other.destroyed) continue;
+      const edx = other.x - peg.x;
+      const edy = other.y - peg.y;
+      const eDist = Math.sqrt(edx*edx + edy*edy);
+      if (eDist < 60) {
+        other.destroyed = true;
+        GS.floorObjective.progress += 2;
+        spawnParticles(other.x, other.y, PEG_TYPES[other.type].color, 6, 2);
+      }
+    }
+    peg.destroyed = true;
+  }
+
+  // Boss peg
+  if (peg.boss) {
+    peg.hits = (peg.hits || 0) + 1;
+    GS.floorObjective.progress = peg.hits;
+    triggerFlash('#ffcc0033', 0.15);
+    spawnFloatText(peg.x, peg.y, `VAULT ${peg.hits}/${peg.maxHits}`, '#ffcc00');
+    if (peg.hits >= peg.maxHits) {
+      peg.destroyed = true;
+      GS.floorObjective.progress = peg.maxHits;
+      triggerFullBreach();
+    }
+  }
+
+  // Payload effects on contact
+  handlePayloadOnHit(ball, peg);
+
+  updateHUD();
+  updateObjectiveBar();
+}
+
+function handlePayloadOnHit(ball, peg) {
+  for (const p of ball.payloads) {
+    switch(p) {
+      case 'trojan':
+        if (!ball.cloneSpawned) {
+          ball.cloneSpawned = true;
+          GS.ballsInPlay.push(new Ball(ball.x, ball.y, ball.vx * 0.8, ball.vy * 0.6, []));
+          GS.ballsInPlay.push(new Ball(ball.x, ball.y, ball.vx * 0.8, ball.vy * 0.6, []));
+          spawnFloatText(ball.x, ball.y - 15, 'CLONE!', '#ff00aa');
+        }
+        break;
+      case 'logicbomb':
+        // Delayed explosion on ball exit
+        break;
+      case 'worm':
+        ball.piercing = true;
+        break;
+    }
+  }
+}
+
+function resolveBallExit(ball) {
+  // Logic bomb: explode all nearby pegs
+  if (ball.payloads.includes('logicbomb')) {
+    triggerFlash('#ffaa0033', 0.2);
+    triggerShake(6);
+    spawnFloatText(ball.x, ball.y, 'LOGIC BOMB!', '#ffaa00');
+    for (const peg of GS.board) {
+      if (peg.destroyed) continue;
+      const dx = peg.x - ball.x;
+      const dy = peg.y - ball.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 80) {
+        peg.destroyed = true;
+        GS.floorObjective.progress += 2;
+        spawnParticles(peg.x, peg.y, PEGLOADS[peg.type].color || '#ffaa00', 8, 3);
+      }
+    }
+  }
+
+  // Daemon split check (already handled in update via clones)
+  if (!ball.active && GS.ballsInPlay.filter(b => b.active).length === 0) {
+    // All balls done
+    GS.multiplier = 1;
+    GS.multiplierTimer = 0;
+    updateMultiplierDisplay();
+  }
+}
+
+function triggerHoneypotEffect() {
+  // Screen invert flash
+  document.getElementById('game-container').style.filter = 'invert(1) hue-rotate(180deg)';
+  setTimeout(() => {
+    document.getElementById('game-container').style.filter = '';
+  }, 150);
+}
+
+function triggerFullBreach() {
+  triggerFlash('#00ffaa44', 0.5);
+  triggerShake(8);
+  spawnFloatText(W/2, H/2, 'VAULT CRACKED!', '#00ffaa');
+}
+
+// ─── BALL DROP ───────────────────────────────────────────────
+let canDrop = true;
+let dropX = W / 2;
+
+function dropBall() {
+  if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;
+  if (GS.ballsInPlay.length > 0 && GS.ballsInPlay.some(b => b.active)) return;
+
+  canDrop = false;
+  GS.balls--;
+  GS.totalBallsUsed++;
+
+  const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, [...GS.currentPayloads]);
+  GS.ballsInPlay = [ball];
+
+  // Clear payloads after use
+  GS.currentPayloads = [];
+  updatePayloadSlots();
+  updateHUD();
+
+  setTimeout(() => { canDrop = true; }, 800);
+}
+
+// ─── MULTIPLIER ──────────────────────────────────────────────
+function updateMultiplierDisplay() {
+  const el = document.getElementById('multiplier-display');
+  el.textContent = `x${GS.multiplier}`;
+  el.classList.toggle('show', GS.multiplier > 1);
+}
+
+// ─── HUD UPDATE ──────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('floor-indicator').textContent = `${GS.floor}/5`;
+  document.getElementById('score-value').textContent = GS.score.toLocaleString();
+
+  // Balls display
+  const ballsEl = document.getElementById('balls-display');
+  ballsEl.innerHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'ball-dot' + (i >= GS.balls ? ' empty' : '');
+    ballsEl.appendChild(dot);
+  }
+}
+
+function updateObjectiveBar() {
+  const obj = GS.floorObjective;
+  const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
+  document.getElementById('objective-fill').style.width = pct + '%';
+  document.getElementById('objective-label').textContent = obj.label;
+
+  // Check completion
+  if (obj.progress >= obj.target && GS.screen === 'playing') {
+    completeFloor();
+  }
+}
+
+function updatePayloadSlots() {
+  for (let i = 0; i < 2; i++) {
+    const slot = document.getElementById(`payload-slot-${i}`);
+    if (GS.currentPayloads[i]) {
+      const p = PAYLOADS[GS.currentPayloads[i]];
+      slot.textContent = p.icon;
+      slot.className = 'payload-slot active';
+      slot.style.borderColor = p.color;
+      slot.style.color = p.color;
+    } else {
+      slot.textContent = '—';
+      slot.className = 'payload-slot';
+      slot.style.borderColor = '';
+      slot.style.color = '';
+    }
+  }
+}
+
+function updateMenuStats() {
+  document.getElementById('menu-rank').textContent = GS.rank;
+  document.getElementById('menu-rep').textContent = GS.reputation;
+  document.getElementById('menu-breach').textContent = PERSIST.lifetimeBreach.toLocaleString();
+}
+
+// ─── FLOOR COMPLETION ─────────────────────────────────────────
+function completeFloor() {
+  GS.screen = 'floor_complete';
+
+  const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
+  GS.breachCredits += creditGain;
+
+  const title = document.getElementById('floor-complete-title');
+  const stats = document.getElementById('floor-stats');
+
+  if (GS.floor === 5) {
+    title.textContent = '◆ FULL BREACH ◆';
+    title.style.color = '#00ffaa';
+    triggerFlash('#00ffaa44', 0.6);
+  } else {
+    title.textContent = `FLOOR ${GS.floor} BREACHED`;
+    title.style.color = '#00ffaa';
+    triggerFlash('#00ffaa33', 0.4);
+  }
+
+  stats.innerHTML = `
+    <div>PEG CLEARED: <span class="floor-stat-value">${GS.totalPegsCleared}</span></div>
+    <div>BALLS USED: <span class="floor-stat-value">${GS.totalBallsUsed}</span></div>
+    <div>CREDITS EARNED: <span class="floor-stat-value">+${creditGain}</span></div>
+  `;
+
+  document.getElementById('floor-overlay').classList.add('active');
+}
+
+// ─── SHOP ────────────────────────────────────────────────────
+const SHOP_ITEMS = [
+  { id: 'scrambler', type: 'payload', name: 'SCRAMBLER', icon: '◎', cost: 50, desc: 'Reverses ball direction on hit' },
+  { id: 'trojan', type: 'payload', name: 'TROJAN', icon: '◈', cost: 100, desc: 'Spawns 2 clone balls on hit' },
+  { id: 'worm', type: 'payload', name: 'WORM', icon: '≡', cost: 200, desc: 'Ball pierces through pegs' },
+  { id: 'logicbomb', type: 'payload', name: 'LOGIC BOMB', icon: '✷', cost: 250, desc: 'Explodes nearby pegs on exit' },
+  { id: 'daemon', type: 'payload', name: 'DAEMON', icon: '✺', cost: 500, desc: 'Ball splits into 3 on impact' },
+  { id: 'extralife', type: 'upgrade', name: 'EXTRA BALL', icon: '●', cost: 300, desc: '+1 starting ball each run' },
+  { id: 'multiball', type: 'upgrade', name: 'MULTI-DROP', icon: '●●', cost: 400, desc: 'Drop 2 balls at once' },
+  { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' }
+];
+
+function openShop() {
+  GS.screen = 'shop';
+  document.getElementById('shop-credits').textContent = GS.breachCredits;
+
+  const grid = document.getElementById('shop-grid');
+  grid.innerHTML = '';
+
+  for (const item of SHOP_ITEMS) {
+    const owned = GS.unlockedPayloads.includes(item.id) || GS.unlockedUpgrades.includes(item.id);
+    const canAfford = GS.breachCredits >= item.cost;
+
+    const el = document.createElement('div');
+    el.className = 'shop-item' + (owned ? ' owned' : '');
+
+    el.innerHTML = `
+      <div class="item-icon">${item.icon}</div>
+      <div class="item-name">${item.name}</div>
+      <div class="item-desc">${item.desc}</div>
+      ${owned
+        ? '<div class="item-owned-badge">✓ OWNED</div>'
+        : `<div class="item-cost">◈ ${item.cost}</div>
+           <button class="shop-buy-btn" ${canAfford ? '' : 'disabled'} data-id="${item.id}">BUY</button>`
+      }
+    `;
+
+    grid.appendChild(el);
+  }
+
+  document.getElementById('shop-overlay').classList.add('active');
+
+  // Bind buy buttons
+  grid.querySelectorAll('.shop-buy-btn').forEach(btn => {
+    btn.onclick = () => buyItem(btn.dataset.id);
+  });
+}
+
+function buyItem(id) {
+  const item = SHOP_ITEMS.find(i => i.id === id);
+  if (!item || GS.breachCredits < item.cost) return;
+  if (GS.unlockedPayloads.includes(id) || GS.unlockedUpgrades.includes(id)) return;
+
+  GS.breachCredits -= item.cost;
+  document.getElementById('shop-credits').textContent = GS.breachCredits;
+
+  if (item.type === 'payload') {
+    GS.unlockedPayloads.push(id);
+  } else {
+    GS.unlockedUpgrades.push(id);
+  }
+
+  triggerFlash('#00f0ff33', 0.2);
+  openShop(); // Refresh
+}
+
+function closeShop() {
+  document.getElementById('shop-overlay').classList.remove('active');
+  GS.screen = 'playing';
+  startNextFloor();
+}
+
+// ─── GAME FLOW ────────────────────────────────────────────────
+function startNextFloor() {
+  GS.floor++;
+  if (GS.floor > 5) {
+    endRun(true);
+    return;
+  }
+
+  startFloor();
+}
+
+function startFloor() {
+  GS.board = generateBoard(GS.floor);
+  GS.floorObjective = setupObjective(GS.floor);
+  GS.ballsInPlay = [];
+  GS.pegsHit = new Set();
+  GS.multiplier = 1;
+  GS.multiplierTimer = 0;
+  GS.chainTimer = 0;
+  GS.currentPayloads = [];
+  GS.totalPegsCleared = 0;
+  GS.totalBallsUsed = 0;
+  canDrop = true;
+
+  // Reset ball count if extra life upgrade
+  if (GS.floor === 1 && GS.unlockedUpgrades.includes('extralife')) {
+    GS.balls = 6;
+  } else if (GS.floor === 1) {
+    GS.balls = 5;
+  }
+
+  // Grant random payload for this run
+  if (GS.floor === 1 && GS.payloadInventory.length === 0) {
+    grantStartingPayload();
+  }
+
+  updateHUD();
+  updateObjectiveBar();
+  updatePayloadSlots();
+}
+
+function grantStartingPayload() {
+  const unlocked = GS.unlockedPayloads;
+  if (unlocked.length === 0) return;
+
+  // Pick a random unlocked payload
+  const pick = unlocked[Math.floor(Math.random() * unlocked.length)];
+  GS.currentPayloads = [pick];
+  updatePayloadSlots();
+}
+
+function endRun(won) {
+  GS.screen = 'run_end';
+
+  // Convert remaining breach credits to reputation
+  const creditGain = Math.floor(GS.breachCredits * (1 + GS.balls * 0.1));
+  GS.reputation += creditGain;
+
+  const title = document.getElementById('runend-title');
+  const stats = document.getElementById('runend-stats');
+
+  title.textContent = won ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
+  title.className = 'runend-title ' + (won ? 'win' : 'lose');
+
+  stats.innerHTML = `
+    <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}/5</span></div>
+    <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}</span></div>
+    <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
+    <div>REPUTATION: <span class="runend-stat-value">+${creditGain}</span></div>
+  `;
+
+  PERSIST.lifetimeBreach += GS.score;
+  savePersist();
+
+  document.getElementById('runend-overlay').classList.add('active');
+}
+
+function startNewRun() {
+  GS.floor = 1;
+  GS.score = 0;
+  GS.breachCredits = 0;
+  GS.balls = 5;
+  GS.ballsInPlay = [];
+  GS.multiplier = 1;
+  GS.currentPayloads = [];
+  GS.board = [];
+  GS.pegsHit = new Set();
+  GS.payloadInventory = [];
+  GS.totalPegsCleared = 0;
+  GS.totalBallsUsed = 0;
+  particles.length = 0;
+  floatTexts.length = 0;
+
+  // Hide all overlays
+  document.getElementById('menu-overlay').classList.add('hidden');
+  document.getElementById('floor-overlay').classList.remove('active');
+  document.getElementById('runend-overlay').classList.remove('active');
+  document.getElementById('shop-overlay').classList.remove('active');
+
+  GS.screen = 'playing';
+  startFloor();
+}
+
+function returnToMenu() {
+  document.getElementById('runend-overlay').classList.remove('active');
+  document.getElementById('menu-overlay').classList.remove('hidden');
+  GS.screen = 'menu';
+  updateMenuStats();
+}
+
+// ─── RENDERING ───────────────────────────────────────────────
+function drawBackground() {
+  // Grid
+  ctx.strokeStyle = C.gridLine;
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 30) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+
+  // Drop zone line
+  ctx.strokeStyle = '#00f0ff22';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, 90);
+  ctx.lineTo(W, 90);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPegs() {
+  const time = Date.now() / 1000;
+
+  for (const peg of GS.board) {
+    if (peg.destroyed) continue;
+
+    const def = PEG_TYPES[peg.type];
+    const pulse = 0.8 + Math.sin(time * 2 + peg.x * 0.1) * 0.2;
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(peg.x, peg.y, def.radius + 4, 0, Math.PI * 2);
+    ctx.fillStyle = def.glow + '22';
+    ctx.fill();
+
+    // Peg body
+    ctx.beginPath();
+    ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+    ctx.fillStyle = def.color;
+    ctx.shadowColor = def.glow;
+    ctx.shadowBlur = 8 * pulse;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // ICE hit counter
+    if (peg.type === 'ice' && peg.hitCount > 0) {
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(peg.x - 6 + i * 6, peg.y + def.radius + 5, 2, 0, Math.PI * 2);
+        ctx.fillStyle = i < peg.hitCount ? '#ff8800' : '#333';
+        ctx.fill();
+      }
+    }
+
+    // Boss target
+    if (peg.boss) {
+      const hpct = (peg.hits || 0) / peg.maxHits;
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, def.radius + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, def.radius + 12, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffcc0044';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+}
+
+function drawBallDropZone() {
+  const x = dropX;
+  ctx.beginPath();
+  ctx.arc(x, 70, BALL_RADIUS + 2, 0, Math.PI * 2);
+  ctx.strokeStyle = '#00f0ff66';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([3, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function render() {
+  // Screen shake
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate(
+      (Math.random() - 0.5) * screenShake,
+      (Math.random() - 0.5) * screenShake
+    );
+    screenShake *= 0.9;
+    if (screenShake < 0.5) screenShake = 0;
+  }
+
+  // Clear
+  ctx.fillStyle = C.void;
+  ctx.fillRect(0, 0, W, H);
+
+  // Background
+  drawBackground();
+
+  // Board
+  drawPegs();
+
+  // Balls
+  for (const ball of GS.ballsInPlay) {
+    ball.draw();
+  }
+
+  // Drop zone
+  if (GS.screen === 'playing' && canDrop) {
+    drawBallDropZone();
+  }
+
+  // Particles
+  drawParticles();
+
+  // Float texts
+  drawFloatTexts();
+
+  // Screen flash
+  if (screenFlash > 0) {
+    ctx.fillStyle = screenFlashColor;
+    ctx.globalAlpha = screenFlash;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    screenFlash *= 0.85;
+    if (screenFlash < 0.01) screenFlash = 0;
+  }
+
+  ctx.restore();
+}
+
+// ─── GAME LOOP ───────────────────────────────────────────────
+function update() {
+  if (GS.screen !== 'playing') return;
+
+  // Update balls
+  for (const ball of GS.ballsInPlay) {
+    ball.update();
+  }
+
+  // Collision check
+  checkCollisions();
+
+  // Multiplier chain timer
+  if (GS.chainTimer > 0) {
+    GS.chainTimer--;
+  } else if (GS.multiplier > 1) {
+    GS.multiplier = Math.max(1, GS.multiplier - 0.5);
+    updateMultiplierDisplay();
+  }
+
+  // Remove inactive balls
+  GS.ballsInPlay = GS.ballsInPlay.filter(b => b.active);
+
+  // Update particles
+  updateParticles();
+  updateFloatTexts();
+
+  // Check no balls and no balls left
+  if (GS.ballsInPlay.length === 0 && GS.balls <= 0 && GS.screen === 'playing') {
+    // Check if objective was met
+    if (GS.floorObjective.progress >= GS.floorObjective.target) {
+      completeFloor();
+    } else {
+      // Failed floor
+      triggerFlash('#ff224433', 0.3);
+      endRun(false);
+    }
+  }
+
+  // Check objective periodically
+  if (GS.floorObjective.progress >= GS.floorObjective.target) {
+    completeFloor();
+  }
+}
+
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── INPUT HANDLING ──────────────────────────────────────────
+canvas.addEventListener('mousemove', (e) => {
+  if (GS.screen !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
+});
+
+canvas.addEventListener('click', (e) => {
+  if (GS.screen !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
+  dropBall();
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (GS.screen !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  dropX = Math.max(20, Math.min(W - 20, (touch.clientX - rect.left) * (W / rect.width)));
+});
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (GS.screen !== 'playing') return;
+  dropBall();
+});
+
+// Keyboard drop
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && GS.screen === 'playing') {
+    dropBall();
+  }
+});
+
+// ─── BUTTON BINDINGS ─────────────────────────────────────────
+document.getElementById('start-btn').onclick = startNewRun;
+
+document.getElementById('reset-btn').onclick = () => {
+  if (confirm('Reset all progress? This cannot be undone.')) {
+    localStorage.removeItem('slotprotocol');
+    PERSIST = {
+      reputation: 0,
+      lifetimeBreach: 0,
+      totalRuns: 0,
+      bestFloor: 0,
+      unlockedPayloads: ['scrambler', 'trojan'],
+      unlockedUpgrades: []
+    };
+    GS.unlockedPayloads = ['scrambler', 'trojan'];
+    GS.unlockedUpgrades = [];
+    updateMenuStats();
+  }
+};
+
+document.getElementById('shop-btn').onclick = () => {
+  if (GS.screen === 'playing') {
+    openShop();
+  }
+};
+
+document.getElementById('shop-continue-btn').onclick = closeShop;
+
+document.getElementById('floor-continue-btn').onclick = () => {
+  document.getElementById('floor-overlay').classList.remove('active');
+  openShop();
+};
+
+document.getElementById('runend-btn').onclick = returnToMenu;
+
+// ─── INIT ────────────────────────────────────────────────────
+loadPersist();
+updateMenuStats();
+gameLoop();
+</script>
+</body>
+</html>

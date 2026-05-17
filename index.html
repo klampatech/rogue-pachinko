@@ -438,6 +438,31 @@ body {
   max-width: 300px;
   line-height: 1.6;
 }
+
+/* Slot Protocol 2.0 animations */
+@keyframes jpGlitch {
+  0%   { transform: skewX(0deg); filter: hue-rotate(0deg); }
+  25%  { transform: skewX(-8deg); filter: hue-rotate(20deg); color: #ff6600; }
+  50%  { transform: skewX(6deg); filter: hue-rotate(-15deg); color: #ffd700; }
+  75%  { transform: skewX(-4deg); filter: hue-rotate(10deg); color: #ffffff; }
+  100% { transform: skewX(0deg); filter: hue-rotate(0deg); }
+}
+
+@keyframes frenzyBorder {
+  0%,100% { box-shadow: 0 0 20px rgba(255,0,170,0.4), inset 0 0 20px rgba(255,0,170,0.05); }
+  50%      { box-shadow: 0 0 40px rgba(255,0,170,0.8), inset 0 0 40px rgba(255,0,170,0.2); }
+}
+
+@keyframes frenzySlam {
+  0%   { transform: scale(3) rotate(-3deg); opacity: 0; }
+  60%  { transform: scale(0.9) rotate(1deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes reelSpin {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-36px); }
+}
 </style>
 </head>
 <body>
@@ -515,6 +540,20 @@ body {
   <div id="floor-overlay">
     <div class="floor-complete-title" id="floor-complete-title">FLOOR BREACHED</div>
     <div class="floor-stats" id="floor-stats"></div>
+
+    <!-- Jackpot Slot Machine -->
+    <div id="jackpot-machine" style="display:flex;flex-direction:column;align-items:center;margin:12px 0;gap:8px;">
+      <div style="font-size:10px;color:#ff00aa;letter-spacing:3px;text-shadow:0 0 10px #ff00aa;">JACKPOT SLOTS</div>
+      <div style="display:flex;gap:6px;padding:8px;background:#0d0d18;border:1px solid #ff00aa44;border-radius:6px;box-shadow:0 0 15px #ff00aa22;">
+        <div class="reel" id="reel-0" style="width:32px;height:36px;background:#111122;border:1px solid #333;display:flex;align-items:center;justify-content:center;font-size:18px;color:#00f0ff;text-shadow:0 0 6px #00f0ff;">☢</div>
+        <div class="reel" id="reel-1" style="width:32px;height:36px;background:#111122;border:1px solid #333;display:flex;align-items:center;justify-content:center;font-size:18px;color:#00f0ff;text-shadow:0 0 6px #00f0ff;">☠</div>
+        <div class="reel" id="reel-2" style="width:32px;height:36px;background:#111122;border:1px solid #333;display:flex;align-items:center;justify-content:center;font-size:18px;color:#00f0ff;text-shadow:0 0 6px #00f0ff;">◈</div>
+      </div>
+      <div id="jp-banner" style="min-height:20px;"></div>
+      <button class="game-btn" id="jp-spin-btn" style="font-size:11px;padding:6px 16px;">SPIN</button>
+      <button class="game-btn secondary" id="jp-continue-btn" style="display:none;font-size:11px;padding:6px 16px;">CONTINUE</button>
+    </div>
+
     <button class="game-btn" id="floor-continue-btn">PROCEED</button>
   </div>
 
@@ -570,7 +609,19 @@ const GS = {
   unlockedUpgrades: [],
   payloadInventory: [],
   totalBallsUsed: 0,
-  totalPegsCleared: 0
+  totalPegsCleared: 0,
+  // Slot Protocol 2.0
+  timeScale: 1.0, // slow-mo scale
+  slowmoBall: null, // reference to ball with slowmo active
+  // Frenzy
+  comboCount: 0,
+  comboThreshold: 5,
+  frenzyActive: false,
+  frenzyReady: false,
+  // Jackpot
+  slotReels: [0, 0, 0],
+  slotSpinning: false,
+  slotResult: null
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -607,7 +658,12 @@ const PAYLOADS = {
   trojan: { name: 'TROJAN', icon: '◈', color: '#ff00aa', desc: 'Clone on hit', rarity: 'uncommon', cost: 100 },
   worm: { name: 'WORM', icon: '≡', color: '#00ffaa', desc: 'Pierce pegs', rarity: 'rare', cost: 200 },
   logicbomb: { name: 'LOGIC BOMB', icon: '✷', color: '#ffaa00', desc: 'Explode radius', rarity: 'rare', cost: 250 },
-  daemon: { name: 'DAEMON', icon: '✺', color: '#aa44ff', desc: 'Split x3', rarity: 'legendary', cost: 500 }
+  daemon: { name: 'DAEMON', icon: '✺', color: '#aa44ff', desc: 'Split x3', rarity: 'legendary', cost: 500 },
+  // Slot Protocol 2.0 payloads
+  ghost: { name: 'GHOST', icon: '▣', color: '#ff88ff', desc: 'Phase through 3-5 pegs', rarity: 'rare', cost: 175, unlockRank: 'Netrunner' },
+  cluster: { name: 'CLUSTER', icon: '✦', color: '#ffffff', desc: 'Split into 3 on first hit', rarity: 'legendary', cost: 450, unlockRank: 'Ghost' },
+  explosive: { name: 'EXPLOSIVE', icon: '✸', color: '#ff4400', desc: 'Explode all pegs in radius', rarity: 'uncommon', cost: 125, unlockRank: 'Script Kiddie+' },
+  slowmo: { name: 'SLOW-MO', icon: '◐', color: '#4488ff', desc: '50% time dilation', rarity: 'rare', cost: 200, unlockRank: 'Netrunner+' }
 };
 
 // ─── PEG DEFINITIONS ────────────────────────────────────────
@@ -618,7 +674,9 @@ const PEG_TYPES = {
   mirror:   { color: '#ffffff', glow: '#ffffff', radius: 6, bounce: 0.9, reflect: true, label: 'MIRROR' },
   cache:    { color: '#ffcc00', glow: '#ffcc00', radius: 8, bonus: true, bounce: 0.6, label: 'CACHE' },
   honeypot: { color: '#ff2244', glow: '#ff2244', radius: 9, trap: true, bounce: 0.5, label: 'HONEYPOT' },
-  overload: { color: '#ff00aa', glow: '#ff00aa', radius: 7, explosive: true, bounce: 0.7, label: 'OVERLOAD' }
+  overload: { color: '#ff00aa', glow: '#ff00aa', radius: 7, explosive: true, bounce: 0.7, label: 'OVERLOAD' },
+  crumbling:{ color: '#00f0ff', glow: '#00f0ff', radius: 6, bounce: 0.65, label: 'CRUMBLING', crumbling: true },
+  seismic:  { color: '#ff00aa', glow: '#ff00aa', radius: 7, bounce: 0.7, label: 'SEISMIC', seismic: true, points: 100 }
 };
 
 // ─── PHYSICS CONSTANTS ───────────────────────────────────────
@@ -638,13 +696,27 @@ class Ball {
     this.hitPegs = new Set();
     this.piercing = false;
     this.cloneSpawned = false;
+    // Ghost payload state
+    this.ghostPhasing = false;
+    this.ghostPhaseRemaining = 0;
+    this.ghostSplitTrail = []; // RGB ghost trail
+    // Cluster payload state
+    this.clusterSplit = false;
+    this.miniBalls = [];
+    // Explosive payload state
+    this.explosiveTriggered = false;
+    // Slow-mo payload state
+    this.slowmoActive = false;
   }
 
   update() {
     if (!this.active) return;
 
-    // Gravity
-    this.vy += GRAVITY;
+    // ── SLOW-MO: 50% time dilation ─────────────────────────
+    const timeScale = this.slowmoActive ? 0.5 : 1.0;
+
+    // Gravity (scaled)
+    this.vy += GRAVITY * timeScale;
 
     // Friction
     this.vx *= FRICTION;
@@ -656,14 +728,42 @@ class Ball {
       this.vy = (this.vy / spd) * MAX_VEL;
     }
 
-    // Move
-    this.x += this.vx;
-    this.y += this.vy;
+    // Move (scaled)
+    this.x += this.vx * timeScale;
+    this.y += this.vy * timeScale;
 
-    // Trail
+    // Trail — ghost trail stores RGB separate positions
     this.trail.unshift({ x: this.x, y: this.y, age: 0 });
-    if (this.trail.length > 12) this.trail.pop();
+    if (this.trail.length > 16) this.trail.pop();
     this.trail.forEach(t => t.age++);
+
+    // Ghost RGB split trail
+    if (this.ghostPhasing) {
+      this.ghostSplitTrail.unshift({
+        rx: this.x + 3, gx: this.x, bx: this.x - 3,
+        ry: this.y, gy: this.y, by: this.y,
+        age: 0
+      });
+      if (this.ghostSplitTrail.length > 10) this.ghostSplitTrail.pop();
+      this.ghostSplitTrail.forEach(t => t.age++);
+    } else {
+      this.ghostSplitTrail = [];
+    }
+
+    // Mini-balls (cluster)
+    for (let i = this.miniBalls.length - 1; i >= 0; i--) {
+      const mb = this.miniBalls[i];
+      mb.vy += GRAVITY;
+      mb.vx *= FRICTION;
+      mb.x += mb.vx;
+      mb.y += mb.vy;
+      mb.trail.unshift({ x: mb.x, y: mb.y, age: 0 });
+      if (mb.trail.length > 10) mb.trail.pop();
+      mb.trail.forEach(t => t.age++);
+      if (mb.y > H + 20) {
+        this.miniBalls.splice(i, 1);
+      }
+    }
 
     // Wall bounce
     if (this.x < BALL_RADIUS) { this.x = BALL_RADIUS; this.vx *= -0.8; }
@@ -679,7 +779,46 @@ class Ball {
   draw() {
     if (!this.active) return;
 
-    // Trail
+    // ── CLUSTER: draw mini-balls first ─────────────────────
+    this.miniBalls.forEach(mb => {
+      for (let i = mb.trail.length - 1; i >= 1; i--) {
+        const t = mb.trail[i];
+        const alpha = (1 - t.age / 15) * 0.6;
+        if (alpha > 0) {
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 4 * (1 - t.age / 15), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.fill();
+        }
+      }
+      ctx.beginPath();
+      ctx.arc(mb.x, mb.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // ── GHOST: RGB chromatic aberration trail ──────────────
+    if (this.ghostPhasing) {
+      this.ghostSplitTrail.forEach((t, idx) => {
+        const alpha = (1 - t.age / 12) * 0.4;
+        if (alpha <= 0) return;
+        // Red channel
+        ctx.beginPath();
+        ctx.arc(t.rx, t.ry, BALL_RADIUS * (1 - t.age / 12), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 100, 255, ${alpha})`;
+        ctx.fill();
+        // Cyan channel
+        ctx.beginPath();
+        ctx.arc(t.bx, t.by, BALL_RADIUS * (1 - t.age / 12), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 230, 255, ${alpha})`;
+        ctx.fill();
+      });
+    }
+
+    // ── NORMAL BALL / GHOST BALL TRAIL ────────────────────
     for (let i = this.trail.length - 1; i >= 1; i--) {
       const t = this.trail[i];
       const alpha = (1 - t.age / 20) * 0.5;
@@ -687,19 +826,79 @@ class Ball {
       if (alpha > 0) {
         ctx.beginPath();
         ctx.arc(t.x, t.y, Math.max(1, r), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 240, 255, ${alpha})`;
+        ctx.fillStyle = this.ghostPhasing
+          ? `rgba(220, 180, 255, ${alpha})`
+          : `rgba(0, 240, 255, ${alpha})`;
         ctx.fill();
       }
     }
 
-    // Ball
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 15;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    // ── MAIN BALL ────────────────────────────────────────
+    if (this.ghostPhasing) {
+      // Ghost: semi-transparent with shimmer
+      ctx.globalAlpha = 0.55 + Math.sin(Date.now() / 80) * 0.15;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = '#cc88ff';
+      ctx.shadowColor = '#ff00ff';
+      ctx.shadowBlur = 20 + Math.sin(Date.now() / 60) * 8;
+      ctx.fill();
+      // Chromatic aberration core
+      ctx.beginPath();
+      ctx.arc(this.x + 2, this.y, BALL_RADIUS * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,100,255,0.5)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this.x - 2, this.y, BALL_RADIUS * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,230,255,0.5)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    } else if (this.slowmoActive) {
+      // Slow-mo: octagonal/crystalline blue
+      ctx.beginPath();
+      const sides = 8;
+      for (let i = 0; i < sides; i++) {
+        const angle = (i / sides) * Math.PI * 2 - Math.PI / 8;
+        const bx = this.x + Math.cos(angle) * BALL_RADIUS;
+        const by = this.y + Math.sin(angle) * BALL_RADIUS;
+        i === 0 ? ctx.moveTo(bx, by) : ctx.lineTo(bx, by);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#4488ff';
+      ctx.shadowColor = '#4488ff';
+      ctx.shadowBlur = 20;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (this.explosiveTriggered) {
+      // Explosive: charged magenta with crackling lines
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BALL_RADIUS + 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff4400';
+      ctx.shadowColor = '#ff00aa';
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      // Energy lines
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        const angle = Date.now() / 100 + i * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + Math.cos(angle) * (BALL_RADIUS + 6), this.y + Math.sin(angle) * (BALL_RADIUS + 6));
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+    } else {
+      // Standard ball
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = this.miniBalls.length > 0 ? '#ffffff' : '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
 
     // Payload indicators
     if (this.payloads.length > 0) {
@@ -709,7 +908,7 @@ class Ball {
         const py = this.y + Math.sin(angle) * 14;
         ctx.beginPath();
         ctx.arc(px, py, 3, 0, Math.PI * 2);
-        ctx.fillStyle = PAYLOADS[p].color;
+        ctx.fillStyle = PAYLOADS[p] ? PAYLOADS[p].color : '#00f0ff';
         ctx.fill();
       });
     }
@@ -718,6 +917,8 @@ class Ball {
 
 // ─── PARTICLE SYSTEM ─────────────────────────────────────────
 const particles = [];
+const fragments = []; // Crumbling peg shards
+const shockwaves = []; // Seismic shockwave rings
 
 function spawnParticles(x, y, color, count = 8, spread = 3) {
   for (let i = 0; i < count; i++) {
@@ -730,6 +931,47 @@ function spawnParticles(x, y, color, count = 8, spread = 3) {
       decay: 0.03 + Math.random() * 0.02,
       size: 2 + Math.random() * 3
     });
+  }
+}
+
+function spawnFragments(x, y, color) {
+  for (let i = 0; i < 5; i++) {
+    fragments.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 2 - 1,
+      color,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.01,
+      size: 3 + Math.random() * 4,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.2
+    });
+  }
+}
+
+function spawnShockwave(x, y) {
+  shockwaves.push({ x, y, radius: 10, maxRadius: 80, life: 1, decay: 0.04 });
+}
+
+function updateFragments() {
+  for (let i = fragments.length - 1; i >= 0; i--) {
+    const f = fragments[i];
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vy += 0.15; // gravity
+    f.life -= f.decay;
+    f.rotation += f.rotSpeed;
+    if (f.life <= 0) fragments.splice(i, 1);
+  }
+}
+
+function updateShockwaves() {
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const s = shockwaves[i];
+    s.radius += (s.maxRadius - s.radius) * 0.15;
+    s.life -= s.decay;
+    if (s.life <= 0) shockwaves.splice(i, 1);
   }
 }
 
@@ -752,6 +994,45 @@ function drawParticles() {
     ctx.globalAlpha = p.life;
     ctx.fill();
     ctx.globalAlpha = 1;
+  });
+}
+
+function drawFragments() {
+  fragments.forEach(f => {
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rotation);
+    ctx.globalAlpha = f.life;
+    ctx.fillStyle = f.color;
+    ctx.shadowColor = f.color;
+    ctx.shadowBlur = 4;
+    // Draw irregular shard shape
+    ctx.beginPath();
+    ctx.moveTo(-f.size * 0.5, -f.size * 0.3);
+    ctx.lineTo(f.size * 0.3, -f.size * 0.5);
+    ctx.lineTo(f.size * 0.5, f.size * 0.2);
+    ctx.lineTo(0, f.size * 0.5);
+    ctx.lineTo(-f.size * 0.4, f.size * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+}
+
+function drawShockwaves() {
+  shockwaves.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ff00aa';
+    ctx.lineWidth = 3 * s.life;
+    ctx.globalAlpha = s.life * 0.7;
+    ctx.shadowColor = '#ff00aa';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
   });
 }
 
@@ -807,8 +1088,11 @@ function generateBoard(floor) {
       const offset = (row % 2) === 0 ? 0 : 30;
       for (let col = 0; col < cols; col++) {
         const x = 50 + offset + col * 60;
-        const type = Math.random() < 0.15 ? 'ice' : 'node';
-        board.push({ x, y, type, hitCount: 0, id: board.length });
+        const r = Math.random();
+        let type = 'node';
+        if (r < 0.12) type = 'ice';
+        if (floor >= 2 && r < 0.08) type = 'crumbling';
+        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
       }
     }
     // Cache pegs
@@ -830,12 +1114,14 @@ function generateBoard(floor) {
         const x = 40 + offset + col * 50;
         const r = Math.random();
         let type = 'node';
-        if (r < 0.1) type = 'ice';
-        else if (r < 0.18) type = 'fiber';
-        else if (r < 0.22) type = 'mirror';
-        else if (r < 0.26) type = 'honeypot';
-        else if (r < 0.30) type = 'overload';
-        board.push({ x, y, type, hitCount: 0, id: board.length });
+        if (r < 0.10) type = 'ice';
+        else if (r < 0.16) type = 'fiber';
+        else if (r < 0.20) type = 'mirror';
+        else if (r < 0.23) type = 'honeypot';
+        else if (r < 0.26) type = 'overload';
+        else if (r < 0.20 + (floor === 4 ? 0.08 : 0.04)) type = 'crumbling';
+        else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
+        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
       }
     }
     for (let i = 0; i < 5; i++) {
@@ -859,10 +1145,12 @@ function generateBoard(floor) {
         const x = 50 + offset + col * 65;
         const r = Math.random();
         let type = 'node';
-        if (r < 0.15) type = 'ice';
-        else if (r < 0.25) type = 'overload';
-        else if (r < 0.30) type = 'honeypot';
-        board.push({ x, y, type, hitCount: 0, id: board.length });
+        if (r < 0.12) type = 'ice';
+        else if (r < 0.18) type = 'overload';
+        else if (r < 0.22) type = 'honeypot';
+        else if (r < 0.27) type = 'crumbling';
+        else if (r < 0.32) type = 'seismic';
+        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
       }
     }
   }
@@ -921,6 +1209,33 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   const dot = ball.vx * nx + ball.vy * ny;
   const bounce = pegDef.bounce || 0.65;
 
+  // ── GHOST PAYLOAD: phase through pegs without bounce ─────
+  if (ball.ghostPhasing && ball.ghostPhaseRemaining > 0) {
+    ball.ghostPhaseRemaining--;
+    spawnParticles(peg.x, peg.y, '#ff88ff', 6, 2);
+    spawnFloatText(peg.x, peg.y - 8, `PHASE ${ball.ghostPhaseRemaining}`, '#cc88ff');
+    if (ball.ghostPhaseRemaining === 0) {
+      // Solidify
+      ball.ghostPhasing = false;
+      triggerFlash('#ffffff44', 0.2);
+      spawnFloatText(ball.x, ball.y - 15, 'SOLIDIFY', '#ffffff');
+    }
+    // Phase through — no bounce, just visual contact feedback
+    GS.comboCount++;
+    checkFrenzy();
+    // Still increment score/progress for peg contact
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier;
+    GS.floorObjective.progress++;
+    GS.totalPegsCleared++;
+    GS.chainTimer = 30;
+    GS.multiplier = Math.min(7, GS.multiplier + 1);
+    updateMultiplierDisplay();
+    peg.hitCount++;
+    updateHUD();
+    updateObjectiveBar();
+    return; // skip normal bounce
+  }
+
   if (pegDef.reflect) {
     // Mirror: reflect across surface
     ball.vx -= 2 * dot * nx;
@@ -953,10 +1268,76 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   GS.floorObjective.progress++;
   GS.totalPegsCleared++;
 
+  // Payload effects on peg contact
+  if (ball.payloads.length > 0) {
+    for (const payload of ball.payloads) {
+      switch (payload) {
+        case 'cluster':
+          if (!ball.clusterSplit) {
+            ball.clusterSplit = true;
+            const baseAngle = Math.atan2(ball.vy, ball.vx);
+            const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) * 1.3;
+            const angles = [baseAngle - 0.5, baseAngle, baseAngle + 0.5];
+            angles.forEach(angle => {
+              ball.miniBalls.push({
+                x: ball.x, y: ball.y,
+                vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                trail: [], active: true
+              });
+            });
+            spawnParticles(ball.x, ball.y, '#ffffff', 15, 6);
+            spawnFloatText(ball.x, ball.y - 15, 'CLUSTER!', '#ffffff');
+            triggerFlash('#ffffff33', 0.15);
+          }
+          break;
+        case 'explosive':
+          if (!ball.explosiveTriggered) {
+            ball.explosiveTriggered = true;
+            triggerFlash('#ff440033', 0.2);
+            triggerShake(8);
+            spawnFloatText(ball.x, ball.y, 'BOOM!', '#ff4400');
+            for (const other of GS.board) {
+              if (other.destroyed) continue;
+              const edx = other.x - ball.x;
+              const edy = other.y - ball.y;
+              const eDist = Math.sqrt(edx * edx + edy * edy);
+              if (eDist < 80) {
+                other.destroyed = true;
+                GS.floorObjective.progress++;
+                spawnParticles(other.x, other.y, PEG_TYPES[other.type].color, 8, 3);
+                GS.score += 50;
+              }
+            }
+            for (let i = 0; i < 12; i++) {
+              const angle = (i / 12) * Math.PI * 2;
+              particles.push({
+                x: ball.x, y: ball.y,
+                vx: Math.cos(angle) * 6, vy: Math.sin(angle) * 6,
+                color: '#ff4400', life: 1, decay: 0.05, size: 4
+              });
+            }
+          }
+          break;
+        case 'slowmo':
+          if (ball.slowmoActive) {
+            ball.slowmoActive = false;
+            GS.slowmoBall = null;
+            GS.timeScale = 1.0;
+            spawnFloatText(ball.x, ball.y - 15, 'SLOW-MO END', '#4488ff');
+          }
+          break;
+      }
+    }
+  }
+
   // Chain multiplier
   GS.chainTimer = 30; // ~0.5s at 60fps
   GS.multiplier = Math.min(7, GS.multiplier + 1);
   updateMultiplierDisplay();
+
+  // Frenzy combo counter
+  GS.comboCount++;
+  checkFrenzy();
 
   // Multiplier text
   if (GS.multiplier > 1) {
@@ -1023,31 +1404,32 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     }
   }
 
-  // Payload effects on contact
-  handlePayloadOnHit(ball, peg);
-
-  updateHUD();
-  updateObjectiveBar();
-}
-
-function handlePayloadOnHit(ball, peg) {
-  for (const p of ball.payloads) {
-    switch(p) {
-      case 'trojan':
-        if (!ball.cloneSpawned) {
-          ball.cloneSpawned = true;
-          GS.ballsInPlay.push(new Ball(ball.x, ball.y, ball.vx * 0.8, ball.vy * 0.6, []));
-          GS.ballsInPlay.push(new Ball(ball.x, ball.y, ball.vx * 0.8, ball.vy * 0.6, []));
-          spawnFloatText(ball.x, ball.y - 15, 'CLONE!', '#ff00aa');
-        }
-        break;
-      case 'logicbomb':
-        // Delayed explosion on ball exit
-        break;
-      case 'worm':
-        ball.piercing = true;
-        break;
+  // ── CRUMBLING PEG ──────────────────────────────────────────
+  if (pegDef.crumbling) {
+    peg.hitsRemaining--;
+    if (peg.hitsRemaining <= 0) {
+      peg.destroyed = true;
+      spawnFragments(peg.x, peg.y, pegDef.color);
+      spawnFloatText(peg.x, peg.y, 'SHATTER!', '#00f0ff');
+      // Crumbling pegs award 0 points — don't add to score
+      GS.floorObjective.progress--; // undo the ++ above since crumbling gives no points
+      GS.totalPegsCleared--;        // same
+    } else {
+      // Critical hit indicator on 1-hit remaining
+      if (peg.hitsRemaining === 1) {
+        spawnFloatText(peg.x, peg.y - 12, 'CRITICAL!', '#ff00aa');
+      }
     }
+  }
+
+  // ── SEISMIC PEG ────────────────────────────────────────────
+  if (pegDef.seismic) {
+    triggerShake(6);
+    triggerFlash('#ff00aa22', 0.15);
+    spawnShockwave(peg.x, peg.y);
+    spawnParticles(peg.x, peg.y, '#ff00aa', 20, 5); // 2x spark burst
+    GS.score += 100 * GS.multiplier; // flat +100 bonus
+    spawnFloatText(peg.x, peg.y, '+100', '#ff00aa');
   }
 }
 
@@ -1108,6 +1490,27 @@ function dropBall() {
   const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, [...GS.currentPayloads]);
   GS.ballsInPlay = [ball];
 
+  // Initialize Slot Protocol 2.0 payload states
+  GS.comboCount = 0;
+  for (const p of GS.currentPayloads) {
+    if (p === 'ghost') {
+      ball.ghostPhasing = true;
+      ball.ghostPhaseRemaining = 3 + Math.floor(Math.random() * 3); // 3-5 phases
+    }
+    if (p === 'slowmo') {
+      ball.slowmoActive = true;
+      GS.slowmoBall = ball;
+      GS.timeScale = 0.5;
+    }
+    if (p === 'cluster') {
+      ball.clusterSplit = false;
+      ball.miniBalls = [];
+    }
+    if (p === 'explosive') {
+      ball.explosiveTriggered = false;
+    }
+  }
+
   // Clear payloads after use
   GS.currentPayloads = [];
   updatePayloadSlots();
@@ -1135,6 +1538,32 @@ function updateHUD() {
     const dot = document.createElement('div');
     dot.className = 'ball-dot' + (i >= GS.balls ? ' empty' : '');
     ballsEl.appendChild(dot);
+  }
+
+  // Combo counter (Slot Protocol 2.0)
+  let comboEl = document.getElementById('combo-display');
+  if (!comboEl) {
+    comboEl = document.createElement('div');
+    comboEl.id = 'combo-display';
+    comboEl.style.cssText = 'position:absolute;bottom:55px;left:50%;transform:translateX(-50%);font-size:10px;color:#ff00aa;z-index:20;letter-spacing:1px;text-shadow:0 0 8px #ff00aa;';
+    document.getElementById('game-container').appendChild(comboEl);
+  }
+  comboEl.innerHTML = `<span style="color:#666">DROPPING:</span> ${GS.comboCount}<span style="color:#666">/${GS.comboThreshold}</span>` + (GS.frenzyReady ? ' <span style="color:#ff00aa">FRENZY!</span>' : '');
+
+  // Frenzy border pulse
+  const gc = document.getElementById('game-container');
+  if (GS.frenzyActive) {
+    gc.style.boxShadow = '0 0 30px rgba(255,0,170,0.6), inset 0 0 30px rgba(255,0,170,0.1)';
+  } else {
+    gc.style.boxShadow = '';
+  }
+}
+
+function checkFrenzy() {
+  if (GS.comboCount >= GS.comboThreshold && !GS.frenzyReady) {
+    GS.frenzyReady = true;
+    spawnFloatText(W / 2, H / 2, 'FRENZY READY!', '#ff00aa');
+    triggerFlash('#ff00aa33', 0.3);
   }
 }
 
@@ -1201,6 +1630,78 @@ function completeFloor() {
   `;
 
   document.getElementById('floor-overlay').classList.add('active');
+
+  // ── JACKPOT SLOT MACHINE ─────────────────────────────────
+  // Use MutationObserver to handle timing for overlay activation
+  if (!window._jpObserver) {
+    window._jpObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          const overlay = document.getElementById('floor-overlay');
+          if (overlay && overlay.classList.contains('active')) {
+            initJackpotSlots();
+          }
+        }
+      }
+    });
+    window._jpObserver.observe(document.getElementById('floor-overlay'), { attributes: true });
+  }
+}
+
+function initJackpotSlots() {
+  const reels = [
+    document.getElementById('reel-0'),
+    document.getElementById('reel-1'),
+    document.getElementById('reel-2')
+  ];
+  const jpBanner = document.getElementById('jp-banner');
+  const jpBtn = document.getElementById('jp-spin-btn');
+  const jpContinueBtn = document.getElementById('jp-continue-btn');
+
+  const symbols = ['☠','☢','✦','◈','✧'];
+  reels.forEach(r => r && (r.textContent = symbols[Math.floor(Math.random() * symbols.length)]));
+  if (jpBanner) { jpBanner.style.display = 'none'; jpBanner.textContent = ''; }
+  if (jpContinueBtn) jpContinueBtn.style.display = 'none';
+
+  if (jpBtn) {
+    jpBtn.style.display = 'inline-block';
+    jpBtn.onclick = () => {
+      jpBtn.style.display = 'none';
+      const spinDurations = [1200, 1800, 2400];
+      reels.forEach((reel, i) => {
+        let count = 0;
+        const spin = setInterval(() => {
+          reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+          count++;
+          if (count > 8 + i * 4) {
+            clearInterval(spin);
+            reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+          }
+        }, 60 + i * 30);
+        setTimeout(() => {
+          clearInterval(spin);
+          reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+        }, spinDurations[i]);
+      });
+      setTimeout(() => {
+        const [a, b, c] = reels.map(r => r.textContent);
+        if (a === b && b === c) {
+          const bonus = 500 * GS.floor;
+          GS.score += bonus;
+          GS.breachCredits += Math.floor(bonus / 10);
+          if (jpBanner) {
+            jpBanner.style.cssText = 'display:block;text-align:center;font-size:18px;color:#ffd700;font-weight:bold;' +
+              'text-shadow:0 0 20px #ffd700,2px 2px 0 #ff6600;-webkit-text-stroke:1px #ff6600;' +
+              'animation:jpGlitch 0.3s ease-in-out 3 alternate;';
+            jpBanner.innerHTML = `JACKPOT! +${bonus}`;
+          }
+          triggerFlash('#ffd70066', 0.5);
+          spawnParticles(W/2, H/2, '#ffd700', 30, 8);
+        }
+        if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
+      }, spinDurations[2] + 200);
+    };
+  }
 }
 
 // ─── SHOP ────────────────────────────────────────────────────
@@ -1447,6 +1948,57 @@ function drawPegs() {
       }
     }
 
+    // ── CRUMBLING PEG: cracked overlay + hit dots ─────────────
+    if (pegDef.crumbling && !peg.destroyed) {
+      const pegColor = def.color;
+      // Crack lines overlay
+      ctx.strokeStyle = pegColor + '88';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(peg.x - def.radius * 0.3, peg.y - def.radius * 0.5);
+      ctx.lineTo(peg.x + def.radius * 0.2, peg.y + def.radius * 0.1);
+      ctx.moveTo(peg.x + def.radius * 0.4, peg.y - def.radius * 0.2);
+      ctx.lineTo(peg.x - def.radius * 0.1, peg.y + def.radius * 0.4);
+      ctx.moveTo(peg.x - def.radius * 0.5, peg.y + def.radius * 0.2);
+      ctx.lineTo(peg.x + def.radius * 0.3, peg.y - def.radius * 0.3);
+      ctx.stroke();
+
+      // Hit counter dots below peg
+      const maxHits = peg.hitsRemaining + (peg.hitCount || 0);
+      const remaining = peg.hitsRemaining;
+      for (let i = 0; i < maxHits; i++) {
+        ctx.beginPath();
+        ctx.arc(peg.x - (maxHits - 1) * 3 + i * 6, peg.y + def.radius + 6, 2, 0, Math.PI * 2);
+        ctx.fillStyle = i < remaining ? pegColor : '#333';
+        ctx.shadowColor = pegColor;
+        ctx.shadowBlur = i < remaining ? 4 : 0;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Pulse red when 1 hit remaining
+      if (peg.hitsRemaining === 1) {
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ff00aa66';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // ── SEISMIC PEG: bass-line oscillation glow ───────────────
+    if (pegDef.seismic && !peg.destroyed) {
+      const osc = 0.7 + Math.sin(time * 6 + peg.y * 0.05) * 0.3;
+      ctx.shadowColor = '#ff00aa';
+      ctx.shadowBlur = 15 * osc;
+      // Re-draw peg with animated glow
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff00aa';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
     // Boss target
     if (peg.boss) {
       const hpct = (peg.hits || 0) / peg.maxHits;
@@ -1510,6 +2062,8 @@ function render() {
 
   // Particles
   drawParticles();
+  drawFragments();
+  drawShockwaves();
 
   // Float texts
   drawFloatTexts();
@@ -1522,6 +2076,15 @@ function render() {
     ctx.globalAlpha = 1;
     screenFlash *= 0.85;
     if (screenFlash < 0.01) screenFlash = 0;
+  }
+
+  // ── SLOW-MO: time dilation vignette ──────────────────────
+  if (GS.slowmoBall && GS.slowmoBall.slowmoActive) {
+    const vignette = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.7);
+    vignette.addColorStop(0, 'transparent');
+    vignette.addColorStop(1, 'rgba(30, 60, 120, 0.4)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
   }
 
   ctx.restore();
@@ -1552,6 +2115,8 @@ function update() {
 
   // Update particles
   updateParticles();
+  updateFragments();
+  updateShockwaves();
   updateFloatTexts();
 
   // Check no balls and no balls left

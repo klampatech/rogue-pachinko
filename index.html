@@ -750,11 +750,9 @@ class Ball {
       this.ghostSplitTrail = [];
     }
 
-    // Mini-balls (cluster)
+    // Mini-balls (cluster) — no gravity, no friction: linear trajectory per spec
     for (let i = this.miniBalls.length - 1; i >= 0; i--) {
       const mb = this.miniBalls[i];
-      mb.vy += GRAVITY;
-      mb.vx *= FRICTION;
       mb.x += mb.vx;
       mb.y += mb.vy;
       mb.trail.unshift({ x: mb.x, y: mb.y, age: 0 });
@@ -1092,7 +1090,10 @@ function generateBoard(floor) {
         let type = 'node';
         if (r < 0.12) type = 'ice';
         if (floor >= 2 && r < 0.08) type = 'crumbling';
-        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+        });
       }
     }
     // Cache pegs
@@ -1121,7 +1122,10 @@ function generateBoard(floor) {
         else if (r < 0.26) type = 'overload';
         else if (r < 0.20 + (floor === 4 ? 0.08 : 0.04)) type = 'crumbling';
         else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
-        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+        });
       }
     }
     for (let i = 0; i < 5; i++) {
@@ -1150,7 +1154,10 @@ function generateBoard(floor) {
         else if (r < 0.22) type = 'honeypot';
         else if (r < 0.27) type = 'crumbling';
         else if (r < 0.32) type = 'seismic';
-        board.push({ x, y, type, hitCount: 0, id: board.length, hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0 });
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+        });
       }
     }
   }
@@ -1685,18 +1692,27 @@ function initJackpotSlots() {
       });
       setTimeout(() => {
         const [a, b, c] = reels.map(r => r.textContent);
+        const mult = GS.frenzyReady ? 3 : 1;
+        GS.frenzyReady = false;
         if (a === b && b === c) {
-          const bonus = 500 * GS.floor;
-          GS.score += bonus;
+          const bonus = 500 * GS.floor * mult;
           GS.breachCredits += Math.floor(bonus / 10);
           if (jpBanner) {
             jpBanner.style.cssText = 'display:block;text-align:center;font-size:18px;color:#ffd700;font-weight:bold;' +
               'text-shadow:0 0 20px #ffd700,2px 2px 0 #ff6600;-webkit-text-stroke:1px #ff6600;' +
               'animation:jpGlitch 0.3s ease-in-out 3 alternate;';
-            jpBanner.innerHTML = `JACKPOT! +${bonus}`;
+            jpBanner.innerHTML = mult > 1 ? `JACKPOT! +${bonus} x${mult} FRENZY!` : `JACKPOT! +${bonus}`;
           }
           triggerFlash('#ffd70066', 0.5);
           spawnParticles(W/2, H/2, '#ffd700', 30, 8);
+        } else if (a === b || b === c) {
+          const minor = 100 * GS.floor * mult;
+          GS.breachCredits += Math.floor(minor / 10);
+          if (jpBanner) {
+            jpBanner.style.cssText = 'display:block;text-align:center;font-size:16px;color:#aaaaff;font-weight:bold;';
+            jpBanner.innerHTML = mult > 1 ? `NEAR MISS +${minor} x${mult} FRENZY!` : `NEAR MISS +${minor}`;
+          }
+          triggerFlash('#aaaaff44', 0.3);
         }
         if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       }, spinDurations[2] + 200);
@@ -1711,6 +1727,10 @@ const SHOP_ITEMS = [
   { id: 'worm', type: 'payload', name: 'WORM', icon: '≡', cost: 200, desc: 'Ball pierces through pegs' },
   { id: 'logicbomb', type: 'payload', name: 'LOGIC BOMB', icon: '✷', cost: 250, desc: 'Explodes nearby pegs on exit' },
   { id: 'daemon', type: 'payload', name: 'DAEMON', icon: '✺', cost: 500, desc: 'Ball splits into 3 on impact' },
+  { id: 'ghost', type: 'payload', name: 'GHOST BALL', icon: '👻', cost: 300, desc: 'Phase through pegs — no bounce' },
+  { id: 'cluster', type: 'payload', name: 'CLUSTER BALL', icon: '✦', cost: 350, desc: 'Splits into 3 balls on first hit' },
+  { id: 'explosive', type: 'payload', name: 'EXPLOSIVE', icon: '💥', cost: 400, desc: 'Explodes all nearby pegs on hit' },
+  { id: 'slowmo', type: 'payload', name: 'SLOW-MO', icon: '⏱', cost: 250, desc: 'Time slows — ball exits slow' },
   { id: 'extralife', type: 'upgrade', name: 'EXTRA BALL', icon: '●', cost: 300, desc: '+1 starting ball each run' },
   { id: 'multiball', type: 'upgrade', name: 'MULTI-DROP', icon: '●●', cost: 400, desc: 'Drop 2 balls at once' },
   { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' }
@@ -1726,17 +1746,23 @@ function openShop() {
   for (const item of SHOP_ITEMS) {
     const owned = GS.unlockedPayloads.includes(item.id) || GS.unlockedUpgrades.includes(item.id);
     const canAfford = GS.breachCredits >= item.cost;
+    const payloadDef = item.type === 'payload' ? PAYLOADS[item.id] : null;
+    const lockedRank = payloadDef?.unlockRank;
+    const rankLocked = lockedRank && !GS.unlockedPayloads.includes(item.id) && !GS.unlockedUpgrades.includes(item.id);
+    const rankMet = !lockedRank || (GS.rank && GS.rank >= lockedRank.replace('+',''));
 
     const el = document.createElement('div');
-    el.className = 'shop-item' + (owned ? ' owned' : '');
+    el.className = 'shop-item' + (owned ? ' owned' : '') + (rankLocked && !rankMet ? ' locked' : '');
 
     el.innerHTML = `
       <div class="item-icon">${item.icon}</div>
-      <div class="item-name">${item.name}</div>
+      <div class="item-name">${item.name}${rankLocked && !rankMet ? ' 🔒' : ''}</div>
       <div class="item-desc">${item.desc}</div>
       ${owned
         ? '<div class="item-owned-badge">✓ OWNED</div>'
-        : `<div class="item-cost">◈ ${item.cost}</div>
+        : rankLocked && !rankMet
+          ? `<div class="item-cost" style="font-size:9px;color:#666;">Requires: ${lockedRank}</div>`
+          : `<div class="item-cost">◈ ${item.cost}</div>
            <button class="shop-buy-btn" ${canAfford ? '' : 'disabled'} data-id="${item.id}">BUY</button>`
       }
     `;
@@ -1921,6 +1947,7 @@ function drawPegs() {
     if (peg.destroyed) continue;
 
     const def = PEG_TYPES[peg.type];
+    const pegColor = peg.crumblingColor || def.color;
     const pulse = 0.8 + Math.sin(time * 2 + peg.x * 0.1) * 0.2;
 
     // Glow
@@ -1932,8 +1959,8 @@ function drawPegs() {
     // Peg body
     ctx.beginPath();
     ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
-    ctx.fillStyle = def.color;
-    ctx.shadowColor = def.glow;
+    ctx.fillStyle = pegColor;
+    ctx.shadowColor = pegColor;
     ctx.shadowBlur = 8 * pulse;
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -1950,7 +1977,7 @@ function drawPegs() {
 
     // ── CRUMBLING PEG: cracked overlay + hit dots ─────────────
     if (pegDef.crumbling && !peg.destroyed) {
-      const pegColor = def.color;
+      const pegColor = peg.crumblingColor || def.color;
       // Crack lines overlay
       ctx.strokeStyle = pegColor + '88';
       ctx.lineWidth = 1;

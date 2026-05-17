@@ -1976,7 +1976,7 @@ function drawPegs() {
     }
 
     // ── CRUMBLING PEG: cracked overlay + hit dots ─────────────
-    if (pegDef.crumbling && !peg.destroyed) {
+    if (def.crumbling && !peg.destroyed) {
       const pegColor = peg.crumblingColor || def.color;
       // Crack lines overlay
       ctx.strokeStyle = pegColor + '88';
@@ -2014,7 +2014,7 @@ function drawPegs() {
     }
 
     // ── SEISMIC PEG: bass-line oscillation glow ───────────────
-    if (pegDef.seismic && !peg.destroyed) {
+    if (def.seismic && !peg.destroyed) {
       const osc = 0.7 + Math.sin(time * 6 + peg.y * 0.05) * 0.3;
       ctx.shadowColor = '#ff00aa';
       ctx.shadowBlur = 15 * osc;

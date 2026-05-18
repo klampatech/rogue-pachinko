@@ -970,10 +970,15 @@ function loadPersist() {
   } catch(e) {
     PERSIST = {};
   }
+  // Ensure meta object exists for evaluateUnlocks / checkPrestigeEligibility
+  if (!PERSIST.meta) {
+    PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
+  }
 }
 function savePersist() {
   PERSIST.unlockedPayloads = GS.unlockedPayloads;
   PERSIST.unlockedUpgrades = GS.unlockedUpgrades;
+  PERSIST.reputation = GS.reputation;
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
   PERSIST.totalRuns = PERSIST.totalRuns || 0;
   PERSIST.totalRuns++;
@@ -982,6 +987,8 @@ function savePersist() {
   PERSIST.bestScore = PERSIST.bestScore || 0;
   PERSIST.lastScore = GS.score;
   if (GS.score > PERSIST.bestScore) PERSIST.bestScore = GS.score;
+  // Preserve meta object across saves
+  if (!PERSIST.meta) PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
 }
 
@@ -2951,7 +2958,7 @@ function endRun(won) {
     : `<div style="font-size:9px;color:#555;margin-top:6px;">${unlockCount}/${totalUnlocks} unlocks (${unlockPct}%) — ${Math.round((1 - unlockPct/100) * totalUnlocks)} more to prestige</div>`;
 
   stats.innerHTML = `
-    <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}/5</span></div>
+    <div>FLOOR REACHED: <span class="runend-stat-value">${Math.min(GS.floor, 5)}/5</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}</span></div>
     ${PERSIST.bestScore ? `<div style="font-size:9px;color:#555;">BEST: ${PERSIST.bestScore.toLocaleString()} ${GS.score >= PERSIST.bestScore ? '★ NEW BEST!' : ''}</div>` : ''}

@@ -627,6 +627,9 @@ body {
       <div>RANK: <span class="stat-rank" id="menu-rank">SCRIPT KIDDIE</span></div>
       <div>REPUTATION: <span class="stat-value" id="menu-rep">0</span></div>
       <div>LIFETIME BREACH: <span class="stat-value" id="menu-breach">0</span></div>
+      <div>BEST FLOOR: <span class="stat-value" id="menu-bestfloor">0</span></div>
+      <div>TOTAL RUNS: <span class="stat-value" id="menu-totalruns">0</span></div>
+      <div>BEST SCORE: <span class="stat-value" id="menu-bestscore">0</span></div>
     </div>
     <button class="game-btn" id="start-btn">INITIATE BREACH</button>
     <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
@@ -913,6 +916,8 @@ function loadPersist() {
     GS.lifetimeBreach = PERSIST.lifetimeBreach || 0;
     GS.totalRuns = PERSIST.totalRuns || 0;
     GS.bestFloor = PERSIST.bestFloor || 0;
+    GS.bestScore = PERSIST.bestScore || 0;
+    GS.lastScore = PERSIST.lastScore || 0;
   } catch(e) {
     PERSIST = {};
   }
@@ -920,10 +925,14 @@ function loadPersist() {
 function savePersist() {
   PERSIST.unlockedPayloads = GS.unlockedPayloads;
   PERSIST.unlockedUpgrades = GS.unlockedUpgrades;
-  PERSIST.reputation = GS.reputation;
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
+  PERSIST.totalRuns = PERSIST.totalRuns || 0;
   PERSIST.totalRuns++;
+  PERSIST.bestFloor = PERSIST.bestFloor || 0;
   if (GS.floor > PERSIST.bestFloor) PERSIST.bestFloor = GS.floor;
+  PERSIST.bestScore = PERSIST.bestScore || 0;
+  PERSIST.lastScore = GS.score;
+  if (GS.score > PERSIST.bestScore) PERSIST.bestScore = GS.score;
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
 }
 
@@ -2415,6 +2424,9 @@ function updateMenuStats() {
   document.getElementById('menu-rank').textContent = GS.rank;
   document.getElementById('menu-rep').textContent = GS.reputation;
   document.getElementById('menu-breach').textContent = PERSIST.lifetimeBreach.toLocaleString();
+  document.getElementById('menu-bestfloor').textContent = PERSIST.bestFloor || 0;
+  document.getElementById('menu-totalruns').textContent = PERSIST.totalRuns || 0;
+  document.getElementById('menu-bestscore').textContent = (PERSIST.bestScore || 0).toLocaleString();
 }
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
@@ -2891,7 +2903,9 @@ function endRun(won) {
 
   stats.innerHTML = `
     <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}/5</span></div>
+    <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}</span></div>
+    ${PERSIST.bestScore ? `<div style="font-size:9px;color:#555;">BEST: ${PERSIST.bestScore.toLocaleString()} ${GS.score >= PERSIST.bestScore ? '★ NEW BEST!' : ''}</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
     <div>CREDITS EARNED: <span class="runend-stat-value" style="color:#00f0ff;">+${creditGain}</span></div>

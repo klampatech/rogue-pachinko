@@ -1037,6 +1037,8 @@ class Ball {
     // Mini-balls (cluster) — no gravity, no friction: linear trajectory per spec
     for (let i = this.miniBalls.length - 1; i >= 0; i--) {
       const mb = this.miniBalls[i];
+      const mbColor = getMultColor(mb.dropMultiplier || 1);
+      const rgb = hexToRgb(mbColor.color);
       mb.x += mb.vx;
       mb.y += mb.vy;
       mb.trail.unshift({ x: mb.x, y: mb.y, age: 0 });
@@ -1063,21 +1065,23 @@ class Ball {
 
     // ── CLUSTER: draw mini-balls first ─────────────────────
     this.miniBalls.forEach(mb => {
+      const mbColor = getMultColor(mb.dropMultiplier || 1);
+      const rgb = hexToRgb(mbColor.color);
       for (let i = mb.trail.length - 1; i >= 1; i--) {
         const t = mb.trail[i];
         const alpha = (1 - t.age / 15) * 0.6;
         if (alpha > 0) {
           ctx.beginPath();
           ctx.arc(t.x, t.y, 4 * (1 - t.age / 15), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
           ctx.fill();
         }
       }
       ctx.beginPath();
       ctx.arc(mb.x, mb.y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 10;
+      ctx.fillStyle = mbColor.color;
+      ctx.shadowColor = mbColor.color;
+      ctx.shadowBlur = mbColor.blur;
       ctx.fill();
       ctx.shadowBlur = 0;
     });
@@ -1662,7 +1666,8 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               ball.miniBalls.push({
                 x: ball.x, y: ball.y,
                 vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                trail: [], active: true, isOverloadChild: ball.isOverloaded
+                trail: [], active: true, isOverloadChild: ball.isOverloaded,
+                dropMultiplier: ball.dropMultiplier
               });
             });
             spawnParticles(ball.x, ball.y, '#ffffff', 15, 6);

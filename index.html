@@ -84,6 +84,7 @@ body {
 }
 
 #hud-left { display: flex; gap: 16px; }
+#hud-center { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 #hud-right { display: flex; gap: 12px; align-items: center; }
 
 .hud-label { color: #666; font-size: 9px; }
@@ -91,6 +92,7 @@ body {
 
 #floor-indicator { color: #ff00aa; text-shadow: 0 0 8px #ff00aa; }
 #score-value { color: #00f0ff; }
+#jackpot-display { color: #ffd700; text-shadow: 0 0 8px #ffd700, 0 0 16px #ffd70055; font-size: 12px; }
 #balls-display { display: flex; gap: 3px; }
 .ball-dot {
   width: 8px; height: 8px;
@@ -531,6 +533,10 @@ body {
         <div id="score-value" class="hud-value">0</div>
       </div>
     </div>
+    <div id="hud-center">
+      <div class="hud-label">JACKPOT</div>
+      <div id="jackpot-display" class="hud-value jackpot-value">500</div>
+    </div>
     <div id="hud-right">
       <div id="balls-display"></div>
       <button id="shop-btn">SHOP</button>
@@ -670,7 +676,10 @@ const GS = {
   // Jackpot
   slotReels: [0, 0, 0],
   slotSpinning: false,
-  slotResult: null
+  slotResult: null,
+  jackpotPool: 500,   // grows 15% per failed spin, resets to 500*floor on win
+  jackpotBase: 500,   // floor-dependent base (500 * floor)
+  totalJackpotSpins: 0,
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -879,6 +888,22 @@ const GRAVITY = 0.18;
 const FRICTION = 0.995;
 const MAX_VEL = 14;
 const BALL_RADIUS = 7;
+
+// Multiplier tier colors — x1 dim cyan → x7 blazing white
+const MULT_COLORS = {
+  1: { color: '#00c8d4', glow: '#00c8d4', blur: 10 },
+  2: { color: '#ffee00', glow: '#ffee00', blur: 14 },
+  3: { color: '#ff8800', glow: '#ff8800', blur: 18 },
+  4: { color: '#ff4400', glow: '#ff4400', blur: 22 },
+  5: { color: '#ff2244', glow: '#ff2244', blur: 26 },
+  6: { color: '#cc44ff', glow: '#cc44ff', blur: 30 },
+  7: { color: '#ffffff', glow: '#ffffff', blur: 35 },
+};
+
+function getMultColor(mult) {
+  const tier = Math.min(7, Math.max(1, mult));
+  return MULT_COLORS[tier] || MULT_COLORS[1];
+}
 
 // ─── PEG EVOLUTION SYSTEM (Spec 1) ───────────────────────────
 // 5-state machine: Dormant → Normal → Glowing → Charged → Explosive
@@ -1119,12 +1144,13 @@ class Ball {
       }
       ctx.shadowBlur = 0;
     } else {
-      // Standard ball
+      // Standard ball — color driven by cascade multiplier tier
+      const mc = getMultColor(GS.multiplier);
       ctx.beginPath();
       ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = this.miniBalls.length > 0 ? '#ffffff' : '#00f0ff';
-      ctx.shadowColor = '#00f0ff';
-      ctx.shadowBlur = 15;
+      ctx.fillStyle = this.miniBalls.length > 0 ? '#ffffff' : mc.color;
+      ctx.shadowColor = mc.glow;
+      ctx.shadowBlur = mc.blur;
       ctx.fill();
       ctx.shadowBlur = 0;
     }
@@ -1935,6 +1961,7 @@ function updateMultiplierDisplay() {
 function updateHUD() {
   document.getElementById('floor-indicator').textContent = `${GS.floor}/5`;
   document.getElementById('score-value').textContent = GS.score.toLocaleString();
+  document.getElementById('jackpot-display').textContent = (GS.jackpotPool || 500).toLocaleString();
 
   // Balls display
   const ballsEl = document.getElementById('balls-display');
@@ -2085,32 +2112,38 @@ function initJackpotSlots() {
     const mult = GS.frenzyReady ? 3 : 1;
     GS.frenzyReady = false;
     if (a === b && b === c) {
-      const bonus = 500 * GS.floor * mult;
+      // Progressive jackpot — pays the growing pool
+      const bonus = Math.floor(GS.jackpotPool * mult);
       GS.breachCredits += bonus;
       if (jpBanner) {
         jpBanner.style.cssText = 'display:block;text-align:center;font-size:18px;color:#ffd700;font-weight:bold;' +
           'text-shadow:0 0 20px #ffd700,2px 2px 0 #ff6600;-webkit-text-stroke:1px #ff6600;' +
           'animation:jpGlitch 0.3s ease-in-out 3 alternate;';
-        jpBanner.innerHTML = mult > 1 ? `JACKPOT! +${bonus} x${mult} FRENZY!` : `JACKPOT! +${bonus}`;
+        jpBanner.innerHTML = mult > 1 ? `★ JACKPOT ${GS.jackpotPool.toLocaleString()}! +${bonus} x${mult} FRENZY!` : `★ JACKPOT ${GS.jackpotPool.toLocaleString()}! +${bonus}`;
       }
+      GS.jackpotPool = GS.jackpotBase; // reset pool after win
       triggerFlash('#ffd70066', 0.5);
       spawnParticles(W/2, H/2, '#ffd700', 30, 8);
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;
     } else if (a === b || b === c) {
-      const minor = 100 * GS.floor * mult;
+      // Minor win — 20% of pool
+      const minor = Math.floor(GS.jackpotPool * 0.2 * mult);
       GS.breachCredits += minor;
       if (jpBanner) {
         jpBanner.style.cssText = 'display:block;text-align:center;font-size:20px;color:#aaaaff;font-weight:bold;' +
           'text-shadow:0 0 15px #aaaaff,0 0 30px #aaaaff66;-webkit-text-stroke:1px #6666ff;' +
           'animation:jpGlitch 0.4s ease-in-out 2 alternate;';
-        jpBanner.innerHTML = mult > 1 ? `◆ CLOSE! ◆ +${minor} x${mult} FRENZY!` : `◆ CLOSE! ◆ +${minor}`;
+        jpBanner.innerHTML = mult > 1 ? `◆ CLOSE! ${GS.jackpotPool.toLocaleString()} +${minor} x${mult} FRENZY!` : `◆ CLOSE! ${GS.jackpotPool.toLocaleString()} +${minor}`;
       }
+      GS.jackpotPool = GS.jackpotBase; // reset pool after win
       triggerFlash('#aaaaff66', 0.4);
       spawnParticles(W/2, H/2, '#aaaaff', 15, 5);
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;
     } else {
+      // No match — pool grows 15%
+      GS.jackpotPool = Math.floor(GS.jackpotPool * 1.15);
       // No match — offer one re-roll
       if (canReroll) {
         canReroll = false;
@@ -2291,6 +2324,9 @@ function startFloor() {
   GS.totalPegsCleared = 0;
   GS.totalBallsUsed = 0;
   canDrop = true;
+  // Progressive jackpot — base scales with floor, pool carries over from prev floors
+  GS.jackpotBase = 500 * GS.floor;
+  GS.jackpotPool = GS.jackpotPool || GS.jackpotBase;
   // Reset ball count if extra life upgrade
   if (GS.floor === 1 && GS.unlockedUpgrades.includes('extralife')) {
     GS.balls = 6;

@@ -678,10 +678,12 @@ body.contrast-mode #peg-target-line {
       <div>BEST FLOOR: <span class="stat-value" id="menu-bestfloor">0</span></div>
       <div>TOTAL RUNS: <span class="stat-value" id="menu-totalruns">0</span></div>
       <div>BEST SCORE: <span class="stat-value" id="menu-bestscore">0</span></div>
+      <div>MASTERY POINTS: <span class="stat-value" id="menu-mastery" style="color:#ffd700;">0</span></div>
     </div>
     <button class="game-btn" id="start-btn">INITIATE BREACH</button>
     <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
     <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
+    <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
     </div>
@@ -803,6 +805,10 @@ const GS = {
   jackpotGrowthBonus: 1.0,
   startingCreditsBonus: 0,
   multiballEnabled: false,
+  // Mastery upgrades
+  masteryPoints: 0,
+  pegRadar: false,
+  shopDiscount: 1.0,
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -813,6 +819,9 @@ let PERSIST = {
   bestFloor: 0,
   unlockedPayloads: ['scrambler', 'trojan'],
   unlockedUpgrades: [],
+  // Mastery Points — earned per run, reset each new run, spent on permanent upgrades
+  masteryPoints: 0,
+  purchasedUpgrades: {},   // { upgradeId: tier } — permanent across all runs
   // Meta-progression (Spec 6)
   meta: {
     unlocks: [],
@@ -862,6 +871,58 @@ const META_CONFIG = {
   rank_threshold_multiplier: 1.5,
   rep_for_first_ball_unlock: 1000,
   rep_for_shop_expansion:   2000,
+};
+
+// Mastery Upgrades — permanent power bought with mastery points
+const MASTERY_UPGRADES = {
+  extraBall: {
+    name: 'Extra Ball',
+    desc: '+1 starting ball per tier',
+    tiers: [
+      { cost: 50,  effect: { bonusStartingBalls: 1 } },
+      { cost: 100, effect: { bonusStartingBalls: 2 } },
+      { cost: 150, effect: { bonusStartingBalls: 3 } },
+      { cost: 200, effect: { bonusStartingBalls: 4 } },
+    ]
+  },
+  jackpotSurge: {
+    name: 'Jackpot Surge',
+    desc: '+25% jackpot base per tier',
+    tiers: [
+      { cost: 75,  effect: { jackpotGrowthBonus: 1.25 } },
+      { cost: 150, effect: { jackpotGrowthBonus: 1.50 } },
+    ]
+  },
+  creditMagnet: {
+    name: 'Credit Magnet',
+    desc: '+20% breach credits per tier',
+    tiers: [
+      { cost: 60,  effect: { breachBonusMultiplier: 1.20 } },
+      { cost: 120, effect: { breachBonusMultiplier: 1.40 } },
+    ]
+  },
+  shopDiscount: {
+    name: 'Shop Discount',
+    desc: '-15% shop prices per tier',
+    tiers: [
+      { cost: 80,  effect: { shopDiscount: 0.85 } },
+      { cost: 160, effect: { shopDiscount: 0.70 } },
+    ]
+  },
+  payloadStart: {
+    name: 'Payload Protocol',
+    desc: 'Start with a random payload from ball 1',
+    tiers: [
+      { cost: 100, effect: { startingPayloadCount: 1 } },
+    ]
+  },
+  pegRadar: {
+    name: 'Peg Radar',
+    desc: 'Normal pegs illuminated for first 3 seconds',
+    tiers: [
+      { cost: 50, effect: { pegRadar: true } },
+    ]
+  },
 };
 
 const RANKS = [
@@ -974,19 +1035,24 @@ function loadPersist() {
   if (!PERSIST.meta) {
     PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   }
+  // Apply mastery upgrades on load (permanent power)
+  applyMasteryUpgrades();
+  updateMenuStats();
 }
 function savePersist() {
   PERSIST.unlockedPayloads = GS.unlockedPayloads;
   PERSIST.unlockedUpgrades = GS.unlockedUpgrades;
   PERSIST.reputation = GS.reputation;
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
-  PERSIST.totalRuns = PERSIST.totalRuns || 0;
-  PERSIST.totalRuns++;
-  PERSIST.bestFloor = PERSIST.bestFloor || 0;
-  if (GS.floor > PERSIST.bestFloor) PERSIST.bestFloor = GS.floor;
-  PERSIST.bestScore = PERSIST.bestScore || 0;
+  PERSIST.masteryPoints = PERSIST.masteryPoints;
+  PERSIST.purchasedUpgrades = PERSIST.purchasedUpgrades || {};
+  // Track total runs
+  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
+  // Track best floor
+  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
+  // Track best score
+  if (GS.score > (PERSIST.bestScore || 0)) PERSIST.bestScore = GS.score;
   PERSIST.lastScore = GS.score;
-  if (GS.score > PERSIST.bestScore) PERSIST.bestScore = GS.score;
   // Preserve meta object across saves
   if (!PERSIST.meta) PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
@@ -2197,8 +2263,9 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   }
 
   if (pegDef.bonus) {
-    GS.breachCredits += 10 * GS.multiplier;
-    spawnFloatText(peg.x, peg.y, `+${10 * GS.multiplier}`, '#ffcc00');
+    const earned = Math.floor(10 * GS.multiplier * (GS.breachBonusMultiplier || 1.0));
+    GS.breachCredits += earned;
+    spawnFloatText(peg.x, peg.y, `+${earned}`, '#ffcc00');
     triggerFlash('#ffcc0033', 0.1);
   }
 
@@ -2624,11 +2691,14 @@ function updatePayloadSlots() {
 
 function updateMenuStats() {
   document.getElementById('menu-rank').textContent = GS.rank;
-  document.getElementById('menu-rep').textContent = GS.reputation;
+  document.getElementById('menu-rep').textContent = GS.reputation.toLocaleString();
   document.getElementById('menu-breach').textContent = PERSIST.lifetimeBreach.toLocaleString();
   document.getElementById('menu-bestfloor').textContent = PERSIST.bestFloor || 0;
   document.getElementById('menu-totalruns').textContent = PERSIST.totalRuns || 0;
   document.getElementById('menu-bestscore').textContent = (PERSIST.bestScore || 0).toLocaleString();
+  // Mastery points display on menu
+  const mpEl = document.getElementById('menu-mastery');
+  if (mpEl) mpEl.textContent = PERSIST.masteryPoints || 0;
 }
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
@@ -2947,7 +3017,11 @@ function buyItem(id) {
   const rankMet = !lockedRank || (GS.rank && GS.rank >= lockedRank.replace('+',''));
   if (lockedRank && !rankMet) return;
 
-  GS.breachCredits -= item.cost;
+  // Apply shop discount (mastery upgrade)
+  const discountedCost = Math.floor(item.cost * (GS.shopDiscount || 1.0));
+  if (GS.breachCredits < discountedCost) return;
+
+  GS.breachCredits -= discountedCost;
   document.getElementById('shop-credits').textContent = GS.breachCredits;
 
   if (item.type === 'payload') {
@@ -3010,6 +3084,168 @@ function applyUpgrade(id) {
   }
 }
 
+// ─── MASTERY SYSTEM ──────────────────────────────────────────
+
+// Apply all purchased mastery upgrades to GS (called at run start and loadPersist)
+function applyMasteryUpgrades() {
+  const purchased = PERSIST.purchasedUpgrades || {};
+  // Reset all mastery-driven fields first
+  GS.bonusStartingBalls = 0;
+  GS.jackpotGrowthBonus = 1.0;
+  GS.breachBonusMultiplier = 1.0;
+  GS.shopDiscount = 1.0;
+  GS.startingPayloadCount = 0;
+  GS.pegRadar = false;
+
+  for (const [id, tier] of Object.entries(purchased)) {
+    const def = MASTERY_UPGRADES[id];
+    if (!def || !def.tiers[tier]) continue;
+    const effect = def.tiers[tier].effect;
+    if (effect.bonusStartingBalls !== undefined) GS.bonusStartingBalls = effect.bonusStartingBalls;
+    if (effect.jackpotGrowthBonus !== undefined) GS.jackpotGrowthBonus = effect.jackpotGrowthBonus;
+    if (effect.breachBonusMultiplier !== undefined) GS.breachBonusMultiplier = effect.breachBonusMultiplier;
+    if (effect.shopDiscount !== undefined) GS.shopDiscount = effect.shopDiscount;
+    if (effect.startingPayloadCount !== undefined) GS.startingPayloadCount = effect.startingPayloadCount;
+    if (effect.pegRadar !== undefined) GS.pegRadar = effect.pegRadar;
+  }
+}
+
+// Calculate mastery points earned at end of run
+function getMasteryPointsEarned(floor, score) {
+  const floorBonus = floor * 10;
+  const vaultClearBonus = floor >= 5 ? 50 : 0;
+  return floorBonus + vaultClearBonus;
+}
+
+// Purchase a mastery upgrade tier
+function purchaseMasteryUpgrade(id) {
+  const def = MASTERY_UPGRADES[id];
+  if (!def) return false;
+
+  const purchased = PERSIST.purchasedUpgrades || {};
+  const currentTier = purchased[id] ?? -1;
+  const nextTier = currentTier + 1;
+
+  if (!def.tiers[nextTier]) return false; // already maxed
+
+  const cost = def.tiers[nextTier].cost;
+  if ((PERSIST.masteryPoints || 0) < cost) return false;
+
+  PERSIST.masteryPoints -= cost;
+  PERSIST.purchasedUpgrades = purchased;
+  purchased[id] = nextTier;
+  applyMasteryUpgrades();
+  savePersist();
+  return true;
+}
+
+// Render mastery upgrade row
+function getMasteryUpgradeRow(id) {
+  const def = MASTERY_UPGRADES[id];
+  const purchased = PERSIST.purchasedUpgrades || {};
+  const currentTier = purchased[id] ?? -1;
+  const nextTier = currentTier + 1;
+  const isMaxed = !def.tiers[nextTier];
+  const cost = isMaxed ? null : def.tiers[nextTier].cost;
+  const owned = currentTier >= 0;
+  const canAfford = cost !== null && (PERSIST.masteryPoints || 0) >= cost;
+  const tierLabel = owned ? `TIER ${currentTier + 1}/${def.tiers.length}` : 'LOCKED';
+  const effectText = def.tiers[Math.max(0, currentTier)].effect;
+
+  const tierBar = def.tiers.map((t, i) => {
+    const filled = i <= currentTier;
+    const style = filled ? 'background:#ffd700;' : 'background:#333;';
+    return `<div style="width:16px;height:6px;border-radius:2px;${style}display:inline-block;margin-right:2px;"></div>`;
+  }).join('');
+
+  const btnClass = isMaxed ? 'background:#333;color:#666;' : canAfford ? 'background:#ffd70022;border-color:#ffd700;color:#ffd700;cursor:pointer;' : 'background:#222;border-color:#444;color:#555;cursor:not-allowed;';
+  const btnText = isMaxed ? 'MAXED' : `${cost} MP`;
+
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #1a1a2e;">
+      <div style="flex:1;">
+        <div style="font-size:12px;color:#00f0ff;font-weight:700;">${def.name}</div>
+        <div style="font-size:9px;color:#888;margin-top:2px;">${def.desc}</div>
+        <div style="margin-top:4px;">${tierBar}</div>
+        <div style="font-size:9px;color:#ffd700;margin-top:3px;">${tierLabel}</div>
+      </div>
+      <button
+        onclick="handleMasteryPurchase('${id}')"
+        class="mastery-buy-btn"
+        data-upgrade="${id}"
+        style="background:${btnClass.split(';')[0]};border:${btnClass.split(';')[1]};color:${btnClass.split(';')[2]};padding:5px 10px;border-radius:4px;font-family:inherit;font-size:10px;min-width:60px;text-align:center;">
+        ${btnText}
+      </button>
+    </div>
+  `;
+}
+
+function openMasteryScreen() {
+  const pts = PERSIST.masteryPoints || 0;
+  const overlay = document.getElementById('mastery-overlay') || createMasteryOverlay();
+  const grid = document.getElementById('mastery-grid');
+  const ptsDisplay = document.getElementById('mastery-points-display');
+
+  if (ptsDisplay) ptsDisplay.textContent = pts;
+  if (grid) {
+    grid.innerHTML = Object.keys(MASTERY_UPGRADES).map(id => getMasteryUpgradeRow(id)).join('');
+  }
+
+  overlay.classList.add('active');
+}
+
+function closeMasteryScreen() {
+  const overlay = document.getElementById('mastery-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function handleMasteryPurchase(id) {
+  const def = MASTERY_UPGRADES[id];
+  const purchased = PERSIST.purchasedUpgrades || {};
+  const currentTier = purchased[id] ?? -1;
+  const nextTier = currentTier + 1;
+  if (!def.tiers[nextTier]) return;
+
+  const cost = def.tiers[nextTier].cost;
+  if ((PERSIST.masteryPoints || 0) < cost) {
+    spawnFloatText(W/2, H/2, 'NOT ENOUGH MP', '#ff4444');
+    return;
+  }
+
+  purchaseMasteryUpgrade(id);
+  const ptsDisplay = document.getElementById('mastery-points-display');
+  if (ptsDisplay) ptsDisplay.textContent = PERSIST.masteryPoints;
+  // Refresh the grid
+  const grid = document.getElementById('mastery-grid');
+  if (grid) {
+    grid.innerHTML = Object.keys(MASTERY_UPGRADES).map(uid => getMasteryUpgradeRow(uid)).join('');
+  }
+  triggerFlash('#ffd70044', 0.3);
+  spawnFloatText(W/2, H/2 - 30, '✦ UPGRADED ✦', '#ffd700');
+  spawnParticles(W/2, H/2, '#ffd700', 15, 5);
+}
+
+function createMasteryOverlay() {
+  const overlay = document.createElement('div');
+  overlay.id = 'mastery-overlay';
+  overlay.className = 'overlay hidden';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
+  overlay.innerHTML = `
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:20px;color:#ffd700;font-weight:700;letter-spacing:4px;">MASTERY</div>
+      <div style="font-size:11px;color:#888;margin-top:4px;">Spend points to unlock permanent upgrades</div>
+      <div style="margin-top:8px;font-size:14px;color:#ffd700;">MP: <span id="mastery-points-display">${PERSIST.masteryPoints || 0}</span></div>
+      <div style="font-size:9px;color:#555;margin-top:4px;">Unspent MP resets each run — upgrades are permanent</div>
+    </div>
+    <div id="mastery-grid" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;">
+      ${Object.keys(MASTERY_UPGRADES).map(id => getMasteryUpgradeRow(id)).join('')}
+    </div>
+    <button onclick="closeMasteryScreen()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
@@ -3047,11 +3283,9 @@ function startFloor() {
   // Progressive jackpot — base scales with floor, pool carries over from prev floors
   GS.jackpotBase = 500 * GS.floor;
   GS.jackpotPool = GS.jackpotPool || GS.jackpotBase;
-  // Reset ball count if extra life upgrade
-  if (GS.floor === 1 && GS.unlockedUpgrades.includes('extralife')) {
-    GS.balls = 6;
-  } else if (GS.floor === 1) {
-    GS.balls = 5;
+  // Reset ball count — apply bonusStartingBalls from mastery upgrades
+  if (GS.floor === 1) {
+    GS.balls = 5 + (GS.bonusStartingBalls || 0);
   }
 
   // Time Lock — initialize countdown timer
@@ -3110,6 +3344,9 @@ function endRun(won) {
   // Evaluate meta-progression unlocks
   const newlyUnlocked = evaluateUnlocks();
 
+  // Mastery points earned this run
+  const mpEarned = getMasteryPointsEarned(GS.floor, GS.score);
+
   const title = document.getElementById('runend-title');
   const stats = document.getElementById('runend-stats');
   const prevRank = GS.rank;
@@ -3140,6 +3377,7 @@ function endRun(won) {
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
     <div>CREDITS EARNED: <span class="runend-stat-value" style="color:#00f0ff;">+${creditGain}</span></div>
+    <div style="margin-top:4px;">MASTERY POINTS EARNED: <span class="runend-stat-value" style="color:#ffd700;">+${mpEarned}</span></div>
     ${won ? `<div style="color:#00ff88;font-size:10px;margin-top:4px;">+BREACH BONUS APPLIED</div>` : ''}
     ${prestigeMult > 1 ? `<div style="color:#ffd700;font-size:10px;margin-top:2px;">★ PRESTIGE +${Math.round((prestigeMult-1)*100)}% BONUS ★</div>` : ''}
     <div class="rank-progress-wrap" style="margin-top:12px;text-align:center;">
@@ -3173,6 +3411,10 @@ function endRun(won) {
   }
 
   PERSIST.lifetimeBreach += GS.score;
+
+  // Award mastery points for this run (already calculated above as mpEarned)
+  PERSIST.masteryPoints = (PERSIST.masteryPoints || 0) + mpEarned;
+
   savePersist();
 
   // Bind prestige button if present
@@ -3844,6 +4086,10 @@ document.getElementById('shop-btn').onclick = () => {
   if (GS.screen === 'playing') {
     openShop();
   }
+};
+
+document.getElementById('mastery-btn').onclick = () => {
+  openMasteryScreen();
 };
 
 document.getElementById('shop-continue-btn').onclick = closeShop;

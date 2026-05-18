@@ -2381,6 +2381,7 @@ function openShop(tab = 'credits') {
       const canAfford = GS.reputation >= item.repCost;
 
       const el = document.createElement('div');
+      el.className = 'shop-item' + (owned ? ' owned' : '');
       const costDiv = '<div class="item-cost" style="color:#00ffaa;">⚡ ' + item.repCost + '</div>';
       const buyBtn = '<button class="shop-buy-btn" style="border-color:#00ffaa55;color:#00ffaa;" ' + (canAfford ? '' : 'disabled') + ' data-id="' + item.id + '" data-tab="rep">BUY</button>';
       const ownedBadge = '<div class="item-owned-badge" style="color:#00ffaa;">✓ OWNED</div>';

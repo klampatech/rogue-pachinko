@@ -1097,6 +1097,10 @@ class Ball {
     this.cloneSpawned = false;
     // Snapshot multiplier at drop time — ball keeps its tier color for its entire flight
     this.dropMultiplier = GS.multiplier || 1;
+    // Worm payload state
+    this.wormPiercing = false;
+    this.wormPierceCount = 0;
+    this.wormMaxPierces = 0;
     // Ghost payload state
     this.ghostPhasing = false;
     this.ghostPhaseRemaining = 0;
@@ -1897,6 +1901,31 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     return; // skip normal bounce
   }
 
+  // ── WORM PAYLOAD: pierce through pegs, no bounce ─────────────
+  if (ball.wormPiercing && ball.wormPierceCount < ball.wormMaxPierces) {
+    ball.wormPierceCount++;
+    // Continue through — no bounce, but do scoring/combo/progress
+    spawnParticles(peg.x, peg.y, '#88ff88', 6, 2);
+    spawnFloatText(peg.x, peg.y - 8, `WORM ${ball.wormPierceCount}/${ball.wormMaxPierces}`, '#88ff88');
+    if (ball.wormPierceCount >= ball.wormMaxPierces) {
+      ball.wormPiercing = false;
+      triggerFlash('#88ff8844', 0.2);
+      spawnFloatText(ball.x, ball.y - 15, 'WORM END', '#88ff88');
+    }
+    GS.comboCount++;
+    checkFrenzy();
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier;
+    GS.floorObjective.progress++;
+    GS.totalPegsCleared++;
+    GS.chainTimer = 30;
+    GS.multiplier = Math.min(7, GS.multiplier + 1);
+    updateMultiplierDisplay();
+    peg.hitCount++;
+    updateHUD();
+    updateObjectiveBar();
+    return; // skip normal bounce
+  }
+
   // ── PEG EVOLUTION STATE MACHINE ─────────────────────────────
   if (peg.evolution) {
     const ev = peg.evolution;
@@ -2343,6 +2372,11 @@ function dropBall() {
     if (p === 'ghost') {
       ball.ghostPhasing = true;
       ball.ghostPhaseRemaining = 3 + Math.floor(Math.random() * 3); // 3-5 phases
+    }
+    if (p === 'worm') {
+      ball.wormPiercing = true;
+      ball.wormPierceCount = 0;
+      ball.wormMaxPierces = 4 + Math.floor(Math.random() * 4); // 4-7 pierces
     }
     if (p === 'slowmo') {
       ball.slowmoActive = true;

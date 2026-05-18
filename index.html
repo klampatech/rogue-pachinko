@@ -1121,6 +1121,18 @@ function loadPersist() {
   } catch(e) {
     PERSIST = {};
   }
+  // Apply defaults for fields used by updateMenuStats (set in catch above on fresh/reset storage)
+  if (PERSIST.lifetimeBreach == null) PERSIST.lifetimeBreach = 0;
+  if (PERSIST.bestScore == null) PERSIST.bestScore = 0;
+  if (PERSIST.bestFloor == null) PERSIST.bestFloor = 0;
+  if (PERSIST.totalRuns == null) PERSIST.totalRuns = 0;
+  if (PERSIST.reputation == null) PERSIST.reputation = 0;
+  if (PERSIST.masteryPoints == null) PERSIST.masteryPoints = 0;
+  if (!PERSIST.dailyChallenge) PERSIST.dailyChallenge = { lastPlayed: null, bestDailyScore: 0, dailyAttempts: 0 };
+  if (!PERSIST.leaderboard) PERSIST.leaderboard = [];
+  // Sync PERSIST → GS for stats that live in both objects
+  GS.reputation = PERSIST.reputation;
+  GS.masteryPoints = PERSIST.masteryPoints;
   // Ensure meta object exists for evaluateUnlocks / checkPrestigeEligibility
   if (!PERSIST.meta) {
     PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
@@ -3446,6 +3458,11 @@ function openLeaderboard() {
   const lb = PERSIST.leaderboard || [];
   const overlay = document.getElementById('leaderboard-overlay') || createLeaderboardOverlay();
   const lbBody = document.getElementById('lb-body');
+  if (!lbBody) {
+    console.warn('Leaderboard body not found — retrying after DOM settle');
+    setTimeout(() => { openLeaderboard(); }, 50);
+    return;
+  }
 
   if (!lb.length) {
     lbBody.innerHTML = '<div style="text-align:center;color:#444;font-size:11px;padding:20px;">No scores yet — play a run!</div>';

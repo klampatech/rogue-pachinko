@@ -679,8 +679,10 @@ body.contrast-mode #peg-target-line {
       <div>TOTAL RUNS: <span class="stat-value" id="menu-totalruns">0</span></div>
       <div>BEST SCORE: <span class="stat-value" id="menu-bestscore">0</span></div>
       <div>MASTERY POINTS: <span class="stat-value" id="menu-mastery" style="color:#ffd700;">0</span></div>
+      <div id="daily-challenge-info" style="margin-top:8px;font-size:9px;color:#ffcc00;"></div>
     </div>
     <button class="game-btn" id="start-btn">INITIATE BREACH</button>
+    <button class="game-btn secondary" id="daily-btn" style="color:#ffcc00;border-color:#ffcc00;font-size:11px;padding:8px 20px;">DAILY CHALLENGE</button>
     <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
     <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
     <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
@@ -811,6 +813,9 @@ const GS = {
   masteryPoints: 0,
   pegRadar: false,
   shopDiscount: 1.0,
+  // Daily challenge mode
+  dailyMode: false,
+  dailyDate: null,
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -841,6 +846,8 @@ let PERSIST = {
   completedContracts: [],
   // Leaderboard — top 10 local high scores
   leaderboard: [],
+  // Daily challenge state
+  dailyChallenge: { lastPlayed: null, bestDailyScore: 0, dailyAttempts: 0 },
 };
 
 // Ball Skins — cosmetics unlocked via meta-progression
@@ -853,6 +860,61 @@ const BALL_SKINS = {
   frost:     { name: 'Frost',          colors: { core: '#aaeeff', glow: '#66ddff', trailRGB: '170, 238, 255' } },
   chrome:    { name: 'Chrome',         colors: { core: '#e8e8ff', glow: '#c8c8ff', trailRGB: '232, 232, 255' } },
 };
+
+// Daily Challenge Modifiers — date-seeded so same challenge for all players on same day
+const DAILY_MODIFIERS = [
+  { id: 'all_crumble',  name: 'ALL CRUMBLING',   desc: 'All pegs crumble on hit',       apply: (gs) => { gs.allCrumble = true; } },
+  { id: 'slow_grav',    name: 'LOW GRAVITY',     desc: 'Ball falls at 60% speed',        apply: (gs) => { gs.gravity *= 0.6; } },
+  { id: 'high_grav',    name: 'HIGH GRAVITY',    desc: 'Ball falls at 150% speed',       apply: (gs) => { gs.gravity *= 1.5; } },
+  { id: 'tiny_ball',    name: 'TINY BALL',       desc: 'Ball radius halved',             apply: (gs) => { gs.ballRadius *= 0.5; } },
+  { id: 'fat_ball',     name: 'FAT BALL',         desc: 'Ball radius 50% larger',        apply: (gs) => { gs.ballRadius *= 1.5; } },
+  { id: 'multiplier',   name: 'MAX MULTIPLIER',  desc: 'Start at 5× multiplier',         apply: (gs) => { gs.multiplier = 5; gs.dropMultiplier = 5; } },
+  { id: 'no_gravity',   name: 'ZERO-G',          desc: 'Balls drift sideways, minimal gravity', apply: (gs) => { gs.gravity *= 0.1; } },
+  { id: 'jackpot_1k',   name: 'MEGA JACKPOT',    desc: 'Jackpot starts at 1000',          apply: (gs) => { gs.jackpotPool = 1000; gs.jackpotBase = 1000; } },
+  { id: 'blackout',     name: 'BLACKOUT',         desc: 'No peg glow, minimal lighting',  apply: (gs) => { gs.boardTheme = 'blackout'; } },
+  { id: 'one_ball',     name: 'ONE CHANCE',      desc: 'Only 1 ball for the entire run',  apply: (gs) => { gs.startingBallsOverride = 1; gs.balls = 1; } },
+  { id: 'fast_forward', name: 'FAST FORWARD',     desc: 'Time moves 2× faster',           apply: (gs) => { gs.timeScale *= 2.0; } },
+  { id: 'peg_storm',    name: 'PEG STORM',        desc: '40% more pegs on board',         apply: (gs) => { gs.morePegs = true; } },
+];
+
+// Pseudo-random seeded on date string — deterministic for all players
+function getDailySeed(dateStr) {
+  let h = 2166136261;
+  for (let i = 0; i < dateStr.length; i++) {
+    h ^= dateStr.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h;
+}
+
+function getDailyModifiers(dateStr = new Date().toISOString().slice(0, 10)) {
+  const seed = getDailySeed(dateStr);
+  const mods = [...DAILY_MODIFIERS];
+  // Fisher-Yates shuffle with seeded random
+  let s = seed;
+  const rng = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xFFFFFFFF; };
+  for (let i = mods.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [mods[i], mods[j]] = [mods[j], mods[i]];
+  }
+  // Pick 2 modifiers per day
+  return mods.slice(0, 2);
+}
+
+function getDailyChallengeDisplay(dateStr = new Date().toISOString().slice(0, 10)) {
+  const mods = getDailyModifiers(dateStr);
+  return mods.map(m => m.name).join(' + ');
+}
+
+function getDailyChallengeDesc(dateStr = new Date().toISOString().slice(0, 10)) {
+  const mods = getDailyModifiers(dateStr);
+  return mods.map(m => m.desc).join(' • ');
+}
+
+function applyDailyModifiers(gs, dateStr = new Date().toISOString().slice(0, 10)) {
+  const mods = getDailyModifiers(dateStr);
+  mods.forEach(m => m.apply(gs));
+}
 
 // ─── META-PROGRESSION SYSTEM (Spec 6) ─────────────────────────
 // Expression-based unlocks: new OPTIONS unlocked, not raw power
@@ -1081,6 +1143,9 @@ function savePersist() {
   // Track best score
   if (GS.score > (PERSIST.bestScore || 0)) PERSIST.bestScore = GS.score;
   PERSIST.lastScore = GS.score;
+  // Persist leaderboard and daily challenge
+  if (!PERSIST.leaderboard) PERSIST.leaderboard = [];
+  if (!PERSIST.dailyChallenge) PERSIST.dailyChallenge = { lastPlayed: null, bestDailyScore: 0, dailyAttempts: 0 };
   // Preserve meta object across saves
   if (!PERSIST.meta) PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
@@ -1959,6 +2024,21 @@ function generateBoard(floor) {
   return board;
 }
 
+// Add extra pegs for PEG_STORM modifier — adds 40% more pegs spread across board
+function addExtraPegs(board) {
+  const extraCount = Math.floor(board.length * 0.4);
+  for (let i = 0; i < extraCount; i++) {
+    const refPeg = board[Math.floor(Math.random() * board.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 15 + Math.random() * 25;
+    board.push({
+      x: Math.max(25, Math.min(W - 25, refPeg.x + Math.cos(angle) * dist)),
+      y: Math.max(100, Math.min(H - 100, refPeg.y + Math.sin(angle) * dist)),
+      type: 'node', hitCount: 0, id: board.length, evolution: null
+    });
+  }
+}
+
 // ─── OBJECTIVE SETUP ─────────────────────────────────────────
 function setupObjective(floor) {
   switch (floor) {
@@ -2733,6 +2813,20 @@ function updateMenuStats() {
   // Mastery points display on menu
   const mpEl = document.getElementById('menu-mastery');
   if (mpEl) mpEl.textContent = PERSIST.masteryPoints || 0;
+  // Daily challenge info on menu
+  const dailyInfo = document.getElementById('daily-challenge-info');
+  if (dailyInfo) {
+    const today = new Date().toISOString().slice(0, 10);
+    const mods = getDailyChallengeDisplay(today);
+    const best = PERSIST.dailyChallenge?.bestDailyScore || 0;
+    const attempts = PERSIST.dailyChallenge?.dailyAttempts || 0;
+    const isToday = PERSIST.dailyChallenge?.lastPlayed === today;
+    if (isToday) {
+      dailyInfo.innerHTML = `🏆 TODAY: ${mods}<br><span style="color:#888;">BEST: ${best.toLocaleString()}</span>`;
+    } else {
+      dailyInfo.innerHTML = `🏆 TODAY: ${mods}<br><span style="color:#555;">Play for your best score!</span>`;
+    }
+  }
 }
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
@@ -3356,12 +3450,14 @@ function openLeaderboard() {
     lbBody.innerHTML = lb.map((entry, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
       const rowColor = i < 3 ? (i === 0 ? '#ffd700' : i === 1 ? '#aaa' : '#cd7f32') : '#555';
+      const dailyBadge = entry.daily ? ' <span style="color:#ffcc00;">🏆</span>' : '';
+      const nameClass = entry.daily ? 'color:#ffcc00;' : 'color:#ddd;';
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #1a1a2e;">
           <div style="width:24px;font-size:11px;color:${rowColor};flex-shrink:0;">${medal}</div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;color:#ddd;font-weight:700;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${entry.name}</div>
-            <div style="font-size:9px;color:#666;margin-top:1px;">Floor ${entry.floor} • ${entry.pegs} pegs</div>
+            <div style="font-size:12px;font-weight:700;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${nameClass}">${entry.name}${dailyBadge}</div>
+            <div style="font-size:9px;color:#666;margin-top:1px;">Floor ${entry.floor} • ${entry.pegs} pegs${entry.daily ? ' • Daily Challenge' : ''}</div>
           </div>
           <div style="font-size:13px;color:#00f0ff;font-weight:700;flex-shrink:0;">${entry.score.toLocaleString()}</div>
         </div>
@@ -3386,7 +3482,8 @@ function submitHighScore() {
     score: GS.score,
     floor: Math.min(GS.floor, 5),
     pegs: GS.totalPegsCleared,
-    date: new Date().toISOString().slice(0, 10)
+    date: new Date().toISOString().slice(0, 10),
+    daily: !!GS.dailyMode
   });
   lb.sort((a, b) => b.score - a.score);
   PERSIST.leaderboard = lb.slice(0, 10);
@@ -3451,12 +3548,32 @@ function startFloor() {
   GS.totalPegsCleared = 0;
   GS.totalBallsUsed = 0;
   canDrop = true;
+  // Apply daily challenge modifiers (board-first so other modifiers can react to board)
+  if (GS.dailyMode && GS.dailyDate) {
+    // PEG_STORM: add 40% more pegs before other modifiers see them
+    if (GS.morePegs) {
+      addExtraPegs(GS.board);
+    }
+    // ALL CRUMBLE: convert all normal pegs to crumbling (must happen after board gen)
+    if (GS.allCrumble) {
+      GS.board.forEach(p => { if (p.type === 'node' || p.type === 'fiber') p.type = 'crumbling'; });
+    }
+    // Apply non-board-modifier effects (gravity, jackpot, etc.)
+    const mods = getDailyModifiers(GS.dailyDate);
+    mods.forEach(m => {
+      if (!['peg_storm', 'all_crumble'].includes(m.id)) m.apply(GS);
+    });
+  }
   // Progressive jackpot — base scales with floor, pool carries over from prev floors
   GS.jackpotBase = 500 * GS.floor;
   GS.jackpotPool = GS.jackpotPool || GS.jackpotBase;
   // Reset ball count — apply bonusStartingBalls from mastery upgrades
   if (GS.floor === 1) {
-    GS.balls = 5 + (GS.bonusStartingBalls || 0);
+    GS.balls = GS.startingBallsOverride || (5 + (GS.bonusStartingBalls || 0));
+    // Clear the override after first floor applies it
+    if (GS.startingBallsOverride) {
+      GS.startingBallsOverride = null;
+    }
   }
 
   // Time Lock — initialize countdown timer
@@ -3554,6 +3671,7 @@ function endRun(won) {
     <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}${scoreHighlight}</span></div>
     ${qualifies && GS.score > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
     <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
+    ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
     <div>CREDITS EARNED: <span class="runend-stat-value" style="color:#00f0ff;">+${creditGain}</span></div>
@@ -3594,6 +3712,23 @@ function endRun(won) {
 
   // Award mastery points for this run (already calculated above as mpEarned)
   PERSIST.masteryPoints = (PERSIST.masteryPoints || 0) + mpEarned;
+
+  // Daily challenge: update best score if beaten
+  if (GS.dailyMode) {
+    PERSIST.dailyChallenge.lastPlayed = GS.dailyDate;
+    PERSIST.dailyChallenge.dailyAttempts = (PERSIST.dailyChallenge.dailyAttempts || 0) + 1;
+    if (GS.score > (PERSIST.dailyChallenge.bestDailyScore || 0)) {
+      PERSIST.dailyChallenge.bestDailyScore = GS.score;
+    }
+  }
+
+  // Reset daily-mode GS flags
+  GS.dailyMode = false;
+  GS.dailyDate = null;
+  GS.morePegs = false;
+  GS.allCrumble = false;
+  GS.boardTheme = null;
+  // gravity, ballRadius, timeScale, jackpotPool etc. reset via startFloor/newRun
 
   savePersist();
 
@@ -4243,7 +4378,17 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── BUTTON BINDINGS ─────────────────────────────────────────
-document.getElementById('start-btn').onclick = startNewRun;
+document.getElementById('start-btn').onclick = () => {
+  GS.dailyMode = false;
+  GS.dailyDate = null;
+  startNewRun();
+};
+
+document.getElementById('daily-btn').onclick = () => {
+  GS.dailyMode = true;
+  GS.dailyDate = new Date().toISOString().slice(0, 10);
+  startNewRun();
+};
 
 document.getElementById('reset-btn').onclick = () => {
   if (confirm('Reset all progress? This cannot be undone.')) {

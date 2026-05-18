@@ -1376,6 +1376,173 @@ function triggerFlash(color = '#00f0ff', intensity = 0.3) {
   screenFlashColor = color;
 }
 
+// ─── WEB AUDIO ─────────────────────────────────────────────
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* silent */ }
+  }
+  return _audioCtx;
+}
+
+function playSound(type) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  try {
+    switch (type) {
+      case 'pegHit': {
+        // Short metallic tick
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 1800;
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.05);
+        break;
+      }
+      case 'drop': {
+        // Whoosh down
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        const src = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 600;
+        filter.Q.value = 1.5;
+        src.buffer = buf;
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        src.start(t);
+        break;
+      }
+      case 'multiplierUp': {
+        // Bright ascending chime
+        const freqs = [523, 659, 784, 1047];
+        freqs.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const start = t + i * 0.04;
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.15, start + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
+          osc.start(start);
+          osc.stop(start + 0.12);
+        });
+        break;
+      }
+      case 'floorClear': {
+        // Triumphant fanfare
+        const notes = [523, 659, 784, 1047, 1319];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          const start = t + i * 0.1;
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.2, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+          osc.start(start);
+          osc.stop(start + 0.4);
+        });
+        break;
+      }
+      case 'jackpotHit': {
+        // Big winner burst
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.type = 'sawtooth';
+        osc2.type = 'square';
+        osc1.frequency.setValueAtTime(220, t);
+        osc1.frequency.linearRampToValueAtTime(880, t + 0.15);
+        osc2.frequency.setValueAtTime(330, t);
+        osc2.frequency.linearRampToValueAtTime(1320, t + 0.15);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.linearRampToValueAtTime(0.3, t + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc1.start(t);
+        osc1.stop(t + 0.6);
+        osc2.start(t);
+        osc2.stop(t + 0.6);
+        break;
+      }
+      case 'overload': {
+        // Deep bass thud + high sizzle
+        const osc = ctx.createOscillator();
+        const noise = ctx.createBufferSource();
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        noise.buffer = buf;
+        const noiseGain = ctx.createGain();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 3000;
+        osc.connect(oscGain);
+        noise.connect(filter);
+        filter.connect(noiseGain);
+        oscGain.connect(ctx.destination);
+        noiseGain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(80, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.2);
+        oscGain.gain.setValueAtTime(0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        noiseGain.gain.setValueAtTime(0.15, t);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.start(t);
+        osc.stop(t + 0.2);
+        noise.start(t);
+        break;
+      }
+      case 'frenzy': {
+        // Rapid ascending arpeggio
+        const notes = [392, 523, 659, 784, 1047, 1319, 1568];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          const start = t + i * 0.05;
+          gain.gain.setValueAtTime(0.18, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.15);
+          osc.start(start);
+          osc.stop(start + 0.15);
+        });
+        break;
+      }
+    }
+  } catch (e) { /* silent fail */ }
+}
+
 // ─── BOARD GENERATION ───────────────────────────────────────
 function assignEvolutionState(rng) {
   // Seeded RNG — uses provided rng or falls back to Math.random
@@ -1586,8 +1753,10 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       // → GLOWING: ×2 points
       ev.state = PegEvo.GLOWING;
       GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier;
+      const prevMult = GS.multiplier;
       GS.multiplier = Math.min(7, GS.multiplier + 1);
       updateMultiplierDisplay();
+      if (GS.multiplier > prevMult) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFD700', 8, 3);
       spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
     } else if (ev.state === PegEvo.GLOWING) {
@@ -1595,8 +1764,10 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
       ev.state = PegEvo.CHARGED;
       GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier;
+      const prevMult2 = GS.multiplier;
       GS.multiplier = Math.min(7, GS.multiplier + 1);
       updateMultiplierDisplay();
+      if (GS.multiplier > prevMult2) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFFFFF', 12, 4);
       spawnFloatText(peg.x, peg.y - 10, '◆ CHARGED', '#FFFFFF');
     } else if (ev.state === PegEvo.CHARGED) {
@@ -1640,6 +1811,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   // Effects based on peg type
   peg.hitCount++;
   spawnParticles(peg.x, peg.y, peg.crumblingColor || pegDef.color, 10, 4);
+  playSound('pegHit');
 
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
@@ -1674,6 +1846,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             spawnFloatText(ball.x, ball.y - 15, ball.isOverloaded ? 'CLUSTER OVERLOAD!' : 'CLUSTER!', '#ff00ff');
             triggerFlash('#ff00ff33', 0.15);
             triggerShake(ball.isOverloaded ? 6 : 3);
+            if (ball.isOverloaded) playSound('overload');
           }
           break;
         case 'explosive':
@@ -1684,6 +1857,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             const particleCount = ball.isOverloaded ? 24 : 12;
             triggerFlash('#ff440033', 0.2);
             triggerShake(shakeAmt);
+            if (ball.isOverloaded) playSound('overload');
             spawnFloatText(ball.x, ball.y, ball.isOverloaded ? 'OVERLOAD BOOM!' : 'BOOM!', '#ff00ff');
             // Destroy pegs in blast radius
             for (const other of GS.board) {
@@ -1740,6 +1914,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             ball.slowmoActive = true;
             GS.slowmoBall = ball;
             GS.timeScale = 0.2;
+            playSound('overload');
             spawnFloatText(ball.x, ball.y - 15, 'SLOW-MO OVERLOAD!', '#ff00ff');
             triggerFlash('#4488ff33', 0.2);
           }
@@ -1750,9 +1925,11 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Chain multiplier
   GS.chainTimer = 30; // ~0.5s at 60fps
+  const prevMult = GS.multiplier;
   GS.multiplier = Math.min(7, GS.multiplier + 1);
   GS.runMaxCombo = Math.max(GS.runMaxCombo || 0, GS.comboCount);
   updateMultiplierDisplay();
+  if (GS.multiplier > prevMult) playSound('multiplierUp');
 
   // Frenzy combo counter
   GS.comboCount++;
@@ -1993,6 +2170,7 @@ function dropBall() {
   canDrop = false;
   GS.balls--;
   GS.totalBallsUsed++;
+  playSound('drop');
 
   const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, [...GS.currentPayloads]);
   GS.ballsInPlay = [ball];
@@ -2099,6 +2277,7 @@ function updateHUD() {
 function checkFrenzy() {
   if (GS.comboCount >= GS.comboThreshold && !GS.frenzyReady) {
     GS.frenzyReady = true;
+    playSound('frenzy');
     spawnFloatText(W / 2, H / 2, 'FRENZY READY!', '#ff00aa');
     triggerFlash('#ff00aa33', 0.3);
   }
@@ -2143,6 +2322,7 @@ function updateMenuStats() {
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
 function completeFloor() {
   GS.screen = 'floor_complete';
+  playSound('floorClear');
 
   const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
   GS.breachCredits += creditGain;
@@ -2228,6 +2408,7 @@ function initJackpotSlots() {
       GS.jackpotPool = GS.jackpotBase; // reset pool after win
       triggerFlash('#ffd70066', 0.5);
       spawnParticles(W/2, H/2, '#ffd700', 30, 8);
+      playSound('jackpotHit');
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;
     } else if (a === b || b === c) {

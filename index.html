@@ -2426,6 +2426,9 @@ function triggerFullBreach() {
 // ─── BALL DROP ───────────────────────────────────────────────
 let canDrop = true;
 let dropX = W / 2;
+let touchDragging = false;    // true while finger is moving on canvas
+let touchStartTime = 0;        // ms timestamp when touch began
+const TAP_DELAY_MS = 300;      // tap must last 300ms+ before drop fires
 
 function dropBall() {
   if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;
@@ -3546,13 +3549,26 @@ function drawPegs() {
 
 function drawBallDropZone() {
   const x = dropX;
+  // Pulsing ring at drop point
+  const pulse = 0.6 + Math.sin(Date.now() / 200) * 0.4;
   ctx.beginPath();
-  ctx.arc(x, 70, BALL_RADIUS + 2, 0, Math.PI * 2);
-  ctx.strokeStyle = '#00f0ff66';
+  ctx.arc(x, 70, BALL_RADIUS + 4, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(0, 240, 255, ${pulse})`;
   ctx.lineWidth = 2;
   ctx.setLineDash([3, 3]);
   ctx.stroke();
   ctx.setLineDash([]);
+  // Full-height aim guide line on mobile (touch active = always show full line)
+  if (touchDragging || (typeofontouchstart !== 'undefined')) {
+    ctx.beginPath();
+    ctx.moveTo(x, 70);
+    ctx.lineTo(x, H);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 }
 
 function render() {
@@ -3773,12 +3789,28 @@ canvas.addEventListener('touchstart', (e) => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
   dropX = Math.max(20, Math.min(W - 20, (touch.clientX - rect.left) * (W / rect.width)));
+  touchDragging = false;
+  touchStartTime = Date.now();
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (GS.screen !== 'playing') return;
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  dropX = Math.max(20, Math.min(W - 20, (touch.clientX - rect.left) * (W / rect.width)));
+  touchDragging = true; // any movement = drag
 });
 
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
   if (GS.screen !== 'playing') return;
-  dropBall();
+  const held = Date.now() - touchStartTime;
+  // Drop if: dragged, OR held ≥ TAP_DELAY_MS — otherwise it's an accidental tap
+  if (touchDragging || held >= TAP_DELAY_MS) {
+    dropBall();
+  }
+  touchDragging = false;
 });
 
 // Keyboard drop

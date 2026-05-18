@@ -685,6 +685,7 @@ body.contrast-mode #peg-target-line {
     <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
     <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
     <button class="game-btn tertiary" id="skins-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ff44ff;color:#ff44ff;">SKINS</button>
+    <button class="game-btn tertiary" id="leaderboard-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#00ffaa;color:#00ffaa;">LEADERBOARD</button>
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
     </div>
@@ -837,7 +838,9 @@ let PERSIST = {
   },
   // Achievement tracking
   achievements: [],
-  completedContracts: []
+  completedContracts: [],
+  // Leaderboard — top 10 local high scores
+  leaderboard: [],
 };
 
 // Ball Skins — cosmetics unlocked via meta-progression
@@ -3342,6 +3345,78 @@ function createSkinsOverlay() {
   return overlay;
 }
 
+function openLeaderboard() {
+  const lb = PERSIST.leaderboard || [];
+  const overlay = document.getElementById('leaderboard-overlay') || createLeaderboardOverlay();
+  const lbBody = document.getElementById('lb-body');
+
+  if (!lb.length) {
+    lbBody.innerHTML = '<div style="text-align:center;color:#444;font-size:11px;padding:20px;">No scores yet — play a run!</div>';
+  } else {
+    lbBody.innerHTML = lb.map((entry, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+      const rowColor = i < 3 ? (i === 0 ? '#ffd700' : i === 1 ? '#aaa' : '#cd7f32') : '#555';
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #1a1a2e;">
+          <div style="width:24px;font-size:11px;color:${rowColor};flex-shrink:0;">${medal}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;color:#ddd;font-weight:700;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${entry.name}</div>
+            <div style="font-size:9px;color:#666;margin-top:1px;">Floor ${entry.floor} • ${entry.pegs} pegs</div>
+          </div>
+          <div style="font-size:13px;color:#00f0ff;font-weight:700;flex-shrink:0;">${entry.score.toLocaleString()}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  overlay.classList.add('active');
+}
+
+function closeLeaderboard() {
+  const overlay = document.getElementById('leaderboard-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function submitHighScore() {
+  const input = document.getElementById('lb-name-input');
+  const name = (input?.value || 'ANONYMOUS').trim().toUpperCase().slice(0, 12) || 'ANONYMOUS';
+  const lb = PERSIST.leaderboard || [];
+  lb.push({
+    name,
+    score: GS.score,
+    floor: Math.min(GS.floor, 5),
+    pegs: GS.totalPegsCleared,
+    date: new Date().toISOString().slice(0, 10)
+  });
+  lb.sort((a, b) => b.score - a.score);
+  PERSIST.leaderboard = lb.slice(0, 10);
+  savePersist();
+  // Hide name entry, show confirmation
+  const entry = document.getElementById('lb-name-entry');
+  if (entry) entry.innerHTML = `<span style="color:#00ff88;font-size:11px;">✓ SAVED AS ${name}</span>`;
+  const preview = document.getElementById('lb-preview');
+  if (preview) preview.innerHTML = '';
+  // Refresh leaderboard if open
+  openLeaderboard();
+}
+
+function createLeaderboardOverlay() {
+  const overlay = document.createElement('div');
+  overlay.id = 'leaderboard-overlay';
+  overlay.className = 'overlay hidden';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
+  overlay.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:20px;color:#00ffaa;font-weight:700;letter-spacing:4px;">LEADERBOARD</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;">TOP 10 LOCAL SCORES</div>
+    </div>
+    <div id="lb-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
+    <button onclick="closeLeaderboard()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
@@ -3457,6 +3532,12 @@ function endRun(won) {
   const totalUnlocks = Object.keys(UNLOCKS).length;
   const unlockPct = Math.round((unlockCount / totalUnlocks) * 100);
   const canPrestige = checkPrestigeEligibility();
+
+  // Check if score qualifies for leaderboard (top 10 or empty slots)
+  const lb = PERSIST.leaderboard || [];
+  const qualifies = lb.length < 10 || GS.score > (lb[lb.length - 1]?.score || 0);
+  const isNewHighScore = !lb.length || GS.score > (lb[0]?.score || 0);
+
   const prestigeInfo = canPrestige
     ? `<div style="margin-top:10px;padding:8px;border:1px solid #ffd70044;border-radius:6px;background:#ffd70011;">
         <span style="color:#ffd700;font-size:11px;">✦ PRESTIGE AVAILABLE ✦</span>
@@ -3465,11 +3546,14 @@ function endRun(won) {
        </div>`
     : `<div style="font-size:9px;color:#555;margin-top:6px;">${unlockCount}/${totalUnlocks} unlocks (${unlockPct}%) — ${Math.round((1 - unlockPct/100) * totalUnlocks)} more to prestige</div>`;
 
+  const scoreHighlight = isNewHighScore ? '<span style="color:#ffd700;font-size:10px;"> ★ NEW HIGH SCORE ★</span>' : '';
+
   stats.innerHTML = `
     <div>FLOOR REACHED: <span class="runend-stat-value">${Math.min(GS.floor, 5)}/5</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
-    <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}</span></div>
-    ${PERSIST.bestScore ? `<div style="font-size:9px;color:#555;">BEST: ${PERSIST.bestScore.toLocaleString()} ${GS.score >= PERSIST.bestScore ? '★ NEW BEST!' : ''}</div>` : ''}
+    <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}${scoreHighlight}</span></div>
+    ${qualifies && GS.score > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
+    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
     <div>CREDITS EARNED: <span class="runend-stat-value" style="color:#00f0ff;">+${creditGain}</span></div>
@@ -4190,6 +4274,10 @@ document.getElementById('mastery-btn').onclick = () => {
 
 document.getElementById('skins-btn').onclick = () => {
   openSkinsScreen();
+};
+
+document.getElementById('leaderboard-btn').onclick = () => {
+  openLeaderboard();
 };
 
 document.getElementById('shop-continue-btn').onclick = closeShop;

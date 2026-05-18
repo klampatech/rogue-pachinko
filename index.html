@@ -164,7 +164,9 @@ body {
   border-color: #00f0ff;
   background: rgba(0, 240, 255, 0.15);
   color: #00f0ff;
-  box-shadow: 0 0 8px #00f0ff44;
+  box-shadow: 0 0 10px #00f0ff66, inset 0 0 8px #00f0ff22;
+  text-shadow: 0 0 6px currentColor;
+  font-size: 16px;
 }
 
 /* Menu overlay */
@@ -678,16 +680,162 @@ let PERSIST = {
   totalRuns: 0,
   bestFloor: 0,
   unlockedPayloads: ['scrambler', 'trojan'],
-  unlockedUpgrades: []
+  unlockedUpgrades: [],
+  // Meta-progression (Spec 6)
+  meta: {
+    unlocks: [],
+    titles: [],
+    activeTitle: null,
+    prestigeLevel: 0,
+    prestigeBonus: 0.0,
+    unlockedBallColors: ['default'],
+    unlockedBoardThemes: ['default'],
+    activeBallColor: 'default',
+    activeBoardTheme: 'default'
+  },
+  // Achievement tracking
+  achievements: [],
+  completedContracts: []
 };
+
+// ─── META-PROGRESSION SYSTEM (Spec 6) ─────────────────────────
+// Expression-based unlocks: new OPTIONS unlocked, not raw power
+const UNLOCKS = {
+  // Ball types
+  mirror_ball:     { id: 'mirror_ball',     cat: 'BALL_TYPE',   name: 'Mirror Ball',       desc: 'Reflects off walls in opposite angle',   unlockType: 'rank', unlockValue: 3 },
+  bouncer_ball:    { id: 'bouncer_ball',    cat: 'BALL_TYPE',   name: 'Bouncer Ball',      desc: 'Extreme elasticity, chains pegs far',    unlockType: 'rank', unlockValue: 5 },
+  weighted_ball:   { id: 'weighted_ball',   cat: 'BALL_TYPE',   name: 'Weighted Ball',     desc: 'Sinks fast, smacks through crumbling',   unlockType: 'rank', unlockValue: 8 },
+  inverse_grav_ball:{ id: 'inverse_grav_ball',cat: 'BALL_TYPE', name: 'Inverse Gravity',    desc: 'Floats upward briefly before falling',   unlockType: 'rank', unlockValue: 12 },
+  // Shop slots
+  shop_slot_4:     { id: 'shop_slot_4',     cat: 'SHOP_ITEM',  name: 'Shop Slot 4',       desc: 'Unlocks 4th item slot in shop',           unlockType: 'rank', unlockValue: 4 },
+  shop_slot_5:     { id: 'shop_slot_5',      cat: 'SHOP_ITEM',  name: 'Shop Slot 5',       desc: 'Unlocks 5th item slot in shop',           unlockType: 'rank', unlockValue: 7 },
+  shop_slot_6:     { id: 'shop_slot_6',      cat: 'SHOP_ITEM',  name: 'Shop Slot 6',       desc: 'Unlocks 6th item slot in shop',           unlockType: 'rank', unlockValue: 10 },
+  // Cosmetics
+  gold_ball_color: { id: 'gold_ball_color', cat: 'COSMETIC',   name: 'Gold Ball Color',   desc: 'Gold tinted ball',                        unlockType: 'achievement', unlockValue: 'score_10k' },
+  neon_peg_theme:  { id: 'neon_peg_theme',   cat: 'BOARD_THEME', name: 'Neon Board Theme',  desc: 'Neon glowing pegs',                        unlockType: 'rank', unlockValue: 6 },
+  // Titles
+  title_peg_apprentice:   { id: 'title_peg_apprentice',   cat: 'TITLE', name: 'Peg Apprentice',      desc: 'Rank 1 title',      unlockType: 'rank', unlockValue: 1 },
+  title_breach_master:    { id: 'title_breach_master',    cat: 'TITLE', name: 'Breach Master',       desc: 'Rank 10 title',     unlockType: 'rank', unlockValue: 10 },
+  title_protocol_legend:  { id: 'title_protocol_legend',  cat: 'TITLE', name: 'Protocol Legend',     desc: 'Prestige title',    unlockType: 'prestige', unlockValue: 1 },
+};
+
+const META_CONFIG = {
+  prestige_unlock_threshold: 0.80,
+  prestige_payout_bonus:    0.05,
+  max_prestige_stacks:      3,
+  starting_ball_types:      ['standard'],
+  starting_shop_slots:      3,
+  starting_starters:       [],
+  runs_per_rank:            5,
+  rank_threshold_multiplier: 1.5,
+  rep_for_first_ball_unlock: 1000,
+  rep_for_shop_expansion:   2000,
+};
+
+const RANKS = [
+  { name: 'Script Kiddie', repThresh: 0 },
+  { name: 'Script Kiddie+', repThresh: 500 },
+  { name: 'Netrunner', repThresh: 1500 },
+  { name: 'Netrunner+', repThresh: 4000 },
+  { name: 'Ghost', repThresh: 10000 },
+  { name: 'Phantom', repThresh: 25000 },
+  { name: 'Legend', repThresh: 60000 },
+];
+
+function getPlayerRank(rep) {
+  let rank = RANKS[0].name;
+  for (const r of RANKS) {
+    if (rep >= r.repThresh) rank = r.name;
+  }
+  return rank;
+}
+
+function evaluateUnlocks() {
+  // Check all unlocks and grant newly available ones
+  const newlyUnlocked = [];
+  const meta = PERSIST.meta;
+
+  for (const unlockId in UNLOCKS) {
+    if (meta.unlocks.includes(unlockId)) continue; // already owned
+
+    const unlock = UNLOCKS[unlockId];
+    let available = false;
+
+    switch (unlock.unlockType) {
+      case 'rank':
+        available = (PERSIST.reputation >= RANKS[unlock.unlockValue]?.repThresh);
+        break;
+      case 'achievement':
+        if (unlock.unlockValue === 'score_10k') available = PERSIST.lifetimeBreach >= 10000;
+        break;
+      case 'prestige':
+        available = (meta.prestigeLevel >= unlock.unlockValue);
+        break;
+    }
+
+    if (available) {
+      meta.unlocks.push(unlockId);
+      newlyUnlocked.push(unlockId);
+    }
+  }
+
+  return newlyUnlocked;
+}
+
+function checkPrestigeEligibility() {
+  const totalUnlocks = Object.keys(UNLOCKS).length;
+  const unlockedCount = PERSIST.meta.unlocks.length;
+  const unlockRatio = unlockedCount / totalUnlocks;
+  return unlockRatio >= META_CONFIG.prestige_unlock_threshold;
+}
+
+function executePrestige() {
+  if (!checkPrestigeEligibility()) return false;
+
+  const meta = PERSIST.meta;
+  meta.prestigeLevel++;
+  if (meta.prestigeBonus < 0.15) meta.prestigeBonus += META_CONFIG.prestige_payout_bonus;
+
+  // Reset progress but preserve cosmetics
+  const cosmetics = meta.unlocks.filter(id => {
+    const u = UNLOCKS[id];
+    return u && (u.cat === 'COSMETIC' || u.cat === 'TITLE');
+  });
+  meta.unlocks = cosmetics;
+  meta.prestigeLevel;
+  // Reputation resets to 0 on prestige
+  PERSIST.reputation = 0;
+
+  return true;
+}
+
+function getRankProgress() {
+  const rep = PERSIST.reputation || 0;
+  const curRankIdx = RANKS.findIndex((r, i) => {
+    const next = RANKS[i + 1];
+    return !next || rep < next.repThresh;
+  });
+  const cur = RANKS[curRankIdx] || RANKS[0];
+  const next = RANKS[curRankIdx + 1];
+  if (!next) return 100;
+  const range = next.repThresh - cur.repThresh;
+  const progress = rep - cur.repThresh;
+  return Math.min(100, Math.round((progress / range) * 100));
+}
 
 function loadPersist() {
   try {
     const d = localStorage.getItem('slotprotocol');
-    if (d) PERSIST = JSON.parse(d);
-    GS.unlockedPayloads = PERSIST.unlockedPayloads;
-    GS.unlockedUpgrades = PERSIST.unlockedUpgrades;
-  } catch(e) {}
+    PERSIST = d ? JSON.parse(d) : {};
+    GS.unlockedPayloads = PERSIST.unlockedPayloads || [];
+    GS.unlockedUpgrades = PERSIST.unlockedUpgrades || [];
+    GS.reputation = PERSIST.reputation || 0;
+    GS.lifetimeBreach = PERSIST.lifetimeBreach || 0;
+    GS.totalRuns = PERSIST.totalRuns || 0;
+    GS.bestFloor = PERSIST.bestFloor || 0;
+  } catch(e) {
+    PERSIST = {};
+  }
 }
 function savePersist() {
   PERSIST.unlockedPayloads = GS.unlockedPayloads;
@@ -731,6 +879,42 @@ const GRAVITY = 0.18;
 const FRICTION = 0.995;
 const MAX_VEL = 14;
 const BALL_RADIUS = 7;
+
+// ─── PEG EVOLUTION SYSTEM (Spec 1) ───────────────────────────
+// 5-state machine: Dormant → Normal → Glowing → Charged → Explosive
+const PegEvo = {
+  DORMANT:    'DORMANT',
+  NORMAL:     'NORMAL',
+  GLOWING:    'GLOWING',
+  CHARGED:    'CHARGED',
+  EXPLOSIVE:  'EXPLOSIVE'
+};
+
+// Evolution config — spawn distribution and radii
+const EVO_CONFIG = {
+  dormant_chance:           0.20,
+  glowing_chance:          0.10,
+  charged_chance:           0.04,
+  explosive_chance:         0.01,
+  // Note: normal chance = 1 - sum = 0.65
+  dormant_activation_radius:  40.0,
+  explosive_detonation_radius: 60.0,
+  charged_store_fraction:      0.50,
+  glowing_multiplier:          2.0,
+  charged_multiplier:          2.0,
+  explosive_self_multiplier:   3.0,
+  explosive_adjacent_multiplier: 1.5,
+  cascade_min_chain:          3,
+};
+
+// Visual colors per evolution state
+const EVO_COLORS = {
+  DORMANT:   { core: '#2A2A2A', glow: '#2A2A2A' },
+  NORMAL:    null,  // uses peg type default
+  GLOWING:   { core: '#FFD700', glow: '#FFD700' },
+  CHARGED:   { core: '#FFFFFF', glow: '#FFFFFF' },
+  EXPLOSIVE: { core: '#FF4500', glow: '#FF4500' },
+};
 
 // ─── BALL CLASS ──────────────────────────────────────────────
 class Ball {
@@ -1122,8 +1306,37 @@ function triggerFlash(color = '#00f0ff', intensity = 0.3) {
 }
 
 // ─── BOARD GENERATION ───────────────────────────────────────
+function assignEvolutionState(rng) {
+  // Seeded RNG — uses provided rng or falls back to Math.random
+  const roll = rng ? rng.random() : Math.random();
+  const c = EVO_CONFIG;
+  // Weighted selection (check rarest first)
+  if (roll < c.explosive_chance) {
+    return { state: PegEvo.EXPLOSIVE, storedPoints: 0.0, wasRevealed: false };
+  } else if (roll < c.explosive_chance + c.charged_chance) {
+    return { state: PegEvo.CHARGED, storedPoints: 0.0, wasRevealed: false };
+  } else if (roll < c.explosive_chance + c.charged_chance + c.glowing_chance) {
+    return { state: PegEvo.GLOWING, storedPoints: 0.0, wasRevealed: false };
+  } else if (roll < c.explosive_chance + c.charged_chance + c.glowing_chance + c.dormant_chance) {
+    return { state: PegEvo.DORMANT, storedPoints: 0.0, wasRevealed: false };
+  }
+  return null; // Normal peg (no evolution)
+}
+
 function generateBoard(floor) {
   const board = [];
+  // Seeded RNG for reproducible runs
+  const rng = { random: Math.random, seed: floor * 1000 + Date.now() };
+  // Simple seeded random using mulberry32
+  const seed = floor * 1000 + 42;
+  rng.random = (function(s) {
+    return function() {
+      s |= 0; s = s + 0x6D2B79F5 | 0;
+      let t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  })(seed);
 
   if (floor <= 2) {
     // Simple grid, generous spacing
@@ -1139,7 +1352,8 @@ function generateBoard(floor) {
         if (floor >= 2 && r < 0.08) type = 'crumbling';
         board.push({ x, y, type, hitCount: 0, id: board.length,
           hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
+          evolution: assignEvolutionState(rng)
         });
       }
     }
@@ -1171,7 +1385,8 @@ function generateBoard(floor) {
         else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
         board.push({ x, y, type, hitCount: 0, id: board.length,
           hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
+          evolution: assignEvolutionState(rng)
         });
       }
     }
@@ -1180,13 +1395,14 @@ function generateBoard(floor) {
         x: 60 + Math.random() * 360,
         y: 130 + Math.random() * 320,
         type: 'cache',
-        hitCount: 0, id: board.length
+        hitCount: 0, id: board.length,
+        evolution: null  // Cache pegs don't evolve
       });
     }
   } else {
     // Floor 5: Boss vault
     // Vault target at bottom
-    board.push({ x: W/2, y: H - 120, type: 'cache', boss: true, hits: 0, maxHits: 15, hitCount: 0, id: board.length });
+    board.push({ x: W/2, y: H - 120, type: 'cache', boss: true, hits: 0, maxHits: 15, hitCount: 0, id: board.length, evolution: null });
     // Obstacle pegs
     for (let row = 0; row < 8; row++) {
       const cols = 6 - (row % 2);
@@ -1203,7 +1419,8 @@ function generateBoard(floor) {
         else if (r < 0.32) type = 'seismic';
         board.push({ x, y, type, hitCount: 0, id: board.length,
           hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#00f0ff','#aa44ff','#ffcc00'][Math.floor(Math.random() * 3)] : null
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
+          evolution: assignEvolutionState(rng)
         });
       }
     }
@@ -1290,6 +1507,43 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     return; // skip normal bounce
   }
 
+  // ── PEG EVOLUTION STATE MACHINE ─────────────────────────────
+  if (peg.evolution) {
+    const ev = peg.evolution;
+
+    if (ev.state === PegEvo.NORMAL) {
+      // → GLOWING: ×2 points
+      ev.state = PegEvo.GLOWING;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier;
+      GS.multiplier = Math.min(7, GS.multiplier + 1);
+      updateMultiplierDisplay();
+      spawnParticles(peg.x, peg.y, '#FFD700', 8, 3);
+      spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
+    } else if (ev.state === PegEvo.GLOWING) {
+      // → CHARGED: ×2 points + store 50% of hit value
+      ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
+      ev.state = PegEvo.CHARGED;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier;
+      GS.multiplier = Math.min(7, GS.multiplier + 1);
+      updateMultiplierDisplay();
+      spawnParticles(peg.x, peg.y, '#FFFFFF', 12, 4);
+      spawnFloatText(peg.x, peg.y - 10, '◆ CHARGED', '#FFFFFF');
+    } else if (ev.state === PegEvo.CHARGED) {
+      // → EXPLOSIVE: release stored bonus, then detonate
+      const bonus = ev.storedPoints;
+      ev.storedPoints = 0.0;
+      GS.score += bonus;
+      spawnFloatText(peg.x, peg.y, `+${Math.round(bonus)}`, '#FFFFFF');
+      detonateExplosivePeg(ball, peg, GS.board);
+      // After detonation, fall through to normal bounce
+    } else if (ev.state === PegEvo.EXPLOSIVE) {
+      // Already EXPLOSIVE → detonate again
+      detonateExplosivePeg(ball, peg, GS.board);
+      // Fall through to normal bounce after detonation
+    }
+    // DORMANT: ball must activate first via checkDormantActivation — no transition on hit
+  }
+
   if (pegDef.reflect) {
     // Mirror: reflect across surface
     ball.vx -= 2 * dot * nx;
@@ -1358,7 +1612,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               if (eDist < 80) {
                 other.destroyed = true;
                 GS.floorObjective.progress++;
-                spawnParticles(other.x, other.y, PEG_TYPES[other.type].color, 8, 3);
+                spawnParticles(other.x, other.y, other.color || PEG_TYPES[other.type]?.color || '#ff4400', 8, 3);
                 GS.score += 50;
               }
             }
@@ -1500,7 +1754,7 @@ function resolveBallExit(ball) {
       if (dist < 80) {
         peg.destroyed = true;
         GS.floorObjective.progress += 2;
-        spawnParticles(peg.x, peg.y, PEGLOADS[peg.type].color || '#ffaa00', 8, 3);
+        spawnParticles(peg.x, peg.y, peg.color || '#ffaa00', 8, 3);
       }
     }
   }
@@ -1511,6 +1765,96 @@ function resolveBallExit(ball) {
     GS.multiplier = 1;
     GS.multiplierTimer = 0;
     updateMultiplierDisplay();
+  }
+}
+
+// ─── PEG EVOLUTION: Detonate Explosive Peg ───────────────────
+function detonateExplosivePeg(ball, peg, board) {
+  const radius = EVO_CONFIG.explosive_detonation_radius;
+  let totalPoints = 0;
+  let chainCount = 0;
+
+  // Get pegs in radius
+  const affectedPegs = board.filter(other => {
+    if (other.destroyed) return false;
+    if (other === peg) return true; // include self
+    const dx = other.x - peg.x;
+    const dy = other.y - peg.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return dist < radius;
+  });
+
+  // Self: apply ×3 multiplier
+  const selfMult = EVO_CONFIG.explosive_self_multiplier;
+  totalPoints += 50 * selfMult * GS.multiplier;
+  GS.score += 50 * selfMult * GS.multiplier;
+
+  // Shockwave VFX on self
+  spawnShockwave(peg.x, peg.y);
+  triggerShake(8);
+  triggerFlash('#FF450044', 0.3);
+  spawnFloatText(peg.x, peg.y, 'DETONATE!', '#FF4500');
+  spawnParticles(peg.x, peg.y, '#FF4500', 20, 6);
+
+  // Adjacent pegs
+  for (const other of affectedPegs) {
+    if (other === peg) continue;
+    if (other.destroyed) continue;
+
+    // Chain bonus: adjacent CHARGED pegs discharge
+    if (other.evolution && other.evolution.state === PegEvo.CHARGED) {
+      chainCount++;
+      totalPoints += other.evolution.storedPoints || 0;
+      other.evolution.storedPoints = 0.0;
+      other.evolution.state = PegEvo.NORMAL;
+      spawnFloatText(other.x, other.y, 'CHAIN!', '#FFFFFF');
+    }
+
+    // Apply adjacent ×1.5 multiplier (or ×3 if explosive)
+    const mult = (other.evolution && other.evolution.state === PegEvo.EXPLOSIVE)
+      ? EVO_CONFIG.explosive_self_multiplier
+      : EVO_CONFIG.explosive_adjacent_multiplier;
+    totalPoints += 50 * mult * GS.multiplier;
+    GS.score += 50 * mult * GS.multiplier;
+    other.hitCount++;
+    GS.floorObjective.progress++;
+    spawnParticles(other.x, other.y, '#FF4500', 6, 3);
+  }
+
+  // Cascade: 3+ chain triggers breach cascade
+  if (chainCount >= EVO_CONFIG.cascade_min_chain || affectedPegs.length >= 3) {
+    triggerFlash('#FF450088', 0.5);
+    spawnFloatText(peg.x, peg.y - 20, 'CASCADE!', '#FFaa00');
+    GS.chainTimer = 45;
+    GS.multiplier = Math.min(7, GS.multiplier + 2);
+    updateMultiplierDisplay();
+  }
+
+  // Reset explosive peg to NORMAL
+  peg.evolution.state = PegEvo.NORMAL;
+  peg.evolution.storedPoints = 0.0;
+
+  return totalPoints;
+}
+
+// ─── PEG EVOLUTION: Dormant Activation Check ────────────────
+function checkDormantActivation(ball) {
+  if (!ball.active) return;
+  const radius = EVO_CONFIG.dormant_activation_radius;
+  for (const peg of GS.board) {
+    if (peg.destroyed) continue;
+    if (!peg.evolution) continue;
+    if (peg.evolution.state !== PegEvo.DORMANT) continue;
+    const dx = ball.x - peg.x;
+    const dy = ball.y - peg.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < radius) {
+      peg.evolution.state = PegEvo.NORMAL;
+      peg.evolution.wasRevealed = true;
+      spawnParticles(peg.x, peg.y, '#2A2A2A', 8, 3);
+      spawnFloatText(peg.x, peg.y, 'AWAKEN', '#00f0ff');
+      triggerFlash('#00f0ff22', 0.15);
+    }
   }
 }
 
@@ -1692,22 +2036,7 @@ function completeFloor() {
   `;
 
   document.getElementById('floor-overlay').classList.add('active');
-
-  // ── JACKPOT SLOT MACHINE ─────────────────────────────────
-  // Use MutationObserver to handle timing for overlay activation
-  if (!window._jpObserver) {
-    window._jpObserver = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === 'attributes' && m.attributeName === 'class') {
-          const overlay = document.getElementById('floor-overlay');
-          if (overlay && overlay.classList.contains('active')) {
-            initJackpotSlots();
-          }
-        }
-      }
-    });
-    window._jpObserver.observe(document.getElementById('floor-overlay'), { attributes: true });
-  }
+  initJackpotSlots();
 }
 
 function initJackpotSlots() {
@@ -1739,15 +2068,17 @@ function initJackpotSlots() {
 
   // Show pulsing "SPIN TO WIN!" prompt
   let promptEl = document.getElementById('jp-prompt');
-  if (!promptEl) {
+  if (!promptEl && jpBtn && jpBtn.parentNode) {
     promptEl = document.createElement('div');
     promptEl.id = 'jp-prompt';
     promptEl.style.cssText = 'text-align:center;font-size:14px;font-weight:bold;color:#ffd700;' +
       'text-shadow:0 0 12px #ffd700;animation:jpPromptPulse 1s ease-in-out infinite alternate;';
     jpBtn.parentNode.insertBefore(promptEl, jpBtn);
   }
-  promptEl.textContent = '★ SPIN TO WIN! ★';
-  promptEl.style.display = 'block';
+  if (promptEl) {
+    promptEl.textContent = '★ SPIN TO WIN! ★';
+    promptEl.style.display = 'block';
+  }
 
   function showResult() {
     const [a, b, c] = reels.map(r => r.textContent);
@@ -1755,7 +2086,7 @@ function initJackpotSlots() {
     GS.frenzyReady = false;
     if (a === b && b === c) {
       const bonus = 500 * GS.floor * mult;
-      GS.breachCredits += Math.floor(bonus / 10);
+      GS.breachCredits += bonus;
       if (jpBanner) {
         jpBanner.style.cssText = 'display:block;text-align:center;font-size:18px;color:#ffd700;font-weight:bold;' +
           'text-shadow:0 0 20px #ffd700,2px 2px 0 #ff6600;-webkit-text-stroke:1px #ff6600;' +
@@ -1768,7 +2099,7 @@ function initJackpotSlots() {
       canReroll = false;
     } else if (a === b || b === c) {
       const minor = 100 * GS.floor * mult;
-      GS.breachCredits += Math.floor(minor / 10);
+      GS.breachCredits += minor;
       if (jpBanner) {
         jpBanner.style.cssText = 'display:block;text-align:center;font-size:20px;color:#aaaaff;font-weight:bold;' +
           'text-shadow:0 0 15px #aaaaff,0 0 30px #aaaaff66;-webkit-text-stroke:1px #6666ff;' +
@@ -1863,13 +2194,25 @@ function openShop() {
     const rankLocked = lockedRank && !GS.unlockedPayloads.includes(item.id) && !GS.unlockedUpgrades.includes(item.id);
     const rankMet = !lockedRank || (GS.rank && GS.rank >= lockedRank.replace('+',''));
 
+    const rarity = item.type === 'payload' ? (PAYLOADS[item.id]?.rarity || 'common') : 'common';
+    const rarityColors = {
+      common:    '#888888',
+      uncommon:  '#00ff88',
+      rare:      '#4488ff',
+      legendary: '#ffd700'
+    };
+    const rarityColor = rarityColors[rarity] || '#888888';
+    const rarityBadge = rarity !== 'common' ? `<div style="font-size:8px;color:${rarityColor};letter-spacing:1px;margin-top:2px;">${rarity.toUpperCase()}</div>` : '';
+
     const el = document.createElement('div');
     el.className = 'shop-item' + (owned ? ' owned' : '') + (rankLocked && !rankMet ? ' locked' : '');
+    el.style.borderColor = rarityColor + '55';
 
     el.innerHTML = `
-      <div class="item-icon">${item.icon}</div>
+      <div class="item-icon" style="color:${rarityColor};">${item.icon}</div>
       <div class="item-name">${item.name}${rankLocked && !rankMet ? ' 🔒' : ''}</div>
       <div class="item-desc">${item.desc}</div>
+      ${rarityBadge}
       ${owned
         ? '<div class="item-owned-badge">✓ OWNED</div>'
         : rankLocked && !rankMet
@@ -1939,11 +2282,15 @@ function startFloor() {
   GS.multiplier = 1;
   GS.multiplierTimer = 0;
   GS.chainTimer = 0;
+  GS.timeScale = 1.0;
+  GS.slowmoBall = null;
+  GS.frenzyActive = false;
+  GS.frenzyReady = false;
+  GS.comboCount = 0;
   GS.currentPayloads = [];
   GS.totalPegsCleared = 0;
   GS.totalBallsUsed = 0;
   canDrop = true;
-
   // Reset ball count if extra life upgrade
   if (GS.floor === 1 && GS.unlockedUpgrades.includes('extralife')) {
     GS.balls = 6;
@@ -1990,15 +2337,39 @@ function getRankProgress() {
 function endRun(won) {
   GS.screen = 'run_end';
 
-  // Convert remaining breach credits to reputation
-  const creditGain = Math.floor(GS.breachCredits * (1 + GS.balls * 0.1));
+  // Sync reputation to PERSIST for meta-progression
+  PERSIST.reputation = GS.reputation;
+
+  // Apply prestige bonus if any
+  const prestigeMult = 1 + (PERSIST.meta?.prestigeBonus || 0);
+  const creditGain = Math.floor(GS.breachCredits * (1 + GS.balls * 0.1) * prestigeMult);
   GS.reputation += creditGain;
+  PERSIST.reputation = GS.reputation;
+
+  // Evaluate meta-progression unlocks
+  const newlyUnlocked = evaluateUnlocks();
 
   const title = document.getElementById('runend-title');
   const stats = document.getElementById('runend-stats');
+  const prevRank = GS.rank;
+  GS.rank = getPlayerRank(PERSIST.reputation);
 
   title.textContent = won ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
   title.className = 'runend-title ' + (won ? 'win' : 'lose');
+
+  // Build meta-progress display
+  const metaProgress = PERSIST.meta;
+  const unlockCount = metaProgress.unlocks.length;
+  const totalUnlocks = Object.keys(UNLOCKS).length;
+  const unlockPct = Math.round((unlockCount / totalUnlocks) * 100);
+  const canPrestige = checkPrestigeEligibility();
+  const prestigeInfo = canPrestige
+    ? `<div style="margin-top:10px;padding:8px;border:1px solid #ffd70044;border-radius:6px;background:#ffd70011;">
+        <span style="color:#ffd700;font-size:11px;">✦ PRESTIGE AVAILABLE ✦</span>
+        <div style="font-size:9px;color:#888;margin-top:4px;">80% unlocks reached — reset with +5% permanent bonus</div>
+        <button id="prestige-btn" style="margin-top:8px;background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;">PRESTIGE (+5% BONUS)</button>
+       </div>`
+    : `<div style="font-size:9px;color:#555;margin-top:6px;">${unlockCount}/${totalUnlocks} unlocks (${unlockPct}%) — ${Math.round((1 - unlockPct/100) * totalUnlocks)} more to prestige</div>`;
 
   stats.innerHTML = `
     <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}/5</span></div>
@@ -2006,18 +2377,62 @@ function endRun(won) {
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
     <div>CREDITS EARNED: <span class="runend-stat-value" style="color:#00f0ff;">+${creditGain}</span></div>
+    ${won ? `<div style="color:#00ff88;font-size:10px;margin-top:4px;">+BREACH BONUS APPLIED</div>` : ''}
+    ${prestigeMult > 1 ? `<div style="color:#ffd700;font-size:10px;margin-top:2px;">★ PRESTIGE +${Math.round((prestigeMult-1)*100)}% BONUS ★</div>` : ''}
     <div class="rank-progress-wrap" style="margin-top:12px;text-align:center;">
-      <div style="font-size:11px;color:#666;margin-bottom:6px;">RANK: ${GS.rank} → ${getNextRank()}</div>
+      <div style="font-size:11px;color:#666;margin-bottom:6px;">RANK: ${prevRank} → <span style="color:#00f0ff;">${GS.rank}</span></div>
       <div style="background:#111;border:1px solid #333;border-radius:8px;height:10px;overflow:hidden;">
         <div style="height:100%;width:${getRankProgress()}%;background:linear-gradient(90deg,#00f0ff,#ff00aa);border-radius:8px;transition:width 0.5s;"></div>
       </div>
       <div style="font-size:10px;color:#555;margin-top:4px;">${getRankProgress()}% to ${getNextRank()}</div>
     </div>
-    <div>REPUTATION: <span class="runend-stat-value">+${creditGain}</span></div>
+    <div style="margin-top:8px;font-size:10px;">UNLOCKS: <span class="runend-stat-value" style="color:#ffd700;">${unlockCount}/${totalUnlocks}</span></div>
+    ${newlyUnlocked.length > 0 ? `<div style="color:#00ff88;font-size:10px;margin-top:4px;">✦ NEW: ${newlyUnlocked.map(id => UNLOCKS[id]?.name || id).join(', ')}</div>` : ''}
+    ${metaProgress.prestigeLevel > 0 ? `<div style="color:#ffd700;font-size:10px;">★ PRESTIGE LVL ${metaProgress.prestigeLevel} (+${Math.round(metaProgress.prestigeBonus*100)}%)</div>` : ''}
+    ${prestigeInfo}
   `;
+
+  // Rank-up fanfare
+  if (GS.rank !== prevRank) {
+    triggerFlash('#ffd70066', 0.5);
+    triggerShake(8);
+    spawnFloatText(W/2, H/2 - 60, '▲ RANK UP! ▲', '#ffd700');
+    spawnFloatText(W/2, H/2 - 30, prevRank + ' → ' + GS.rank, '#00f0ff');
+    spawnParticles(W/2, H/2 - 45, '#ffd700', 30, 8);
+  }
+
+  // New unlock notification
+  if (newlyUnlocked.length > 0) {
+    setTimeout(() => {
+      triggerFlash('#00ff8844', 0.4);
+      spawnFloatText(W/2, H/2, '✦ NEW UNLOCK ✦', '#ffd700');
+    }, 500);
+  }
 
   PERSIST.lifetimeBreach += GS.score;
   savePersist();
+
+  // Bind prestige button if present
+  setTimeout(() => {
+    const prestigeBtn = document.getElementById('prestige-btn');
+    if (prestigeBtn) {
+      prestigeBtn.onclick = () => {
+        if (executePrestige()) {
+          triggerFlash('#ffd70088', 0.8);
+          triggerShake(10);
+          spawnFloatText(W/2, H/2, '★ PRESTIGE ★', '#ffd700');
+          spawnFloatText(W/2, H/2 + 30, `LEVEL ${PERSIST.meta.prestigeLevel} — +${Math.round(PERSIST.meta.prestigeBonus*100)}% BONUS`, '#00f0ff');
+          spawnParticles(W/2, H/2, '#ffd700', 40, 10);
+          PERSIST.reputation = 0;
+          GS.reputation = 0;
+          GS.rank = getPlayerRank(0);
+          savePersist();
+          // Refresh the screen
+          endRun(won);
+        }
+      };
+    }
+  }, 100);
 
   document.getElementById('runend-overlay').classList.add('active');
 }
@@ -2053,9 +2468,13 @@ function returnToMenu() {
   document.getElementById('menu-overlay').classList.remove('hidden');
   GS.screen = 'menu';
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen
+  GS.timeScale = 1.0;
+  GS.slowmoBall = null;
   GS.frenzyReady = false;
   GS.frenzyActive = false;
   GS.comboCount = 0;
+  GS.multiplier = 1;
+  GS.chainTimer = 0;
   updateHUD();
 }
 
@@ -2199,6 +2618,113 @@ function drawPegs() {
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+
+    // ── PEG EVOLUTION: Visual state rendering ─────────────────
+    if (peg.evolution && peg.evolution.state) {
+      const evoState = peg.evolution.state;
+
+      if (evoState === PegEvo.DORMANT) {
+        // Dark grey, subtle shimmer
+        const shimmer = 0.5 + Math.sin(time * 1.5 + peg.x * 0.05) * 0.15;
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#2A2A2A';
+        ctx.shadowColor = '#2A2A2A';
+        ctx.shadowBlur = 3 * shimmer;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (evoState === PegEvo.GLOWING) {
+        // Pulsing gold aura (#FFD700), 1s cycle
+        const pulse = 0.6 + Math.sin(time * Math.PI * 2) * 0.4;
+        // Outer glow
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius + 8, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 215, 0, ${0.25 * pulse})`;
+        ctx.fill();
+        // Core
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFD700';
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 15 * pulse;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (evoState === PegEvo.CHARGED) {
+        // Bright white core (#FFFFFF), crackling energy arcs
+        const crackle = time * 8;
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius + 6, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = '#FFFFFF';
+        ctx.shadowBlur = 20;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // Energy arcs
+        ctx.strokeStyle = 'rgba(200, 220, 255, 0.8)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const angle = crackle + i * Math.PI / 2;
+          const len = def.radius + 4 + Math.sin(time * 10 + i) * 2;
+          ctx.beginPath();
+          ctx.moveTo(
+            peg.x + Math.cos(angle) * def.radius,
+            peg.y + Math.sin(angle) * def.radius
+          );
+          ctx.lineTo(
+            peg.x + Math.cos(angle) * len,
+            peg.y + Math.sin(angle) * len
+          );
+          ctx.stroke();
+        }
+        // Stored points indicator
+        if (peg.evolution.storedPoints > 0) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 8px Courier New';
+          ctx.textAlign = 'center';
+          ctx.fillText(Math.round(peg.evolution.storedPoints), peg.x, peg.y - def.radius - 6);
+        }
+      } else if (evoState === PegEvo.EXPLOSIVE) {
+        // Red-orange glow (#FF4500), spiky corona
+        const pulse = 0.7 + Math.sin(time * 4 + peg.y * 0.1) * 0.3;
+        // Corona spikes
+        ctx.save();
+        ctx.translate(peg.x, peg.y);
+        ctx.rotate(time * 2);
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const innerR = def.radius + 3;
+          const outerR = def.radius + 10 + pulse * 5;
+          ctx.moveTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+          ctx.lineTo(Math.cos(angle + 0.2) * outerR, Math.sin(angle + 0.2) * outerR);
+          ctx.moveTo(Math.cos(angle - 0.2) * outerR, Math.sin(angle - 0.2) * outerR);
+          ctx.lineTo(Math.cos(angle) * innerR, Math.sin(angle) * innerR);
+        }
+        ctx.strokeStyle = `rgba(255, 69, 0, ${0.6 * pulse})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+        // Core
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#FF4500';
+        ctx.shadowColor = '#FF4500';
+        ctx.shadowBlur = 20 * pulse;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // Ticking anticipation indicator
+        const tickPhase = (time % 0.5) / 0.5;
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius + 2 + tickPhase * 4, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255, 100, 0, ${1 - tickPhase})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
   }
 }
 
@@ -2284,14 +2810,19 @@ function update() {
     ball.update();
   }
 
+  // Check dormant peg activation (ball passes near dormant peg → activates it)
+  for (const ball of GS.ballsInPlay) {
+    checkDormantActivation(ball);
+  }
+
   // Collision check
   checkCollisions();
 
-  // Multiplier chain timer
+// Multiplier chain timer
   if (GS.chainTimer > 0) {
     GS.chainTimer--;
   } else if (GS.multiplier > 1) {
-    GS.multiplier = Math.max(1, GS.multiplier - 0.5);
+    GS.multiplier = 1; // Snap to 1 when chain ends
     updateMultiplierDisplay();
   }
 
@@ -2304,16 +2835,15 @@ function update() {
   updateShockwaves();
   updateFloatTexts();
 
-  // Check no balls and no balls left
+  // Check no balls and no balls left — run ends regardless of objective
   if (GS.ballsInPlay.length === 0 && GS.balls <= 0 && GS.screen === 'playing') {
-    // Check if objective was met
     if (GS.floorObjective.progress >= GS.floorObjective.target) {
       completeFloor();
     } else {
-      // Failed floor
       triggerFlash('#ff224433', 0.3);
       endRun(false);
     }
+    return;
   }
 
   // Check objective periodically

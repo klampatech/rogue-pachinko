@@ -293,6 +293,8 @@ body {
   border-color: #ff00aa44;
   background: rgba(255, 0, 170, 0.05);
 }
+.shop-tab.active { background: #ff00aa44 !important; border-color: #ff00aa !important; color: #ff00aa !important; }
+.shop-item.rep-item { border-color: #00ffaa33; }
 
 .item-icon { font-size: 18px; margin-bottom: 5px; }
 .item-name { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
@@ -583,7 +585,14 @@ body {
   <div id="shop-overlay">
     <div class="shop-header">
       <div class="shop-title">◈ NETSHOP ◈</div>
-      <div>CREDITS: <span id="shop-credits">0</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="game-btn shop-tab active" id="shop-tab-credits" style="font-size:10px;padding:4px 10px;">BREACH SHOP</button>
+        <button class="game-btn shop-tab" id="shop-tab-rep" style="font-size:10px;padding:4px 10px;">REP SHOP</button>
+      </div>
+      <div id="shop-currency" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="color:#ffaa00;">◈ CREDITS: <span id="shop-credits">0</span></div>
+        <div style="color:#00ffaa;font-size:10px;">⚡ REP: <span id="shop-rep">0</span></div>
+      </div>
     </div>
     <div class="shop-grid" id="shop-grid"></div>
     <div class="shop-continue-btn">
@@ -680,6 +689,14 @@ const GS = {
   jackpotPool: 500,   // grows 15% per failed spin, resets to 500*floor on win
   jackpotBase: 500,   // floor-dependent base (500 * floor)
   totalJackpotSpins: 0,
+  // Reputation shop permanent upgrades (default values)
+  bonusStartingBalls: 0,
+  comboTimerBonus: 0,
+  breachBonusMultiplier: 1.0,
+  startingPayloadCount: 0,
+  jackpotGrowthBonus: 1.0,
+  startingCreditsBonus: 0,
+  multiballEnabled: false,
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -2305,57 +2322,90 @@ const SHOP_ITEMS = [
   { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' }
 ];
 
-function openShop() {
+// Reputation Shop — permanent upgrades purchasable with meta-currency
+const REP_SHOP_ITEMS = [
+  { id: 'rep_starting_balls', type: 'rep_upgrade', name: 'BALL+', icon: '●', repCost: 500, desc: '+1 starting ball per run' },
+  { id: 'rep_combo_master', type: 'rep_upgrade', name: 'COMBO MASTER', icon: '⚡', repCost: 750, desc: '+1.0s chain timer window' },
+  { id: 'rep_breach_bonus', type: 'rep_upgrade', name: 'DATA VAMP', icon: '◁', repCost: 1000, desc: '+25% breach credits on clear' },
+  { id: 'rep_payload_set', type: 'rep_upgrade', name: 'LOADED', icon: '✦', repCost: 600, desc: 'Start each run with 2 payloads' },
+  { id: 'rep_jackpot_hunter', type: 'rep_upgrade', name: 'JACKPOT SENSE', icon: '★', repCost: 800, desc: 'Jackpot pool grows +5% faster' },
+  { id: 'rep_starting_credits', type: 'rep_upgrade', name: 'SEED CAPITAL', icon: '◈', repCost: 400, desc: '+100 breach credits on floor 1' }
+];
+
+function openShop(tab = 'credits') {
   GS.screen = 'shop';
   document.getElementById('shop-credits').textContent = GS.breachCredits;
+  document.getElementById('shop-rep').textContent = GS.reputation;
+
+  // Update tab button styles
+  document.getElementById('shop-tab-credits').classList.toggle('active', tab === 'credits');
+  document.getElementById('shop-tab-rep').classList.toggle('active', tab === 'rep');
 
   const grid = document.getElementById('shop-grid');
   grid.innerHTML = '';
 
-  for (const item of SHOP_ITEMS) {
-    const owned = GS.unlockedPayloads.includes(item.id) || GS.unlockedUpgrades.includes(item.id);
-    const canAfford = GS.breachCredits >= item.cost;
-    const payloadDef = item.type === 'payload' ? PAYLOADS[item.id] : null;
-    const lockedRank = payloadDef?.unlockRank;
-    const rankLocked = lockedRank && !GS.unlockedPayloads.includes(item.id) && !GS.unlockedUpgrades.includes(item.id);
-    const rankMet = !lockedRank || (GS.rank && GS.rank >= lockedRank.replace('+',''));
+  const items = tab === 'credits' ? SHOP_ITEMS : REP_SHOP_ITEMS;
 
-    const rarity = item.type === 'payload' ? (PAYLOADS[item.id]?.rarity || 'common') : 'common';
-    const rarityColors = {
-      common:    '#888888',
-      uncommon:  '#00ff88',
-      rare:      '#4488ff',
-      legendary: '#ffd700'
-    };
-    const rarityColor = rarityColors[rarity] || '#888888';
-    const rarityBadge = rarity !== 'common' ? `<div style="font-size:8px;color:${rarityColor};letter-spacing:1px;margin-top:2px;">${rarity.toUpperCase()}</div>` : '';
+  for (const item of items) {
+    if (tab === 'credits') {
+      const owned = GS.unlockedPayloads.includes(item.id) || GS.unlockedUpgrades.includes(item.id);
+      const canAfford = GS.breachCredits >= item.cost;
+      const payloadDef = item.type === 'payload' ? PAYLOADS[item.id] : null;
+      const lockedRank = payloadDef?.unlockRank;
+      const rankLocked = lockedRank && !owned;
+      const rankMet = !lockedRank || (GS.rank && GS.rank >= lockedRank.replace('+',''));
 
-    const el = document.createElement('div');
-    el.className = 'shop-item' + (owned ? ' owned' : '') + (rankLocked && !rankMet ? ' locked' : '');
-    el.style.borderColor = rarityColor + '55';
+      const rarity = item.type === 'payload' ? (PAYLOADS[item.id]?.rarity || 'common') : 'common';
+      const rarityColors = { common: '#888888', uncommon: '#00ff88', rare: '#4488ff', legendary: '#ffd700' };
+      const rarityColor = rarityColors[rarity] || '#888888';
+      const rarityBadge = rarity !== 'common' ? `<div style="font-size:8px;color:${rarityColor};letter-spacing:1px;margin-top:2px;">${rarity.toUpperCase()}</div>` : '';
 
-    el.innerHTML = `
-      <div class="item-icon" style="color:${rarityColor};">${item.icon}</div>
-      <div class="item-name">${item.name}${rankLocked && !rankMet ? ' 🔒' : ''}</div>
-      <div class="item-desc">${item.desc}</div>
-      ${rarityBadge}
-      ${owned
-        ? '<div class="item-owned-badge">✓ OWNED</div>'
-        : rankLocked && !rankMet
-          ? `<div class="item-cost" style="font-size:9px;color:#666;">Requires: ${lockedRank}</div>`
-          : `<div class="item-cost">◈ ${item.cost}</div>
-           <button class="shop-buy-btn" ${canAfford ? '' : 'disabled'} data-id="${item.id}">BUY</button>`
-      }
-    `;
+      const costDiv = '<div class="item-cost">◈ ' + item.cost + '</div>';
+      const buyBtn = '<button class="shop-buy-btn" ' + (canAfford ? '' : 'disabled') + ' data-id="' + item.id + '" data-tab="credits">BUY</button>';
+      const ownedBadge = '<div class="item-owned-badge">✓ OWNED</div>';
+      const lockedMsg = rankLocked && !rankMet ? '<div class="item-cost" style="font-size:9px;color:#666;">Requires: ' + lockedRank + '</div>' : costDiv + buyBtn;
+      const el = document.createElement('div');
+      el.className = 'shop-item' + (owned ? ' owned' : '') + (rankLocked && !rankMet ? ' locked' : '');
+      el.style.borderColor = rarityColor + '55';
+      el.innerHTML =
+        '<div class="item-icon" style="color:' + rarityColor + ';">' + item.icon + '</div>' +
+        '<div class="item-name">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
+        '<div class="item-desc">' + item.desc + '</div>' +
+        rarityBadge +
+        (owned ? ownedBadge : lockedMsg);
 
-    grid.appendChild(el);
+      grid.appendChild(el);
+    } else {
+      // Reputation shop tab
+      const owned = GS.unlockedUpgrades.includes(item.id);
+      const canAfford = GS.reputation >= item.repCost;
+
+      const el = document.createElement('div');
+      const costDiv = '<div class="item-cost" style="color:#00ffaa;">⚡ ' + item.repCost + '</div>';
+      const buyBtn = '<button class="shop-buy-btn" style="border-color:#00ffaa55;color:#00ffaa;" ' + (canAfford ? '' : 'disabled') + ' data-id="' + item.id + '" data-tab="rep">BUY</button>';
+      const ownedBadge = '<div class="item-owned-badge" style="color:#00ffaa;">✓ OWNED</div>';
+      el.innerHTML =
+        '<div class="item-icon" style="color:#00ffaa;">' + item.icon + '</div>' +
+        '<div class="item-name" style="color:#00ffaa;">' + item.name + '</div>' +
+        '<div class="item-desc">' + item.desc + '</div>' +
+        (owned ? ownedBadge : costDiv + buyBtn);
+
+    }
   }
 
   document.getElementById('shop-overlay').classList.add('active');
 
+  // Bind tab buttons
+  document.getElementById('shop-tab-credits').onclick = () => openShop('credits');
+  document.getElementById('shop-tab-rep').onclick = () => openShop('rep');
+
   // Bind buy buttons
   grid.querySelectorAll('.shop-buy-btn').forEach(btn => {
-    btn.onclick = () => buyItem(btn.dataset.id);
+    btn.onclick = () => {
+      const tab = btn.dataset.tab;
+      if (tab === 'rep') buyRepItem(btn.dataset.id);
+      else buyItem(btn.dataset.id);
+    };
   });
 }
 
@@ -2377,10 +2427,60 @@ function buyItem(id) {
     GS.unlockedPayloads.push(id);
   } else {
     GS.unlockedUpgrades.push(id);
+    applyUpgrade(id); // Apply permanent upgrade effect
   }
 
   triggerFlash('#00f0ff33', 0.2);
-  openShop(); // Refresh
+  openShop('credits'); // Refresh credits tab
+}
+
+function buyRepItem(id) {
+  const item = REP_SHOP_ITEMS.find(i => i.id === id);
+  if (!item || GS.reputation < item.repCost) return;
+  if (GS.unlockedUpgrades.includes(id)) return;
+
+  GS.reputation -= item.repCost;
+  document.getElementById('shop-rep').textContent = GS.reputation;
+  GS.unlockedUpgrades.push(id);
+  applyUpgrade(id); // Apply permanent reputation upgrade effect
+
+  triggerFlash('#00ffaa44', 0.3);
+  openShop('rep'); // Refresh rep tab
+  saveGame(); // Reputation changes persist
+}
+
+// Apply permanent upgrade effect from rep shop
+function applyUpgrade(id) {
+  switch (id) {
+    case 'rep_starting_balls':
+      GS.bonusStartingBalls = (GS.bonusStartingBalls || 0) + 1;
+      break;
+    case 'rep_combo_master':
+      GS.comboTimerBonus = (GS.comboTimerBonus || 0) + 1.0;
+      break;
+    case 'rep_breach_bonus':
+      GS.breachBonusMultiplier = (GS.breachBonusMultiplier || 1.0) + 0.25;
+      break;
+    case 'rep_payload_set':
+      GS.startingPayloadCount = (GS.startingPayloadCount || 0) + 2;
+      break;
+    case 'rep_jackpot_hunter':
+      GS.jackpotGrowthBonus = (GS.jackpotGrowthBonus || 1.0) + 0.05;
+      break;
+    case 'rep_starting_credits':
+      GS.startingCreditsBonus = (GS.startingCreditsBonus || 0) + 100;
+      break;
+    // Credits shop upgrades
+    case 'extralife':
+      GS.bonusStartingBalls = (GS.bonusStartingBalls || 0) + 1;
+      break;
+    case 'multiball':
+      GS.multiballEnabled = true;
+      break;
+    case 'creditbonus':
+      GS.breachBonusMultiplier = (GS.breachBonusMultiplier || 1.0) + 0.25;
+      break;
+  }
 }
 
 function closeShop() {
@@ -2581,6 +2681,17 @@ function startNewRun() {
   GS.totalBallsUsed = 0;
   particles.length = 0;
   floatTexts.length = 0;
+
+  // Apply permanent upgrades
+  if (GS.bonusStartingBalls > 0) GS.balls += GS.bonusStartingBalls;
+  if (GS.startingCreditsBonus > 0) GS.breachCredits += GS.startingCreditsBonus;
+  if (GS.startingPayloadCount > 0) {
+    const available = GS.unlockedPayloads.filter(p => !['extralife','multiball','creditbonus'].includes(p));
+    for (let i = 0; i < GS.startingPayloadCount && available.length > 0; i++) {
+      const idx = Math.floor(Math.random() * available.length);
+      GS.currentPayloads.push(available.splice(idx, 1)[0]);
+    }
+  }
 
   // Hide all overlays
   document.getElementById('menu-overlay').classList.add('hidden');

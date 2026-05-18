@@ -1058,7 +1058,8 @@ const PegEvo = {
   NORMAL:     'NORMAL',
   GLOWING:    'GLOWING',
   CHARGED:    'CHARGED',
-  EXPLOSIVE:  'EXPLOSIVE'
+  EXPLOSIVE:  'EXPLOSIVE',
+  TEMP_EXPLOSIVE: 'TEMP_EXPLOSIVE'  // chain-reaction upgrade: normal peg upgraded for 3s after nearby detonation
 };
 
 // Evolution config — spawn distribution and radii
@@ -1076,6 +1077,8 @@ const EVO_CONFIG = {
   explosive_self_multiplier:   3.0,
   explosive_adjacent_multiplier: 1.5,
   cascade_min_chain:          3,
+  chain_reaction_chance:      0.30,  // P1-3 extension: normal peg upgrades to TEMP_EXPLOSIVE on nearby detonation
+  chain_reaction_duration:    180,   // frames (3s at 60fps) before temp explosive reverts
 };
 
 // Visual colors per evolution state
@@ -1085,6 +1088,7 @@ const EVO_COLORS = {
   GLOWING:   { core: '#FFD700', glow: '#FFD700' },
   CHARGED:   { core: '#FFFFFF', glow: '#FFFFFF' },
   EXPLOSIVE: { core: '#FF4500', glow: '#FF4500' },
+  TEMP_EXPLOSIVE: { core: '#FF7700', glow: '#FF7700' },  // orange — visually distinct from permanent EXPLOSIVE
 };
 
 // ─── BALL CLASS ──────────────────────────────────────────────
@@ -1995,6 +1999,12 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       // Already EXPLOSIVE → detonate again
       detonateExplosivePeg(ball, peg, GS.board);
       // Fall through to normal bounce after detonation
+    } else if (ev.state === PegEvo.TEMP_EXPLOSIVE) {
+      // Chain-reaction temp explosive → detonate then revert to NORMAL after hit
+      detonateExplosivePeg(ball, peg, GS.board);
+      // Revert to NORMAL (no longer temp-explosive after detonating)
+      ev.state = PegEvo.NORMAL;
+      // Fall through to normal bounce after detonation
     }
     // DORMANT: ball must activate first via checkDormantActivation — no transition on hit
   }
@@ -2356,6 +2366,24 @@ function detonateExplosivePeg(ball, peg, board) {
   // Reset explosive peg to NORMAL
   peg.evolution.state = PegEvo.NORMAL;
   peg.evolution.storedPoints = 0.0;
+
+  // ── CHAIN REACTION: normal pegs near detonation upgrade to TEMP_EXPLOSIVE ──
+  // "When an overloaded explosive peg detonates, any normal peg in radius has 30% chance to
+  //  evolve into an explosive peg for 3 seconds" — creates cascading chain reactions
+  const chainChance = EVO_CONFIG.chain_reaction_chance;
+  const chainDuration = EVO_CONFIG.chain_reaction_duration;
+  for (const other of affectedPegs) {
+    if (other === peg) continue;
+    if (!other.evolution) continue;
+    if (other.evolution.state !== PegEvo.NORMAL) continue;
+    // Only upgrade pegs without a permanent evolution state
+    if (Math.random() < chainChance) {
+      other.evolution.state = PegEvo.TEMP_EXPLOSIVE;
+      other.evolution.tempTimer = chainDuration;
+      spawnFloatText(other.x, other.y, 'CHAIN!', '#FF7700');
+      spawnParticles(other.x, other.y, '#FF7700', 4, 2);
+    }
+  }
 
   return totalPoints;
 }
@@ -3616,6 +3644,18 @@ function update() {
   // Check dormant peg activation (ball passes near dormant peg → activates it)
   for (const ball of GS.ballsInPlay) {
     checkDormantActivation(ball);
+  }
+
+  // ── TEMP_EXPLOSIVE DECAY: chain-reaction pegs revert to NORMAL after timer expires ──
+  for (const peg of GS.board) {
+    if (!peg.evolution) continue;
+    if (peg.evolution.state === PegEvo.TEMP_EXPLOSIVE) {
+      peg.evolution.tempTimer--;
+      if (peg.evolution.tempTimer <= 0) {
+        peg.evolution.state = PegEvo.NORMAL;
+        peg.evolution.tempTimer = 0;
+      }
+    }
   }
 
   // Collision check

@@ -4321,8 +4321,10 @@ function update() {
 }
 
 function gameLoop() {
-  update();
-  render();
+  try {
+    update();
+    render();
+  } catch(e) { console.error('gameLoop error: ' + e.message); }
   requestAnimationFrame(gameLoop);
 }
 

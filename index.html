@@ -684,6 +684,7 @@ body.contrast-mode #peg-target-line {
     <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
     <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
     <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
+    <button class="game-btn tertiary" id="skins-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ff44ff;color:#ff44ff;">SKINS</button>
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
     </div>
@@ -839,6 +840,17 @@ let PERSIST = {
   completedContracts: []
 };
 
+// Ball Skins — cosmetics unlocked via meta-progression
+const BALL_SKINS = {
+  default:   { name: 'Standard',      colors: null }, // use getMultColor(mult)
+  gold:      { name: 'Gold',           colors: { core: '#FFD700', glow: '#FFD700', trailRGB: '255, 215, 0' } },
+  neon:      { name: 'Neon',           colors: { core: '#00ffaa', glow: '#00ffaa', trailRGB: '0, 255, 170' } },
+  void:      { name: 'Void',           colors: { core: '#8800ff', glow: '#aa44ff', trailRGB: '136, 0, 255' } },
+  ember:     { name: 'Ember',          colors: { core: '#ff4400', glow: '#ff2200', trailRGB: '255, 68, 0' } },
+  frost:     { name: 'Frost',          colors: { core: '#aaeeff', glow: '#66ddff', trailRGB: '170, 238, 255' } },
+  chrome:    { name: 'Chrome',         colors: { core: '#e8e8ff', glow: '#c8c8ff', trailRGB: '232, 232, 255' } },
+};
+
 // ─── META-PROGRESSION SYSTEM (Spec 6) ─────────────────────────
 // Expression-based unlocks: new OPTIONS unlocked, not raw power
 const UNLOCKS = {
@@ -852,7 +864,12 @@ const UNLOCKS = {
   shop_slot_5:     { id: 'shop_slot_5',      cat: 'SHOP_ITEM',  name: 'Shop Slot 5',       desc: 'Unlocks 5th item slot in shop',           unlockType: 'rank', unlockValue: 7 },
   shop_slot_6:     { id: 'shop_slot_6',      cat: 'SHOP_ITEM',  name: 'Shop Slot 6',       desc: 'Unlocks 6th item slot in shop',           unlockType: 'rank', unlockValue: 10 },
   // Cosmetics
-  gold_ball_color: { id: 'gold_ball_color', cat: 'COSMETIC',   name: 'Gold Ball Color',   desc: 'Gold tinted ball',                        unlockType: 'achievement', unlockValue: 'score_10k' },
+  gold_ball_color: { id: 'gold_ball_color', cat: 'COSMETIC',   name: 'Gold Ball Color',   desc: 'Gold tinted ball',       skinId: 'gold',    unlockType: 'achievement', unlockValue: 'score_10k' },
+  neon_ball_skin:  { id: 'neon_ball_skin',  cat: 'COSMETIC',   name: 'Neon Ball Skin',    desc: 'Neon cyan glowing ball', skinId: 'neon',   unlockType: 'rank', unlockValue: 2 },
+  void_ball_skin:  { id: 'void_ball_skin',  cat: 'COSMETIC',   name: 'Void Ball Skin',    desc: 'Deep purple void ball',  skinId: 'void',   unlockType: 'rank', unlockValue: 4 },
+  ember_ball_skin: { id: 'ember_ball_skin', cat: 'COSMETIC',   name: 'Ember Ball Skin',   desc: 'Burning orange ember',  skinId: 'ember',  unlockType: 'rank', unlockValue: 6 },
+  frost_ball_skin: { id: 'frost_ball_skin', cat: 'COSMETIC',   name: 'Frost Ball Skin',   desc: 'Ice blue frost ball',   skinId: 'frost',  unlockType: 'rank', unlockValue: 8 },
+  chrome_ball_skin:{ id: 'chrome_ball_skin', cat: 'COSMETIC',   name: 'Chrome Ball Skin',  desc: 'Bright chrome silver',  skinId: 'chrome', unlockType: 'rank', unlockValue: 12 },
   neon_peg_theme:  { id: 'neon_peg_theme',   cat: 'BOARD_THEME', name: 'Neon Board Theme',  desc: 'Neon glowing pegs',                        unlockType: 'rank', unlockValue: 6 },
   // Titles
   title_peg_apprentice:   { id: 'title_peg_apprentice',   cat: 'TITLE', name: 'Peg Apprentice',      desc: 'Rank 1 title',      unlockType: 'rank', unlockValue: 1 },
@@ -966,9 +983,17 @@ function evaluateUnlocks() {
         break;
     }
 
+    // Add to unlocks list AND to appropriate category list
     if (available) {
       meta.unlocks.push(unlockId);
       newlyUnlocked.push(unlockId);
+      // Auto-add ball skins to unlockedBallColors when unlocked
+      if (unlock.cat === 'COSMETIC' && unlock.skinId && BALL_SKINS[unlock.skinId]) {
+        if (!meta.unlockedBallColors) meta.unlockedBallColors = ['default'];
+        if (!meta.unlockedBallColors.includes(unlock.skinId)) {
+          meta.unlockedBallColors.push(unlock.skinId);
+        }
+      }
     }
   }
 
@@ -1403,12 +1428,18 @@ class Ball {
       ctx.shadowBlur = 0;
     } else {
       // Standard ball — color driven by cascade multiplier tier (frozen at drop time)
+      // Skin override if active ball skin has custom colors
+      const skin = BALL_SKINS[PERSIST.meta?.activeBallColor || 'default'];
       const mc = getMultColor(this.dropMultiplier);
+      const skinColors = skin?.colors;
+      const ballColor = this.miniBalls.length > 0 ? '#ffffff' : (skinColors ? skinColors.core : mc.color);
+      const glowColor = skinColors ? skinColors.glow : mc.glow;
+      const glowBlur = skinColors ? 22 : mc.blur;
       ctx.beginPath();
       ctx.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = this.miniBalls.length > 0 ? '#ffffff' : mc.color;
-      ctx.shadowColor = mc.glow;
-      ctx.shadowBlur = mc.blur;
+      ctx.fillStyle = ballColor;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = glowBlur;
       ctx.fill();
       ctx.shadowBlur = 0;
       // Cascade Overload: magenta pulsing outer ring when overloaded
@@ -3246,6 +3277,71 @@ function createMasteryOverlay() {
   return overlay;
 }
 
+function openSkinsScreen() {
+  const meta = PERSIST.meta || {};
+  const activeSkin = meta.activeBallColor || 'default';
+  const unlockedSkins = (meta.unlockedBallColors || ['default']).filter(id => BALL_SKINS[id]);
+
+  const overlay = document.getElementById('skins-overlay') || createSkinsOverlay();
+  const skinList = document.getElementById('skins-list');
+
+  skinList.innerHTML = Object.keys(BALL_SKINS).map(id => {
+    const skin = BALL_SKINS[id];
+    const isUnlocked = unlockedSkins.includes(id);
+    const isActive = activeSkin === id;
+    const isDefault = id === 'default';
+
+    const previewColor = skin.colors ? skin.colors.core : '#00f0ff';
+    const lockedStyle = isUnlocked ? '' : 'opacity:0.35;filter:grayscale(1);';
+    const activeStyle = isActive ? 'border-color:#ffd700;box-shadow:0 0 12px #ffd70066;' : 'border-color:#333;';
+
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #1a1a2e;${activeStyle}${lockedStyle}">
+        <div style="width:24px;height:24px;border-radius:50%;background:${previewColor};box-shadow:0 0 8px ${previewColor};flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="font-size:12px;color:${skin.colors ? skin.colors.core : '#00f0ff'};font-weight:700;">${skin.name}</div>
+          <div style="font-size:9px;color:#666;margin-top:2px;">${isUnlocked ? (isDefault ? 'Default skin' : 'Unlocked') : 'Locked — reach required rank'}</div>
+        </div>
+        ${isUnlocked ? `<button onclick="selectBallSkin('${id}')" style="background:${isActive ? '#ffd70022' : '#1a1a2e'};border:1px solid ${isActive ? '#ffd700' : '#444'};color:${isActive ? '#ffd700' : '#888'};padding:4px 10px;font-family:inherit;font-size:9px;cursor:pointer;border-radius:3px;">${isActive ? 'EQUIPPED' : 'EQUIP'}</button>` : '<div style="font-size:9px;color:#444;">LOCKED</div>'}
+      </div>
+    `;
+  }).join('');
+
+  overlay.classList.add('active');
+}
+
+function closeSkinsScreen() {
+  const overlay = document.getElementById('skins-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function selectBallSkin(id) {
+  const meta = PERSIST.meta || {};
+  const unlockedSkins = meta.unlockedBallColors || ['default'];
+  if (!unlockedSkins.includes(id)) return;
+  meta.activeBallColor = id;
+  savePersist();
+  openSkinsScreen(); // Refresh
+  spawnFloatText(W/2, H/2, `✦ ${BALL_SKINS[id].name.toUpperCase()} ✦`, BALL_SKINS[id].colors?.core || '#00f0ff');
+}
+
+function createSkinsOverlay() {
+  const overlay = document.createElement('div');
+  overlay.id = 'skins-overlay';
+  overlay.className = 'overlay hidden';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
+  overlay.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:20px;color:#ff44ff;font-weight:700;letter-spacing:4px;">BALL SKINS</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;">Unlock skins by ranking up</div>
+    </div>
+    <div id="skins-list" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
+    <button onclick="closeSkinsScreen()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
@@ -4090,6 +4186,10 @@ document.getElementById('shop-btn').onclick = () => {
 
 document.getElementById('mastery-btn').onclick = () => {
   openMasteryScreen();
+};
+
+document.getElementById('skins-btn').onclick = () => {
+  openSkinsScreen();
 };
 
 document.getElementById('shop-continue-btn').onclick = closeShop;

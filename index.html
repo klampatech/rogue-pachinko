@@ -3663,7 +3663,41 @@ function getRankProgress() {
   return Math.min(100, Math.round(((rep - prev) / (next - prev)) * 100));
 }
 
+// ── Game Over Interstitial ──────────────────────────────────────────────
+function showGameOverInterstitial(callback) {
+  let el = document.getElementById('gameover-interstitial');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gameover-interstitial';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9998;font-family:inherit;';
+    document.body.appendChild(el);
+  }
+
+  let countdown = 3;
+  el.innerHTML = `
+    <div style="font-size:42px;font-weight:900;color:#ff2244;text-shadow:0 0 24px #ff2244, 0 0 48px #ff224488;letter-spacing:4px;">CONNECTION LOST</div>
+    <div style="font-size:13px;color:#aa8866;margin-top:10px;">No balls remaining</div>
+    <div id="goi-countdown" style="font-size:56px;font-weight:700;color:#ff6644;margin-top:24px;text-shadow:0 0 20px #ff664488;">${countdown}</div>
+    <div style="font-size:11px;color:#555;margin-top:6px;">seconds until run end</div>
+  `;
+  el.style.display = 'flex';
+
+  const tick = setInterval(() => {
+    countdown--;
+    const cd = document.getElementById('goi-countdown');
+    if (cd) cd.textContent = countdown;
+    if (countdown <= 0) {
+      clearInterval(tick);
+      el.style.display = 'none';
+      if (callback) callback();
+    }
+  }, 1000);
+}
+
 function endRun(won) {
+  // Reset per-run flags so they work on subsequent runs
+  GS.noBallsInterstitial = false;
+
   GS.screen = 'run_end';
 
   // Sync reputation to PERSIST for meta-progression
@@ -4305,21 +4339,20 @@ function update() {
       triggerFlash('#ff224433', 0.3);
       spawnFloatText(W/2, H/2, '⚠ NO BALLS LEFT ⚠', '#ff4444');
       setTimeout(() => {
-        GS.noBallsInterstitial = false;
         if (GS.screen !== 'playing') return; // already transitioned
         // Ghost mode: win if no ice hits were taken, fail otherwise
         if (GS.floorObjective.type === 'ghost') {
           if ((GS.ghostModeIceHits || 0) === 0) {
-            completeFloor();
+            showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
-            endRun(false);
+            showGameOverInterstitial(() => endRun(false));
           }
         } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
-          completeFloor();
+          showGameOverInterstitial(() => completeFloor());
         } else {
-          endRun(false);
+          showGameOverInterstitial(() => endRun(false));
         }
       }, 1500);
       return;

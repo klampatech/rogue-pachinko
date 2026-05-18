@@ -1023,7 +1023,10 @@ const PEG_TYPES = {
 const GRAVITY = 0.18;
 const FRICTION = 0.995;
 const MAX_VEL = 14;
+const MAX_BALL_SPEED = MAX_VEL * 1.5; // clip guard — 50% above normal cap
 const BALL_RADIUS = 7;
+const STUCK_FRAMES = 180; // 3 sec at 60fps threshold for stuck ball detection
+const STUCK_DIST_THRESHOLD = 2; // px movement below which counts as stuck
 
 // Multiplier tier colors — x1 dim cyan → x7 blazing white
 const MULT_COLORS = {
@@ -1114,12 +1117,41 @@ class Ball {
     this.slowmoActive = false;
     // Cascade Overload state (combo>=3 triggers amplified payload tier)
     this.isOverloaded = GS.comboCount >= 3 && !this.miniBalls.length && !this.isOverloadChild;
+    // Stuck ball detection
+    this.lastX = x; this.lastY = y;
+    this.stuckFrames = 0;
   }
 
   update() {
     if (!this.active) return;
 
-    // ── SLOW-MO: 50% time dilation ─────────────────────────
+    // ── HIGH-SPEED CLIP GUARD ───────────────────────────────────
+    // Cap velocity before physics step to prevent tunneling through thin pegs
+    const spd = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+    if (spd > MAX_BALL_SPEED) {
+      this.vx = (this.vx / spd) * MAX_BALL_SPEED;
+      this.vy = (this.vy / spd) * MAX_BALL_SPEED;
+    }
+
+    // ── STUCK BALL DETECTION ────────────────────────────────────
+    const moved = Math.sqrt((this.x - this.lastX)**2 + (this.y - this.lastY)**2);
+    if (moved < STUCK_DIST_THRESHOLD) {
+      this.stuckFrames++;
+      if (this.stuckFrames >= STUCK_FRAMES) {
+        this.active = false;
+        spawnFloatText(this.x, this.y, 'STUCK!', '#ff4400');
+        GS.balls++; // refund
+        updateHUD();
+        spawnReplacementBall();
+        return;
+      }
+    } else {
+      this.stuckFrames = 0;
+    }
+    this.lastX = this.x;
+    this.lastY = this.y;
+
+    // ── SLOW-MO: 50% time dilation ──────────────────────────────
     const timeScale = this.slowmoActive ? 0.5 : 1.0;
 
     // Gravity (scaled)
@@ -1129,10 +1161,10 @@ class Ball {
     this.vx *= FRICTION;
 
     // Velocity cap
-    const spd = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-    if (spd > MAX_VEL) {
-      this.vx = (this.vx / spd) * MAX_VEL;
-      this.vy = (this.vy / spd) * MAX_VEL;
+    const spd2 = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+    if (spd2 > MAX_VEL) {
+      this.vx = (this.vx / spd2) * MAX_VEL;
+      this.vy = (this.vy / spd2) * MAX_VEL;
     }
 
     // Move (scaled)
@@ -2412,6 +2444,42 @@ function dropBall() {
   updateHUD();
 
   setTimeout(() => { canDrop = true; }, 800);
+}
+
+// Spawn replacement ball after stuck-ball dissolution
+function spawnReplacementBall() {
+  if (GS.screen !== 'playing' || GS.balls <= 0) return;
+  GS.ballsInPlay = [];
+  // Re-initialize payloads on a fresh ball — copy currentPayloads back
+  const payloads = [...GS.currentPayloads];
+  GS.comboCount = 0;
+  GS.multiplier = 1;
+  GS.multiplierTimer = 0;
+  updateMultiplierDisplay();
+  const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, payloads);
+  for (const p of payloads) {
+    if (p === 'ghost') {
+      ball.ghostPhasing = true;
+      ball.ghostPhaseRemaining = 3 + Math.floor(Math.random() * 3);
+    }
+    if (p === 'worm') {
+      ball.wormPiercing = true;
+      ball.wormPierceCount = 0;
+      ball.wormMaxPierces = 4 + Math.floor(Math.random() * 4);
+    }
+    if (p === 'slowmo') {
+      ball.slowmoActive = true;
+      GS.slowmoBall = ball;
+      GS.timeScale = 0.5;
+    }
+    if (p === 'cluster') { ball.clusterSplit = false; ball.miniBalls = []; }
+    if (p === 'explosive') { ball.explosiveTriggered = false; }
+  }
+  GS.ballsInPlay = [ball];
+  GS.currentPayloads = [];
+  GS.runMaxCombo = 0;
+  updatePayloadSlots();
+  updateHUD();
 }
 
 // ─── MULTIPLIER ──────────────────────────────────────────────

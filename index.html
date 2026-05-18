@@ -512,6 +512,53 @@ body {
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
+/* Achievement Toasts */
+#achievement-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%);
+  border: 1px solid #ffd700;
+  border-radius: 8px;
+  padding: 12px 20px;
+  display: none;
+  z-index: 9999;
+  box-shadow: 0 0 20px rgba(255,215,0,0.3), 0 4px 12px rgba(0,0,0,0.5);
+  animation: achievementSlide 0.4s ease-out;
+  min-width: 200px;
+}
+#achievement-toast.show {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#achievement-toast .ach-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 0 6px #ffd700);
+}
+#achievement-toast .ach-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#achievement-toast .ach-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+#achievement-toast .ach-desc {
+  font-size: 13px;
+  color: #ccc;
+  font-weight: 600;
+}
+@keyframes achievementSlide {
+  0%   { transform: translateX(120%); opacity: 0; }
+  60%  { transform: translateX(-5px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
 @keyframes reelSpin {
   0%   { transform: translateY(0); }
   100% { transform: translateY(-36px); }
@@ -520,6 +567,13 @@ body {
 </head>
 <body>
 <div id="game-container">
+  <div id="achievement-toast">
+    <div class="ach-icon">🏆</div>
+    <div class="ach-text">
+      <div class="ach-title">Achievement</div>
+      <div class="ach-desc"></div>
+    </div>
+  </div>
   <canvas id="game-canvas" width="480" height="700"></canvas>
   <div id="crt-overlay"></div>
 
@@ -1352,15 +1406,48 @@ function updateFloatTexts() {
   }
 }
 
-function drawFloatTexts() {
+function drawFloatTexts(ctx) {
+  ctx.textAlign = 'center';
   floatTexts.forEach(t => {
-    ctx.globalAlpha = t.life;
-    ctx.font = 'bold 14px Courier New';
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, t.life);
     ctx.fillStyle = t.color;
-    ctx.textAlign = 'center';
+    ctx.shadowColor = t.color;
+    ctx.shadowBlur = 8;
+    ctx.font = 'bold 14px monospace';
     ctx.fillText(t.text, t.x, t.y);
-    ctx.globalAlpha = 1;
+    ctx.restore();
   });
+}
+
+// ─── ACHIEVEMENT TOASTS ─────────────────────────────────────
+const ACHIEVEMENTS = {
+  firstPeg:      { icon: '🔵', title: 'First Contact',   desc: 'Cleared your first peg' },
+  firstFloor:    { icon: '🏠', title: 'Floor Breached',   desc: 'Cleared floor 1' },
+  firstJackpot:  { icon: '💰', title: 'Jackpot Hit',      desc: 'Won the slot jackpot' },
+  firstOverload: { icon: '⚡', title: 'Cascade Overload',  desc: 'Triggered OVERLOAD mode' },
+  firstFrenzy:   { icon: '🔥', title: 'Frenzy Ready',     desc: 'Entered frenzy state' },
+  x3mult:        { icon: '⬆',  title: 'Hot Streak',        desc: 'Reached x3 multiplier' },
+  x5mult:        { icon: '🚀', title: 'On Fire',           desc: 'Reached x5 multiplier' },
+  x7mult:        { icon: '💫', title: 'Maximum Power',     desc: 'Hit x7 multiplier' },
+  fullBreach:    { icon: '👾', title: 'Full Breach',        desc: 'Completed all 5 floors' },
+};
+
+const _seenAchs = new Set();
+
+function showAchievement(key) {
+  if (_seenAchs.has(key)) return;
+  _seenAchs.add(key);
+  const ach = ACHIEVEMENTS[key];
+  if (!ach) return;
+  const el = document.getElementById('achievement-toast');
+  if (!el) return;
+  el.querySelector('.ach-icon').textContent = ach.icon;
+  el.querySelector('.ach-desc').textContent = ach.desc;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
 }
 
 // ─── SCREEN EFFECTS ──────────────────────────────────────────
@@ -1818,6 +1905,10 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   GS.score += baseScore * GS.multiplier;
   GS.floorObjective.progress++;
   GS.totalPegsCleared++;
+  if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
+  if (GS.multiplier >= 3) showAchievement('x3mult');
+  if (GS.multiplier >= 5) showAchievement('x5mult');
+  if (GS.multiplier >= 7) showAchievement('x7mult');
 
   // Payload effects on peg contact
   if (ball.payloads.length > 0) {
@@ -1846,7 +1937,10 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             spawnFloatText(ball.x, ball.y - 15, ball.isOverloaded ? 'CLUSTER OVERLOAD!' : 'CLUSTER!', '#ff00ff');
             triggerFlash('#ff00ff33', 0.15);
             triggerShake(ball.isOverloaded ? 6 : 3);
-            if (ball.isOverloaded) playSound('overload');
+            if (ball.isOverloaded) {
+              playSound('overload');
+              showAchievement('firstOverload');
+            }
           }
           break;
         case 'explosive':
@@ -1857,7 +1951,10 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             const particleCount = ball.isOverloaded ? 24 : 12;
             triggerFlash('#ff440033', 0.2);
             triggerShake(shakeAmt);
-            if (ball.isOverloaded) playSound('overload');
+            if (ball.isOverloaded) {
+              playSound('overload');
+              showAchievement('firstOverload');
+            }
             spawnFloatText(ball.x, ball.y, ball.isOverloaded ? 'OVERLOAD BOOM!' : 'BOOM!', '#ff00ff');
             // Destroy pegs in blast radius
             for (const other of GS.board) {
@@ -2278,6 +2375,7 @@ function checkFrenzy() {
   if (GS.comboCount >= GS.comboThreshold && !GS.frenzyReady) {
     GS.frenzyReady = true;
     playSound('frenzy');
+    showAchievement('firstFrenzy');
     spawnFloatText(W / 2, H / 2, 'FRENZY READY!', '#ff00aa');
     triggerFlash('#ff00aa33', 0.3);
   }
@@ -2323,6 +2421,8 @@ function updateMenuStats() {
 function completeFloor() {
   GS.screen = 'floor_complete';
   playSound('floorClear');
+  if (GS.floor === 1) showAchievement('firstFloor');
+  if (GS.floor === 5) showAchievement('fullBreach');
 
   const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
   GS.breachCredits += creditGain;
@@ -2409,6 +2509,7 @@ function initJackpotSlots() {
       triggerFlash('#ffd70066', 0.5);
       spawnParticles(W/2, H/2, '#ffd700', 30, 8);
       playSound('jackpotHit');
+      showAchievement('firstJackpot');
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;
     } else if (a === b || b === c) {
@@ -2869,6 +2970,7 @@ function startNewRun() {
   GS.totalBallsUsed = 0;
   particles.length = 0;
   floatTexts.length = 0;
+  _seenAchs.clear(); // reset achievements per run
 
   // Apply permanent upgrades
   if (GS.bonusStartingBalls > 0) GS.balls += GS.bonusStartingBalls;

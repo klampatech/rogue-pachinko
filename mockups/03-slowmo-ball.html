@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slow-Mo Ball — Slot Protocol 2.0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Strong vignette for time dilation */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 45%, transparent 35%, rgba(0,0,30,0.85) 100%);
+    pointer-events: none;
+    z-index: 50;
+    animation: vignettePulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes vignettePulse {
+    0%, 100% { opacity: 0.85; }
+    50%       { opacity: 1; }
+  }
+
+  .label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #4488ff; text-shadow: 0 0 8px #4488ff, 0 0 20px #4488ff; margin-bottom: 8px; z-index: 60; }
+  .sublabel { font-size: 10px; letter-spacing: 3px; color: #2266ff; text-shadow: 0 0 6px #2266ff; margin-bottom: 40px; z-index: 60; }
+
+  .stage {
+    position: relative;
+    width: 480px;
+    height: 320px;
+    background: #080818;
+    border: 1px solid #1a1a4a;
+    border-radius: 4px;
+    overflow: hidden;
+    z-index: 10;
+    filter: saturate(0.7) brightness(0.9);
+  }
+
+  .stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0,0,20,0.7) 100%);
+    pointer-events: none;
+  }
+
+  /* Slow-mo ball — crystalline blue */
+  .slowmo-ball {
+    position: absolute;
+    left: 160px;
+    top: 30px;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #aaccff, #4488ff, #2244aa);
+    clip-path: polygon(50% 0%, 85% 25%, 100% 60%, 75% 100%, 25% 100%, 0% 60%, 15% 25%);
+    box-shadow: 0 0 15px #4488ff, 0 0 35px rgba(68,136,255,0.5), 0 0 60px rgba(68,136,255,0.2);
+    z-index: 30;
+    animation: slowmoFloat 2.5s ease-in-out infinite;
+  }
+
+  @keyframes slowmoFloat {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50%       { transform: translateY(12px) rotate(8deg); }
+  }
+
+  /* Blue inner glow ring */
+  .slowmo-ball::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 4px;
+    border: 1px solid rgba(100,150,255,0.5);
+    animation: crystalRing 2.5s ease-in-out infinite;
+  }
+
+  .slowmo-ball::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.4), transparent 60%);
+    clip-path: polygon(50% 0%, 85% 25%, 100% 60%, 75% 100%, 25% 100%, 0% 60%, 15% 25%);
+  }
+
+  @keyframes crystalRing {
+    0%, 100% { transform: scale(1);   opacity: 0.5; }
+    50%       { transform: scale(1.2); opacity: 0.8; }
+  }
+
+  /* Stretched motion blur trails */
+  .motion-trail {
+    position: absolute;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to right, rgba(68,136,255,0.6), transparent);
+    z-index: 20;
+    animation: trailStretch 2.5s linear infinite;
+  }
+
+  .motion-trail:nth-child(2) { left: 155px; top: 95px;  width: 40px;  animation-delay: 0s;    }
+  .motion-trail:nth-child(3) { left: 153px; top: 130px; width: 50px;  animation-delay: 0.15s; }
+  .motion-trail:nth-child(4) { left: 155px; top: 165px; width: 38px;  animation-delay: 0.30s; }
+  .motion-trail:nth-child(5) { left: 156px; top: 200px; width: 30px;  animation-delay: 0.45s; }
+  .motion-trail:nth-child(6) { left: 158px; top: 235px; width: 20px;  animation-delay: 0.60s; }
+
+  @keyframes trailStretch {
+    0%   { opacity: 0.8; transform: scaleX(1); }
+    70%  { opacity: 0.3; }
+    100% { opacity: 0;   transform: scaleX(0.3); }
+  }
+
+  /* Pegs */
+  .peg { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #1a2a4a; box-shadow: 0 0 4px #2244aa44; }
+  .peg:nth-child(7)  { left: 60px;  top: 80px; }
+  .peg:nth-child(8)  { left: 140px; top: 60px; }
+  .peg:nth-child(9)  { left: 220px; top: 100px; }
+  .peg:nth-child(10) { left: 310px; top: 70px; }
+  .peg:nth-child(11) { left: 380px; top: 110px; }
+  .peg:nth-child(12) { left: 100px; top: 160px; }
+  .peg:nth-child(13) { left: 200px; top: 180px; }
+  .peg:nth-child(14) { left: 310px; top: 170px; }
+  .peg:nth-child(15) { left: 80px;  top: 250px; }
+  .peg:nth-child(16) { left: 190px; top: 270px; }
+  .peg:nth-child(17) { left: 290px; top: 260px; }
+  .peg:nth-child(18) { left: 400px; top: 250px; }
+
+  /* Slow-mo desaturation overlay */
+  .desat-zone {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,20,0.2);
+    pointer-events: none;
+  }
+
+  /* Time dilation field ring */
+  .dilation-ring {
+    position: absolute;
+    left: 143px;
+    top: 15px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 1px solid rgba(68,136,255,0.4);
+    animation: dilationExpand 2.5s ease-out infinite;
+    pointer-events: none;
+  }
+
+  .dilation-ring:nth-child(19) { animation-delay: 0s; }
+  .dilation-ring:nth-child(20) { animation-delay: 0.8s; }
+  .dilation-ring:nth-child(21) { animation-delay: 1.6s; }
+
+  @keyframes dilationExpand {
+    0%   { transform: scale(0.5); opacity: 0.7; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  .info-bar { margin-top: 24px; display: flex; gap: 40px; z-index: 60; }
+  .info-item { text-align: center; }
+  .info-item .key { font-size: 9px; letter-spacing: 2px; color: #444; text-transform: uppercase; }
+  .info-item .val { font-size: 13px; color: #4488ff; text-shadow: 0 0 6px #4488ff; margin-top: 4px; }
+
+  .rarity-badge {
+    position: absolute; top: 10px; right: 12px; font-size: 8px; letter-spacing: 2px;
+    padding: 3px 8px; border: 1px solid #4488ff; color: #4488ff; text-shadow: 0 0 4px #4488ff;
+    box-shadow: 0 0 8px rgba(68,136,255,0.3); z-index: 60;
+  }
+
+  .unlock-info { margin-top: 16px; font-size: 9px; color: #666; letter-spacing: 2px; z-index: 60; }
+
+  .timescale-badge {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #4488ff;
+    text-shadow: 0 0 4px #4488ff;
+    z-index: 60;
+  }
+</style>
+</head>
+<body>
+
+<div class="vignette"></div>
+
+<div class="label">Slow-Mo Ball</div>
+<div class="sublabel">Payload · Time Dilation · Netrunner+</div>
+
+<div class="stage">
+  <div class="rarity-badge">RARE</div>
+  <div class="timescale-badge">TIME: 0.5×</div>
+  <div class="desat-zone"></div>
+
+  <!-- Dilation rings -->
+  <div class="dilation-ring"></div>
+  <div class="dilation-ring"></div>
+  <div class="dilation-ring"></div>
+
+  <!-- Motion trails -->
+  <div class="motion-trail"></div>
+  <div class="motion-trail"></div>
+  <div class="motion-trail"></div>
+  <div class="motion-trail"></div>
+  <div class="motion-trail"></div>
+
+  <!-- Slow-mo ball -->
+  <div class="slowmo-ball"></div>
+
+  <!-- Pegs -->
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+</div>
+
+<div class="info-bar">
+  <div class="info-item"><div class="key">Time Scale</div><div class="val">0.5×</div></div>
+  <div class="info-item"><div class="key">State</div><div class="val">DILATED</div></div>
+  <div class="info-item"><div class="key">Trigger</div><div class="val">ON DROP</div></div>
+  <div class="info-item"><div class="key">Ends</div><div class="val">PEG CONTACT</div></div>
+</div>
+
+<div class="unlock-info">UNLOCK: NETRUNNER+ RANK</div>
+
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frenzy Mode UI — Slot Protocol 2.0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+    z-index: 101;
+  }
+
+  .label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #ff00ff; text-shadow: 0 0 8px #ff00ff, 0 0 20px #ff00ff; margin-bottom: 8px; z-index: 10; }
+  .sublabel { font-size: 10px; letter-spacing: 3px; color: #cc00cc; text-shadow: 0 0 6px #cc00cc; margin-bottom: 40px; z-index: 10; }
+
+  .stage {
+    position: relative;
+    width: 520px;
+    height: 360px;
+    background: #0d0d1a;
+    border: 1px solid #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  /* Frenzy magenta border pulse */
+  .frenzy-border {
+    position: absolute;
+    inset: 0;
+    border: 3px solid rgba(255,0,255,0.7);
+    border-radius: 4px;
+    animation: frenzyBorder 1.2s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 60;
+    box-shadow: inset 0 0 30px rgba(255,0,255,0.2);
+  }
+
+  @keyframes frenzyBorder {
+    0%, 100% {
+      border-color: rgba(255,0,255,0.3);
+      box-shadow: inset 0 0 15px rgba(255,0,255,0.1);
+    }
+    50% {
+      border-color: rgba(255,0,255,1);
+      box-shadow: inset 0 0 40px rgba(255,0,255,0.4), 0 0 20px rgba(255,0,255,0.3);
+    }
+  }
+
+  /* HUD combo counter */
+  .hud-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 36px;
+    background: linear-gradient(180deg, rgba(0,0,20,0.9) 0%, transparent 100%);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    z-index: 50;
+  }
+
+  .floor-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: #334466;
+  }
+
+  .combo-counter {
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #aaa;
+    margin-left: auto;
+  }
+
+  .combo-counter .dropping { color: #888; }
+  .combo-counter .count    { color: #ff00ff; text-shadow: 0 0 8px #ff00ff; font-size: 14px; }
+  .combo-counter .threshold { color: #555; }
+
+  .frenzy-ready-badge {
+    font-size: 8px;
+    letter-spacing: 2px;
+    padding: 2px 8px;
+    border: 1px solid #ff00ff;
+    color: #ff00ff;
+    text-shadow: 0 0 6px #ff00ff;
+    box-shadow: 0 0 8px rgba(255,0,255,0.4);
+    animation: badgeReady 1s ease-in-out infinite;
+  }
+
+  @keyframes badgeReady {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(255,0,255,0.4); }
+    50%       { opacity: 0.7; box-shadow: 0 0 15px rgba(255,0,255,0.7); }
+  }
+
+  /* FRENZY SLAM overlay */
+  .frenzy-slam {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(3);
+    font-size: 36px;
+    letter-spacing: 12px;
+    font-weight: bold;
+    color: #ff00ff;
+    text-shadow:
+      0 0 10px #ff00ff,
+      0 0 30px #ff00ff,
+      0 0 60px #ff44ff,
+      4px 4px 0 #4400ff,
+      -2px -2px 0 #00ffff;
+    z-index: 80;
+    opacity: 0;
+    pointer-events: none;
+    animation: frenzySlam 3.5s ease-out forwards;
+    white-space: nowrap;
+  }
+
+  @keyframes frenzySlam {
+    0%   { transform: translate(-50%, -50%) scale(5) rotate(-5deg); opacity: 0; }
+    5%   { transform: translate(-50%, -50%) scale(1) rotate(0deg);  opacity: 1; }
+    15%  { transform: translate(-50%, -50%) scale(1.08) rotate(1deg); opacity: 1; }
+    25%  { transform: translate(-50%, -50%) scale(1) rotate(0deg);  opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+  }
+
+  /* 3x multiplier badge */
+  .multiplier-badge {
+    position: absolute;
+    bottom: 80px;
+    right: 30px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ff00ff, #880088);
+    border: 3px solid #ff66ff;
+    box-shadow: 0 0 20px #ff00ff, 0 0 40px rgba(255,0,255,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    animation: multSpin 2s ease-in-out infinite;
+    z-index: 70;
+  }
+
+  @keyframes multSpin {
+    0%, 100% { transform: rotate(-5deg) scale(1);    box-shadow: 0 0 20px #ff00ff, 0 0 40px rgba(255,0,255,0.5); }
+    50%       { transform: rotate(5deg) scale(1.05); box-shadow: 0 0 30px #ff00ff, 0 0 60px rgba(255,0,255,0.7); }
+  }
+
+  .multiplier-badge .mult-val {
+    font-size: 22px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 6px #fff;
+    line-height: 1;
+  }
+
+  .multiplier-badge .mult-label {
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 2px;
+  }
+
+  /* Peg grid (stylized) */
+  .peg { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #1a3a4a; box-shadow: 0 0 3px #00ffff33; }
+  .peg:nth-child(1)  { left: 80px;  top: 80px; }
+  .peg:nth-child(2)  { left: 160px; top: 55px; }
+  .peg:nth-child(3)  { left: 240px; top: 85px; }
+  .peg:nth-child(4)  { left: 320px; top: 60px; }
+  .peg:nth-child(5)  { left: 400px; top: 90px; }
+  .peg:nth-child(6)  { left: 120px; top: 150px; }
+  .peg:nth-child(7)  { left: 200px; top: 165px; }
+  .peg:nth-child(8)  { left: 280px; top: 140px; }
+  .peg:nth-child(9)  { left: 360px; top: 170px; }
+  .peg:nth-child(10) { left: 60px;  top: 240px; }
+  .peg:nth-child(11) { left: 160px; top: 260px; }
+  .peg:nth-child(12) { left: 260px; top: 250px; }
+  .peg:nth-child(13) { left: 360px; top: 260px; }
+  .peg:nth-child(14) { left: 440px; top: 240px; }
+
+  /* Combo trail / hit markers */
+  .combo-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff00ff;
+    box-shadow: 0 0 6px #ff00ff, 0 0 12px #ff00ff;
+    animation: comboDot 3.5s ease-out infinite;
+    z-index: 30;
+    opacity: 0;
+  }
+
+  .combo-dot:nth-child(15) { left: 76px;  top: 76px;  animation-delay: 0.3s; }
+  .combo-dot:nth-child(16) { left: 156px; top: 51px;  animation-delay: 0.6s; }
+  .combo-dot:nth-child(17) { left: 236px; top: 81px;  animation-delay: 0.9s; }
+  .combo-dot:nth-child(18) { left: 316px; top: 56px;  animation-delay: 1.2s; }
+  .combo-dot:nth-child(19) { left: 396px; top: 86px;  animation-delay: 1.5s; }
+  .combo-dot:nth-child(20) { left: 196px; top: 161px; animation-delay: 1.8s; }
+  .combo-dot:nth-child(21) { left: 276px; top: 136px; animation-delay: 2.1s; }
+  .combo-dot:nth-child(22) { left: 356px; top: 166px; animation-delay: 2.4s; }
+
+  @keyframes comboDot {
+    0%   { transform: scale(0); opacity: 0; }
+    8%   { transform: scale(1.5); opacity: 1; }
+    25%  { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(0.5); opacity: 0; }
+  }
+
+  /* Peg score pop numbers */
+  .peg-score {
+    position: absolute;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #00ffff;
+    text-shadow: 0 0 4px #00ffff;
+    animation: scorePop 3.5s ease-out infinite;
+    opacity: 0;
+    z-index: 35;
+    pointer-events: none;
+  }
+
+  .peg-score:nth-child(23) { left: 60px;  top: 60px;  animation-delay: 0.4s; }
+  .peg-score:nth-child(24) { left: 140px; top: 35px;  animation-delay: 0.7s; }
+  .peg-score:nth-child(25) { left: 220px; top: 65px;  animation-delay: 1.0s; }
+  .peg-score:nth-child(26) { left: 300px; top: 40px;  animation-delay: 1.3s; }
+  .peg-score:nth-child(27) { left: 380px; top: 70px;  animation-delay: 1.6s; }
+  .peg-score:nth-child(28) { left: 180px; top: 145px; animation-delay: 1.9s; }
+  .peg-score:nth-child(29) { left: 260px; top: 120px; animation-delay: 2.2s; }
+  .peg-score:nth-child(30) { left: 340px; top: 150px; animation-delay: 2.5s; }
+
+  @keyframes scorePop {
+    0%   { transform: translateY(0) scale(0.5); opacity: 0; }
+    8%   { transform: translateY(-5px) scale(1.2); opacity: 1; }
+    30%  { transform: translateY(-15px); opacity: 0.8; }
+    100% { transform: translateY(-25px); opacity: 0; }
+  }
+
+  /* Drop slot indicator */
+  .drop-slot {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 100%;
+    background: linear-gradient(180deg, transparent, rgba(0,200,255,0.05));
+    border-left: 1px dashed rgba(0,200,255,0.2);
+    border-right: 1px dashed rgba(0,200,255,0.2);
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* Info panel */
+  .info-bar { margin-top: 24px; display: flex; gap: 40px; z-index: 10; }
+  .info-item { text-align: center; }
+  .info-item .key { font-size: 9px; letter-spacing: 2px; color: #444; text-transform: uppercase; }
+  .info-item .val { font-size: 13px; color: #ff00ff; text-shadow: 0 0 6px #ff00ff; margin-top: 4px; }
+
+  .unlock-info { margin-top: 16px; font-size: 9px; color: #666; letter-spacing: 2px; z-index: 10; }
+</style>
+</head>
+<body>
+
+<div class="label">Frenzy Mode UI</div>
+<div class="sublabel">Combo System · 5 Pegs = FRENZY · All Players</div>
+
+<div class="stage">
+  <!-- Frenzy border pulse -->
+  <div class="frenzy-border"></div>
+
+  <!-- HUD row -->
+  <div class="hud-row">
+    <div class="floor-label">FLOOR 3 / 5</div>
+    <div class="frenzy-ready-badge">FRENZY READY</div>
+    <div class="combo-counter">
+      <span class="dropping">DROPPING: </span>
+      <span class="count">5</span>
+      <span class="threshold"> / 5</span>
+    </div>
+  </div>
+
+  <!-- FRENZY! slam text -->
+  <div class="frenzy-slam">FRENZY!</div>
+
+  <!-- Pegs -->
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div>
+
+  <!-- Combo hit dots -->
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+  <div class="combo-dot"></div>
+
+  <!-- Score pop numbers -->
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+  <div class="peg-score">+100</div>
+
+  <!-- Drop slot -->
+  <div class="drop-slot"></div>
+
+  <!-- 3x multiplier badge -->
+  <div class="multiplier-badge">
+    <div class="mult-val">×3</div>
+    <div class="mult-label">FRENZY</div>
+  </div>
+</div>
+
+<div class="info-bar">
+  <div class="info-item"><div class="key">Frenzy Trigger</div><div class="val">5 PEGS / DROP</div></div>
+  <div class="info-item"><div class="key">Multiplier</div><div class="val">3× SLOT RESULT</div></div>
+  <div class="info-item"><div class="key">Jackpot × Frenzy</div><div class="val">75× FLOOR SCORE</div></div>
+  <div class="info-item"><div class="key">Consumed</div><div class="val">ON USE</div></div>
+</div>
+
+<div class="unlock-info">UNLOCK: ALL PLAYERS (ALWAYS ON)</div>
+
+</body>
+</html>

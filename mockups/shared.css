@@ -1,0 +1,87 @@
+/* ============================================
+   ROGUE PACHINKO — MOCKUP SHARED THEME
+   Cyberpunk / Neon / CRT
+   ============================================ */
+
+:root {
+  --bg:        #050510;
+  --bg-panel:  #0a0a1a;
+  --neon-pink:  #ff2d78;
+  --neon-cyan:  #00f0ff;
+  --neon-purple:#bf5fff;
+  --neon-yellow:#f0ff4a;
+  --neon-green: #39ff14;
+  --gold:       #ffd700;
+  --white:      #ffffff;
+  --gray:       #8888aa;
+
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-body:  'Share Tech Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── CRT SCANLINE OVERLAY ── */
+.crt-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 240, 255, 0.015) 2px,
+    rgba(0, 240, 255, 0.015) 4px
+  );
+  z-index: 9999;
+}
+
+/* ── GLOW TEXT ── */
+.glow-pink  { text-shadow: 0 0 8px var(--neon-pink),  0 0 24px var(--neon-pink);  }
+.glow-cyan  { text-shadow: 0 0 8px var(--neon-cyan),  0 0 24px var(--neon-cyan);  }
+.glow-purple{ text-shadow: 0 0 8px var(--neon-purple),0 0 24px var(--neon-purple);}
+.glow-yellow{ text-shadow: 0 0 8px var(--neon-yellow),0 0 24px var(--neon-yellow);}
+.glow-green { text-shadow: 0 0 8px var(--neon-green), 0 0 24px var(--neon-green); }
+.glow-gold  { text-shadow: 0 0 12px var(--gold), 0 0 40px var(--gold); }
+
+/* ── GLITCH ANIMATION ── */
+@keyframes glitch {
+  0%, 90%, 100% { clip-path: none; transform: none; }
+  91% { clip-path: inset(20% 0 50% 0); transform: translateX(-4px); }
+  93% { clip-path: inset(60% 0 10% 0); transform: translateX(4px); }
+  95% { clip-path: inset(10% 0 70% 0); transform: translateX(-2px); }
+  97% { clip-path: inset(80% 0 5%  0); transform: translateX(2px); }
+}
+
+/* ── FLICKER ── */
+@keyframes flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97%            { opacity: 0.6; }
+  98%            { opacity: 1; }
+  99%            { opacity: 0.8; }
+}
+
+/* ── PANEL ── */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--neon-cyan);
+  box-shadow:
+    0 0 8px rgba(0, 240, 255, 0.25),
+    inset 0 0 20px rgba(0, 240, 255, 0.05);
+  border-radius: 4px;
+}
+.panel-pink {
+  border-color: var(--neon-pink);
+  box-shadow: 0 0 8px rgba(255, 45, 120, 0.25), inset 0 0 20px rgba(255, 45, 120, 0.05);
+}

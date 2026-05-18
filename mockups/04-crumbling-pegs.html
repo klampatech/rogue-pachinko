@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crumbling Pegs — Slot Protocol 2.0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+    z-index: 101;
+  }
+
+  .label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: #00ffaa; text-shadow: 0 0 8px #00ffaa, 0 0 20px #00ffaa; margin-bottom: 8px; z-index: 10; }
+  .sublabel { font-size: 10px; letter-spacing: 3px; color: #00cc77; text-shadow: 0 0 6px #00cc77; margin-bottom: 40px; z-index: 10; }
+
+  .stage {
+    position: relative;
+    width: 480px;
+    height: 320px;
+    background: #0d0d1a;
+    border: 1px solid #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  /* Base peg with cracked texture */
+  .crumble-peg {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    z-index: 20;
+  }
+
+  .crumble-peg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--color, #00ffaa);
+    box-shadow: 0 0 8px var(--color, #00ffaa), 0 0 20px var(--color, #00ffaa);
+  }
+
+  /* Crack overlay using clip path */
+  .crumble-peg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+      linear-gradient(45deg, transparent 40%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.7) 42%, transparent 42%),
+      linear-gradient(-30deg, transparent 38%, rgba(0,0,0,0.5) 38%, rgba(0,0,0,0.5) 41%, transparent 41%),
+      linear-gradient(120deg, transparent 45%, rgba(0,0,0,0.6) 45%, rgba(0,0,0,0.6) 48%, transparent 48%);
+    z-index: 1;
+  }
+
+  /* Hit counter dots */
+  .crumble-peg .dots {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    z-index: 30;
+  }
+
+  .crumble-peg .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color, #00ffaa);
+    box-shadow: 0 0 4px var(--color, #00ffaa);
+    transition: all 0.3s;
+  }
+
+  .crumble-peg .dot.empty {
+    background: #1a1a1a;
+    box-shadow: none;
+    border: 1px solid #333;
+  }
+
+  /* Three crumbling pegs at different hit states */
+  .crumble-3  { left: 80px;  top: 70px;  --color: #00ffaa; }
+  .crumble-2  { left: 220px; top: 120px; --color: #aa44ff; }
+  .crumble-1  { left: 380px; top: 80px;  --color: #ffcc00; animation: criticalPulse 1s ease-in-out infinite; }
+  .crumble-0  { left: 300px; top: 200px; --color: #888; opacity: 0; animation: shatterAway 4s ease-out infinite; }
+
+  @keyframes criticalPulse {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50%       { transform: scale(1.1); filter: brightness(1.5); }
+  }
+
+  /* Shatter fragments */
+  .fragment {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: #00ffaa;
+    box-shadow: 0 0 4px #00ffaa;
+    animation: shatterFall 4s ease-in infinite;
+    opacity: 0;
+  }
+
+  .fragment:nth-child(1) { left: 295px; top: 200px; animation-delay: 0s;   background: #00ffaa; }
+  .fragment:nth-child(2) { left: 302px; top: 200px; animation-delay: 0.05s; background: #00ffaa; }
+  .fragment:nth-child(3) { left: 298px; top: 198px; animation-delay: 0.1s;  background: #00ffaa; }
+  .fragment:nth-child(4) { left: 305px; top: 202px; animation-delay: 0.08s; background: #00ffaa; }
+  .fragment:nth-child(5) { left: 292px; top: 203px; animation-delay: 0.12s; background: #00ffaa; }
+  .fragment:nth-child(6) { left: 308px; top: 198px; animation-delay: 0.03s; background: #00ffaa; }
+
+  @keyframes shatterFall {
+    0%   { transform: translate(0, 0) rotate(0deg);   opacity: 1; }
+    20%  { opacity: 1; }
+    100% { transform: translate(var(--dx, 20px), var(--dy, 80px)) rotate(var(--rot, 180deg)); opacity: 0; }
+  }
+
+  .fragment:nth-child(1) { --dx: -25px; --dy: 70px; --rot: 200deg; }
+  .fragment:nth-child(2) { --dx:  30px; --dy: 90px; --rot: -150deg; }
+  .fragment:nth-child(3) { --dx: -10px; --dy: 60px; --rot: 90deg; }
+  .fragment:nth-child(4) { --dx:  20px; --dy: 75px; --rot: -220deg; }
+  .fragment:nth-child(5) { --dx: -35px; --dy: 85px; --rot: 130deg; }
+  .fragment:nth-child(6) { --dx:  10px; --dy: 95px; --rot: -80deg; }
+
+  @keyframes shatterAway {
+    0%   { opacity: 0; }
+    5%   { opacity: 0; }
+    15%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* Regular pegs */
+  .peg { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #1a3a4a; box-shadow: 0 0 4px #00ffff44; }
+  .peg:nth-child(9)  { left: 160px; top: 55px; }
+  .peg:nth-child(10) { left: 330px; top: 60px; }
+  .peg:nth-child(11) { left: 60px;  top: 150px; }
+  .peg:nth-child(12) { left: 180px; top: 170px; }
+  .peg:nth-child(13) { left: 400px; top: 140px; }
+  .peg:nth-child(14) { left: 100px; top: 250px; }
+  .peg:nth-child(15) { left: 220px; top: 260px; }
+  .peg:nth-child(16) { left: 340px; pop: 240px; }
+
+  /* Legend */
+  .legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    gap: 12px;
+    z-index: 50;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #555;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 4px currentColor;
+  }
+
+  .info-bar { margin-top: 24px; display: flex; gap: 40px; z-index: 10; }
+  .info-item { text-align: center; }
+  .info-item .key { font-size: 9px; letter-spacing: 2px; color: #444; text-transform: uppercase; }
+  .info-item .val { font-size: 13px; color: #00ffaa; text-shadow: 0 0 6px #00ffaa; margin-top: 4px; }
+
+  .rarity-badge {
+    position: absolute; top: 10px; right: 12px; font-size: 8px; letter-spacing: 2px;
+    padding: 3px 8px; border: 1px solid #00ffaa; color: #00ffaa; text-shadow: 0 0 4px #00ffaa;
+    box-shadow: 0 0 8px rgba(0,255,170,0.3); z-index: 10;
+  }
+
+  .unlock-info { margin-top: 16px; font-size: 9px; color: #666; letter-spacing: 2px; z-index: 10; }
+
+  /* Hit flash ring on impact */
+  .hit-flash {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid #00ffaa;
+    animation: hitFlash 2s ease-out infinite;
+    pointer-events: none;
+    z-index: 25;
+  }
+
+  .hit-flash:nth-child(17) { left: 71px;  top: 61px;  animation-delay: 0.5s; }
+  .hit-flash:nth-child(18) { left: 211px; top: 111px; animation-delay: 1.2s; }
+
+  @keyframes hitFlash {
+    0%   { transform: scale(0.5); opacity: 1; }
+    50%  { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(0.5); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="label">Crumbling Pegs</div>
+<div class="sublabel">Peg Type · Destructible · Floor 2+</div>
+
+<div class="stage">
+  <div class="rarity-badge">COMMON</div>
+
+  <!-- 3-hit crumbling peg -->
+  <div class="crumble-peg crumble-3">
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- 2-hit crumbling peg -->
+  <div class="crumble-peg crumble-2">
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot empty"></div>
+    </div>
+  </div>
+
+  <!-- 1-hit crumbling peg -->
+  <div class="crumble-peg crumble-1">
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot empty"></div>
+      <div class="dot empty"></div>
+    </div>
+  </div>
+
+  <!-- Hit flash rings -->
+  <div class="hit-flash"></div>
+  <div class="hit-flash"></div>
+
+  <!-- Shatter fragments (from broken peg) -->
+  <div class="fragment"></div>
+  <div class="fragment"></div>
+  <div class="fragment"></div>
+  <div class="fragment"></div>
+  <div class="fragment"></div>
+  <div class="fragment"></div>
+
+  <!-- Regular pegs -->
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div>
+
+  <!-- Color variant legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="color:#00ffaa; background:#00ffaa;"></div>
+      CYAN
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="color:#aa44ff; background:#aa44ff;"></div>
+      PURPLE
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="color:#ffcc00; background:#ffcc00;"></div>
+      GOLD
+    </div>
+  </div>
+</div>
+
+<div class="info-bar">
+  <div class="info-item"><div class="key">Hits</div><div class="val">1 – 3</div></div>
+  <div class="info-item"><div class="key">Points</div><div class="val">0 ON BREAK</div></div>
+  <div class="info-item"><div class="key">Board</div><div class="val">PERMANENT</div></div>
+  <div class="info-item"><div class="key">Density</div><div class="val">15–25% / FLOOR</div></div>
+</div>
+
+<div class="unlock-info">UNLOCK: FLOOR 2+ (ALL PLAYERS)</div>
+
+</body>
+</html>

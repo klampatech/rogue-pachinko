@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rogue Pachinko — Visual Mockup Gallery</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+body {
+  background: #050510;
+  color: #ffffff;
+  font-family: 'Share Tech Mono', monospace;
+  padding: 40px 20px 80px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 6px;
+  color: #00f0ff;
+  text-shadow: 0 0 20px #00f0ff, 0 0 60px rgba(0,240,255,0.4);
+  margin-bottom: 8px;
+  animation: flicker 5s ease-in-out infinite;
+}
+
+.sub {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #8888aa;
+  margin-bottom: 48px;
+}
+
+.spec-ref {
+  text-align: center;
+  font-size: 9px;
+  color: #444466;
+  letter-spacing: 2px;
+  margin-bottom: 40px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 40px;
+  margin-bottom: 60px;
+}
+
+.card {
+  background: #0a0a1a;
+  border: 1px solid #1a1a3a;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0,240,255,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 30px rgba(0,240,255,0.2);
+}
+
+.card-header {
+  padding: 10px 14px;
+  background: #0d0d22;
+  border-bottom: 1px solid #1a1a3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-num {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #8888aa;
+}
+
+.card-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #00f0ff;
+  text-shadow: 0 0 6px #00f0ff;
+}
+
+.card iframe {
+  width: 100%;
+  height: 540px;
+  border: none;
+  display: block;
+  background: #080818;
+}
+
+.card-footer {
+  padding: 10px 14px;
+  background: #0d0d22;
+  border-top: 1px solid #1a1a3a;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: 'Orbitron', sans-serif;
+}
+.tag-pink  { background: rgba(255,45,120,0.15);  color: #ff2d78; border: 1px solid rgba(255,45,120,0.4); }
+.tag-cyan  { background: rgba(0,240,255,0.12);   color: #00f0ff; border: 1px solid rgba(0,240,255,0.4); }
+.tag-yellow{ background: rgba(240,255,74,0.12);  color: #f0ff4a; border: 1px solid rgba(240,255,74,0.4); }
+.tag-blue  { background: rgba(68,136,255,0.12); color: #4488ff; border: 1px solid rgba(68,136,255,0.4); }
+
+.phase-label {
+  text-align: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #00f0ff;
+  text-shadow: 0 0 8px #00f0ff;
+  margin: 60px 0 24px;
+  padding-top: 32px;
+  border-top: 1px solid #1a1a3a;
+}
+.phase-label.phase2 { color: #ff2d78; text-shadow: 0 0 8px #ff2d78; }
+.phase-label.phase3 { color: #f0ff4a; text-shadow: 0 0 8px #f0ff4a; }
+
+.divider {
+  text-align: center;
+  color: #333355;
+  font-size: 10px;
+  letter-spacing: 4px;
+  margin: 12px 0;
+}
+
+footer {
+  text-align: center;
+  font-size: 9px;
+  color: #333355;
+  letter-spacing: 3px;
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid #1a1a3a;
+}
+
+@keyframes flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.7; }
+  98% { opacity: 1; }
+  99% { opacity: 0.8; }
+}
+
+.crt-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 240, 255, 0.015) 2px,
+    rgba(0, 240, 255, 0.015) 4px
+  );
+  z-index: 9999;
+}
+</style>
+</head>
+<body>
+<div class="crt-overlay"></div>
+
+<h1>ROGUE PACHINKO</h1>
+<div class="sub">VISUAL MOCKUP GALLERY — CYBERPUNK / NEON / CRT</div>
+<div class="spec-ref">SPEC: UPGRADE_SPEC.md · PHASES 1–4 · AESTHETIC: CYBERPUNK NEON + CRT SCANLINES</div>
+
+<!-- PHASE 1 -->
+<div class="phase-label">PHASE 1 — BOARD MUTATION + FEEDBACK</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">04 / 7</span>
+      <span class="card-title">CRUMBLING PEGS</span>
+    </div>
+    <iframe src="04-crumbling-pegs.html" title="Crumbling Pegs"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-cyan">PERMANENT MUTATION</span>
+      <span class="tag tag-pink">1–3 HIT STATES</span>
+      <span class="tag tag-yellow">SHATTER BREAK</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">05 / 7</span>
+      <span class="card-title">SEISMIC PEGS</span>
+    </div>
+    <iframe src="05-seismic-pegs.html" title="Seismic Pegs"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-pink">BASS OSCILLATION</span>
+      <span class="tag tag-pink">SHOCKWAVE RING</span>
+      <span class="tag tag-yellow">2× SPARK BURST</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider">· · · · ·</div>
+
+<!-- PHASE 2 -->
+<div class="phase-label phase2">PHASE 2 — BALL PAYLOADS</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">01 / 7</span>
+      <span class="card-title">GHOST BALL</span>
+    </div>
+    <iframe src="01-ghost-ball.html" title="Ghost Ball"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-pink">SEMI-TRANSPARENT</span>
+      <span class="tag tag-cyan">CHROMATIC SHIMMER</span>
+      <span class="tag tag-yellow">RGB SPLIT</span>
+      <span class="tag tag-pink">TRAILING GHOSTS</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">02 / 7</span>
+      <span class="card-title">CLUSTER BALL</span>
+    </div>
+    <iframe src="02-cluster-ball.html" title="Cluster Ball"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-cyan">PULSING CORE</span>
+      <span class="tag tag-cyan">ORBITING FRAGS</span>
+      <span class="tag tag-yellow">BURST SPLIT</span>
+      <span class="tag tag-yellow">SPARK TRAILS</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">03 / 7</span>
+      <span class="card-title">SLOW-MO BALL</span>
+    </div>
+    <iframe src="03-slowmo-ball.html" title="Slow-Mo Ball"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-blue">CRYSTALLINE EDGES</span>
+      <span class="tag tag-blue">TIME DILATION</span>
+      <span class="tag tag-blue">BLUE-SHIFTED</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider">· · · · ·</div>
+
+<!-- PHASE 3 -->
+<div class="phase-label phase3">PHASE 3 — SLOT + CHASE SYSTEMS</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">06 / 7</span>
+      <span class="card-title">JACKPOT SLOTS</span>
+    </div>
+    <iframe src="06-jackpot-slots.html" title="Jackpot Slot Machine"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-yellow">3 REELS</span>
+      <span class="tag tag-pink">CYBER SYMBOLS</span>
+      <span class="tag tag-yellow">SPIN DECEL</span>
+      <span class="tag tag-yellow">JACKPOT GLITCH</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-num">07 / 7</span>
+      <span class="card-title">FRENZY MODE</span>
+    </div>
+    <iframe src="07-frenzy-mode.html" title="Frenzy Mode UI"></iframe>
+    <div class="card-footer">
+      <span class="tag tag-pink">COMBO COUNTER</span>
+      <span class="tag tag-pink">FRENZY SLAM</span>
+      <span class="tag tag-pink">MAGENTA PULSE</span>
+      <span class="tag tag-cyan">DROPPING N/5</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  ROGUE PACHINKO · UPGRADE_SPEC.MD · ELMO ON STANDBY · AWAITING DESIGN SIGN-OFF
+</footer>
+</body>
+</html>

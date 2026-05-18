@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Ball — Slot Protocol 2.0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    overflow: hidden;
+  }
+
+  /* CRT scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* CRT vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+    z-index: 101;
+  }
+
+  .label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #00ffff;
+    text-shadow: 0 0 8px #00ffff, 0 0 20px #00ffff;
+    margin-bottom: 8px;
+    z-index: 10;
+  }
+
+  .sublabel {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #ff00ff;
+    text-shadow: 0 0 6px #ff00ff;
+    margin-bottom: 40px;
+    z-index: 10;
+  }
+
+  .stage {
+    position: relative;
+    width: 480px;
+    height: 320px;
+    background: #0d0d1a;
+    border: 1px solid #1a1a3a;
+    border-radius: 4px;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  /* Board pegs (faded) */
+  .peg {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #1a3a4a;
+    box-shadow: 0 0 4px #00ffff44;
+  }
+
+  .peg:nth-child(1) { left: 60px;  top: 80px; }
+  .peg:nth-child(2) { left: 140px; top: 60px; }
+  .peg:nth-child(3) { left: 220px; top: 100px; }
+  .peg:nth-child(4) { left: 300px; top: 70px; }
+  .peg:nth-child(5) { left: 380px; top: 110px; }
+  .peg:nth-child(6) { left: 100px; top: 160px; }
+  .peg:nth-child(7) { left: 200px; top: 180px; }
+  .peg:nth-child(8) { left: 310px; top: 170px; }
+  .peg:nth-child(9) { left: 80px;  top: 250px; }
+  .peg:nth-child(10){ left: 190px; top: 270px; }
+  .peg:nth-child(11){ left: 290px; top: 260px; }
+  .peg:nth-child(12){ left: 400px; top: 250px; }
+
+  /* GHOST BALL */
+  .ghost-ball {
+    position: absolute;
+    left: 120px;
+    top: 40px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.6), rgba(0,255,255,0.25));
+    opacity: 0.55;
+    box-shadow:
+      -3px 0 0 rgba(255,0,100,0.5),
+      3px 0 0 rgba(0,255,255,0.5),
+      0 0 12px rgba(0,255,255,0.6),
+      0 0 30px rgba(0,255,255,0.3),
+      0 0 50px rgba(255,0,255,0.2);
+    animation: ghostPhase 1.8s ease-in-out infinite, ghostShimmer 0.3s steps(1) infinite;
+    z-index: 20;
+  }
+
+  /* Chromatic aberration — separate colored ghost layers */
+  .ghost-ball::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(255,0,100,0.3);
+    clip-path: polygon(0 0, 40% 0, 30% 100%, 0 100%);
+    animation: caShift 0.4s steps(1) infinite;
+  }
+
+  .ghost-ball::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    background: rgba(0,255,255,0.3);
+    clip-path: polygon(60% 0, 100% 0, 100% 100%, 70% 100%);
+    animation: caShift 0.4s steps(1) infinite reverse;
+  }
+
+  @keyframes ghostPhase {
+    0%, 100% { transform: translateY(0px); opacity: 0.55; }
+    50%       { transform: translateY(8px); opacity: 0.7; }
+  }
+
+  @keyframes ghostShimmer {
+    0%  { filter: hue-rotate(0deg) brightness(1); }
+    33% { filter: hue-rotate(15deg) brightness(1.3); }
+    66% { filter: hue-rotate(-15deg) brightness(0.9); }
+    100%{ filter: hue-rotate(0deg) brightness(1); }
+  }
+
+  @keyframes caShift {
+    0%  { transform: translateX(-2px); }
+    50% { transform: translateX(0px); }
+    100%{ transform: translateX(-2px); }
+  }
+
+  /* Ghost trails */
+  .trail {
+    position: absolute;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    background: radial-gradient(circle, rgba(0,255,255,0.15), transparent);
+    pointer-events: none;
+  }
+
+  .trail-1 { left: 115px; top: 95px;  animation: trailFade1 1.8s ease-out infinite; }
+  .trail-2 { left: 110px; top: 140px; animation: trailFade2 1.8s ease-out infinite; }
+  .trail-3 { left: 115px; top: 180px; animation: trailFade3 1.8s ease-out infinite; }
+
+  @keyframes trailFade1 {
+    0%   { opacity: 0.4; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(0.4); }
+  }
+  @keyframes trailFade2 {
+    0%   { opacity: 0.3; transform: scale(0.9); }
+    100% { opacity: 0;   transform: scale(0.3); }
+  }
+  @keyframes trailFade3 {
+    0%   { opacity: 0.2; transform: scale(0.8); }
+    100% { opacity: 0;   transform: scale(0.2); }
+  }
+
+  /* Phase break flash (contact moment) */
+  .flash-ring {
+    position: absolute;
+    left: 104px;
+    top: 220px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    animation: phaseFlash 1.8s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes phaseFlash {
+    0%   { transform: scale(0.2); opacity: 0.9; }
+    60%  { transform: scale(1.6); opacity: 0; }
+    100% { transform: scale(0.2); opacity: 0; }
+  }
+
+  /* Peg glow pulse on "contact" (ghost passes through but still triggers visual) */
+  .peg-lit {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #00ffff;
+    box-shadow: 0 0 8px #00ffff, 0 0 20px #00ffff, 0 0 40px #00ffff;
+    animation: pegPulse 1.8s ease-out infinite;
+  }
+  .peg-lit:nth-child(1) { left: 58px;  top: 78px; animation-delay: 0.4s; }
+  .peg-lit:nth-child(2) { left: 218px; top: 98px; animation-delay: 0.9s; }
+  .peg-lit:nth-child(3) { left: 308px; top: 68px; animation-delay: 1.4s; }
+
+  @keyframes pegPulse {
+    0%   { transform: scale(1);   opacity: 1; }
+    30%  { transform: scale(1.8); opacity: 0.3; }
+    100% { transform: scale(1);   opacity: 0; }
+  }
+
+  /* Cyan edge glow border when phase is active */
+  .phase-border {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(0,255,255,0.3);
+    box-shadow: inset 0 0 30px rgba(0,255,255,0.1);
+    animation: borderPulse 1.8s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: 4px;
+  }
+
+  @keyframes borderPulse {
+    0%, 100% { border-color: rgba(0,255,255,0.15); box-shadow: inset 0 0 20px rgba(0,255,255,0.05); }
+    50%       { border-color: rgba(0,255,255,0.5);  box-shadow: inset 0 0 40px rgba(0,255,255,0.15); }
+  }
+
+  /* Solidity flash — 4th/6th contact */
+  .solidify-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.15);
+    animation: solidifyFlash 6s step-end infinite;
+    pointer-events: none;
+    border-radius: 4px;
+  }
+
+  @keyframes solidifyFlash {
+    0%, 66%  { opacity: 0; }
+    67%      { opacity: 1; }
+    75%      { opacity: 0; }
+    100%     { opacity: 0; }
+  }
+
+  .info-bar {
+    margin-top: 24px;
+    display: flex;
+    gap: 32px;
+    z-index: 10;
+  }
+
+  .info-item {
+    text-align: center;
+  }
+
+  .info-item .key {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #444;
+    text-transform: uppercase;
+  }
+
+  .info-item .val {
+    font-size: 13px;
+    color: #00ffff;
+    text-shadow: 0 0 6px #00ffff;
+    margin-top: 4px;
+  }
+
+  .phase-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 6px;
+  }
+
+  .pdot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #00ffff;
+    box-shadow: 0 0 6px #00ffff;
+    animation: dotBlink 1.8s steps(1) infinite;
+  }
+
+  .pdot:nth-child(2) { animation-delay: 0.2s; }
+  .pdot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes dotBlink {
+    0%, 66%  { opacity: 1; }
+    67%, 100%{ opacity: 0.2; }
+  }
+
+  .rarity-badge {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 8px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border: 1px solid #ff00ff;
+    color: #ff00ff;
+    text-shadow: 0 0 4px #ff00ff;
+    box-shadow: 0 0 8px rgba(255,0,255,0.3);
+    z-index: 10;
+  }
+
+  .unlock-info {
+    margin-top: 16px;
+    font-size: 9px;
+    color: #666;
+    letter-spacing: 2px;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="label">Ghost Ball</div>
+<div class="sublabel">Payload · Phase-Through · Netrunner</div>
+
+<div class="stage">
+  <div class="rarity-badge">RARE</div>
+  <div class="phase-border"></div>
+  <div class="solidify-flash"></div>
+
+  <!-- Background pegs -->
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+  <div class="peg"></div><div class="peg"></div><div class="peg"></div>
+
+  <!-- Ghost ball -->
+  <div class="ghost-ball"></div>
+
+  <!-- Ghost trails -->
+  <div class="trail trail-1"></div>
+  <div class="trail trail-2"></div>
+  <div class="trail trail-3"></div>
+
+  <!-- Peg contact pulses (ghost passes through, triggers visual) -->
+  <div class="peg-lit"></div>
+  <div class="peg-lit"></div>
+  <div class="peg-lit"></div>
+
+  <!-- Phase solidify ring -->
+  <div class="flash-ring"></div>
+</div>
+
+<div class="info-bar">
+  <div class="info-item">
+    <div class="key">Phase Hits Left</div>
+    <div class="phase-dots">
+      <div class="pdot"></div>
+      <div class="pdot"></div>
+      <div class="pdot"></div>
+    </div>
+  </div>
+  <div class="info-item">
+    <div class="key">State</div>
+    <div class="val">PHASING</div>
+  </div>
+  <div class="info-item">
+    <div class="key">Contacts</div>
+    <div class="val">1 / 4</div>
+  </div>
+</div>
+
+<div class="unlock-info">UNLOCK: NETRUNNER RANK</div>
+
+</body>
+</html>

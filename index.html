@@ -1828,9 +1828,9 @@ function setupObjective(floor) {
   switch (floor) {
     case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
     case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
-    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE - NO ICE HITS' };
-    case 4: return { type: 'standard', target: 35, progress: 0, label: 'CLEAR 35 PEGS' };
-    case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT' };
+    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE - NO ICE HITS', timeLimit: 0 };
+    case 4: return { type: 'timelock', target: 0, progress: 0, label: 'TIME LOCK - 45 SECONDS', timeLimit: 45 };
+    case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   }
 }
 
@@ -1987,6 +1987,19 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   if (ball.piercing) {
     ball.vx += nx * 2;
     ball.vy += ny * 2;
+  }
+
+  // ── GHOST MODE: track ice peg hits separately (win=0, fail>0) ─
+  if (GS.floorObjective.type === 'ghost') {
+    if (peg.type === 'ice') {
+      GS.ghostModeIceHits = (GS.ghostModeIceHits || 0) + 1;
+      GS.floorObjective.progress = GS.ghostModeIceHits;
+      // Visual penalty: red flash + float text
+      triggerFlash('#ff224433', 0.2);
+      spawnFloatText(peg.x, peg.y - 10, '⚠ ICE!', '#ff4444');
+      spawnParticles(peg.x, peg.y, '#ff4444', 10, 3);
+    }
+    // Ghost mode: progress = ice hit count, win when balls exhausted and ice hits = 0
   }
 
   // Effects based on peg type
@@ -2942,6 +2955,11 @@ function startFloor() {
     GS.balls = 5;
   }
 
+  // Time Lock — initialize countdown timer
+  GS.floorTimeRemaining = GS.floorObjective.timeLimit || 0;
+  // Ghost Mode — reset ice hit tracker
+  GS.ghostModeIceHits = 0;
+
   // Grant random payload for this run
   if (GS.floor === 1 && GS.payloadInventory.length === 0) {
     grantStartingPayload();
@@ -3554,7 +3572,16 @@ function update() {
 
   // Check no balls and no balls left — run ends regardless of objective
   if (GS.ballsInPlay.length === 0 && GS.balls <= 0 && GS.screen === 'playing') {
-    if (GS.floorObjective.progress >= GS.floorObjective.target) {
+    // Ghost mode: win if no ice hits were taken, fail otherwise
+    if (GS.floorObjective.type === 'ghost') {
+      if ((GS.ghostModeIceHits || 0) === 0) {
+        completeFloor();
+      } else {
+        triggerFlash('#ff224433', 0.3);
+        spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
+        endRun(false);
+      }
+    } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
       completeFloor();
     } else {
       triggerFlash('#ff224433', 0.3);
@@ -3563,8 +3590,51 @@ function update() {
     return;
   }
 
-  // Check objective periodically
-  if (GS.floorObjective.progress >= GS.floorObjective.target) {
+// Time Lock countdown
+  if (GS.floorObjective.type === 'timelock' && GS.floorTimeRemaining > 0) {
+    GS.floorTimeRemaining -= 1/60;
+    if (GS.floorTimeRemaining <= 0) {
+      GS.floorTimeRemaining = 0;
+      triggerFlash('#ff224433', 0.3);
+      spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
+      spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
+      endRun(false);
+    }
+  }
+
+  // Time Lock HUD display
+  let timeLockEl = document.getElementById('timelock-display');
+  if (GS.floorObjective.type === 'timelock' && GS.floorTimeRemaining > 0) {
+    if (!timeLockEl) {
+      timeLockEl = document.createElement('div');
+      timeLockEl.id = 'timelock-display';
+      timeLockEl.style.cssText = 'position:absolute;top:75px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:#ffd700;z-index:20;letter-spacing:2px;text-shadow:0 0 8px #ffd700;padding:3px 10px;border:1px solid #ffd70044;border-radius:12px;background:#0a001099;';
+      document.getElementById('game-container').appendChild(timeLockEl);
+    }
+    timeLockEl.textContent = `⏱ ${Math.max(0, Math.ceil(GS.floorTimeRemaining))}s`;
+    timeLockEl.style.display = 'block';
+  } else if (timeLockEl) {
+    timeLockEl.style.display = 'none';
+  }
+
+  // Ghost Mode HUD display
+  let ghostEl = document.getElementById('ghost-display');
+  if (GS.floorObjective.type === 'ghost') {
+    if (!ghostEl) {
+      ghostEl = document.createElement('div');
+      ghostEl.id = 'ghost-display';
+      ghostEl.style.cssText = 'position:absolute;top:75px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:#ff88ff;z-index:20;letter-spacing:2px;text-shadow:0 0 8px #ff88ff;padding:3px 10px;border:1px solid #ff88ff44;border-radius:12px;background:#0a001099;';
+      document.getElementById('game-container').appendChild(ghostEl);
+    }
+    const iceHits = GS.ghostModeIceHits || 0;
+    ghostEl.textContent = `👻 ${iceHits === 0 ? '✓ CLEAR' : `⚠ ICE: ${iceHits}`}`;
+    ghostEl.style.display = 'block';
+  } else if (ghostEl) {
+    ghostEl.style.display = 'none';
+  }
+
+  // Check objective periodically (standard/boss modes only — ghost has its own end condition)
+  if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.progress >= GS.floorObjective.target) {
     completeFloor();
   }
 }

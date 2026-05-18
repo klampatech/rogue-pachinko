@@ -2653,10 +2653,23 @@ function initJackpotSlots() {
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
 
-    // Blur reels during spin
-    reels.forEach(r => r && (r.style.filter = 'blur(3px)'));
+    // Spinning state — blur ramp + scale pulse on each reel
+    reels.forEach(r => r && (r.style.filter = 'blur(6px)'));
 
-    const spinDurations = [1200, 1800, 2400];
+    // Show SPINNING indicator
+    let spinEl = document.getElementById('jp-spinning');
+    if (!spinEl) {
+      spinEl = document.createElement('div');
+      spinEl.id = 'jp-spinning';
+      spinEl.style.cssText = 'text-align:center;font-size:13px;font-weight:bold;color:#ffd700;' +
+        'letter-spacing:4px;text-shadow:0 0 10px #ffd700;animation:jpPromptPulse 0.4s ease-in-out infinite alternate;';
+      if (jpBtn && jpBtn.parentNode) jpBtn.parentNode.insertBefore(spinEl, jpBtn);
+    }
+    spinEl.textContent = '◈ SPINNING ◈';
+    spinEl.style.display = 'block';
+
+    // Staggered spin durations — reel 0 stops first, then 1, then 2
+    const spinDurations = [1000, 1600, 2200];
     const stopTimes = [spinDurations[0], spinDurations[1], spinDurations[2]];
 
     reels.forEach((reel, i) => {
@@ -2664,25 +2677,36 @@ function initJackpotSlots() {
       const spin = setInterval(() => {
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         count++;
-        if (count > 8 + i * 4) {
+        // Ramp blur down as spin nears end — starts intense, settles
+        const progress = count / (12 + i * 5);
+        reel.style.filter = `blur(${Math.max(0, 6 - progress * 6)}px)`;
+        if (count > 10 + i * 4) {
           clearInterval(spin);
           reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         }
-      }, 60 + i * 30);
+      }, 50 + i * 20);
+
+      // Staggered landing: each reel lands 400ms after the previous
       setTimeout(() => {
         clearInterval(spin);
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         reel.style.filter = 'blur(0px)';
-        // Glitch landing effect
-        reel.style.transform = 'scale(1.2)';
-        setTimeout(() => { reel.style.transform = 'scale(1)'; }, 80);
+        // Glitch landing: rapid scale bump + settle
+        reel.style.transform = 'scale(1.25)';
+        reel.style.transition = 'transform 0.08s ease-in, filter 0.15s ease-out';
+        setTimeout(() => {
+          reel.style.transform = 'scale(1)';
+          setTimeout(() => { reel.style.transition = ''; }, 80);
+        }, 80);
       }, stopTimes[i]);
     });
 
+    // After all reels landed + settle time, show result
     setTimeout(() => {
       spinInProgress = false;
+      if (spinEl) spinEl.style.display = 'none';
       showResult();
-    }, spinDurations[2] + 300);
+    }, spinDurations[2] + 500);
   }
 
   if (jpBtn) {
@@ -3164,6 +3188,50 @@ function drawPegs() {
     ctx.shadowBlur = 8 * pulse;
     ctx.fill();
     ctx.shadowBlur = 0;
+
+    // Honeypot warning glow — trap peg pulses aggressively, danger ring when ball is near
+    if (peg.type === 'honeypot') {
+      // Outer danger halo — pulses faster than normal pegs
+      const dangerPulse = 0.6 + Math.sin(time * 6 + peg.x * 0.2) * 0.4;
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, def.radius + 10, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,34,68,${0.3 * dangerPulse})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ff2244';
+      ctx.shadowBlur = 12 * dangerPulse;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Inner ring — faster pulse
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, def.radius + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,100,100,${0.5 * dangerPulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Proximity warning — if ball within 2× radius, intensify
+      const nearBall = GS.ballsInPlay.some(b => {
+        const dx = b.x - peg.x, dy = b.y - peg.y;
+        return Math.sqrt(dx*dx + dy*dy) < def.radius * 3;
+      });
+      if (nearBall) {
+        ctx.beginPath();
+        ctx.arc(peg.x, peg.y, def.radius + 14, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,50,50,0.8)';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#ff2244';
+        ctx.shadowBlur = 20;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // Rapid flicker
+        if (Math.sin(time * 20) > 0) {
+          ctx.beginPath();
+          ctx.arc(peg.x, peg.y, def.radius + 6, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,0,0,0.15)';
+          ctx.fill();
+        }
+      }
+    }
 
     // ICE hit counter
     if (peg.type === 'ice' && peg.hitCount > 0) {

@@ -4116,7 +4116,7 @@ function drawBallDropZone() {
   ctx.stroke();
   ctx.setLineDash([]);
   // Full-height aim guide line on mobile (touch active = always show full line)
-  if (touchDragging || (typeofontouchstart !== 'undefined')) {
+  if (touchDragging || (typeof window.ontouchstart !== 'undefined')) {
     ctx.beginPath();
     ctx.moveTo(x, 70);
     ctx.lineTo(x, H);
@@ -4174,7 +4174,7 @@ function render() {
   drawShockwaves();
 
   // Float texts
-  drawFloatTexts();
+  drawFloatTexts(ctx);
 
   // Close screen shake transform
   if (screenShake > 0) {

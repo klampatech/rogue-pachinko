@@ -2752,6 +2752,11 @@ function updateHUD() {
   // Balls display
   const ballsEl = document.getElementById('balls-display');
   ballsEl.innerHTML = '';
+  // Text label
+  const label = document.createElement('span');
+  label.style.cssText = 'color:#00f0ff;font-size:10px;margin-right:6px;letter-spacing:1px;text-shadow:0 0 6px #00f0ff;' + (GS.balls === 0 ? 'color:#ff4444;text-shadow:0 0 6px #ff4444;' : '');
+  label.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
+  ballsEl.appendChild(label);
   for (let i = 0; i < 5; i++) {
     const dot = document.createElement('div');
     dot.className = 'ball-dot' + (i >= GS.balls ? ' empty' : '');
@@ -2903,6 +2908,12 @@ function initJackpotSlots() {
   if (jpBanner) { jpBanner.style.display = 'none'; jpBanner.textContent = ''; }
   if (jpContinueBtn) jpContinueBtn.style.display = 'none';
   if (jpRerollBtn) jpRerollBtn.style.display = 'none';
+
+  // Bind CONTINUE button to close overlay and open shop
+  if (jpContinueBtn) jpContinueBtn.onclick = () => {
+    document.getElementById('floor-overlay').classList.remove('active');
+    openShop();
+  };
 
   // Show pulsing "SPIN TO WIN!" prompt
   let promptEl = document.getElementById('jp-prompt');
@@ -3058,7 +3069,7 @@ const SHOP_ITEMS = [
   { id: 'extralife', type: 'upgrade', name: 'EXTRA BALL', icon: '●', cost: 300, desc: '+1 starting ball each run' },
   { id: 'multiball', type: 'upgrade', name: 'MULTI-DROP', icon: '●●', cost: 400, desc: 'Drop 2 balls at once' },
   { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' },
-  { id: 'ball_refill', type: 'consumable', name: 'BALL REFILL', icon: '⚽', cost: 150, desc: '+2 balls — usable mid-run' }
+  { id: 'ball_refill', type: 'consumable', name: 'EMERGENCY BALL', icon: '⚡', cost: 40, desc: '+1 ball — mid-run rescue!' }
 ];
 
 // Reputation Shop — permanent upgrades purchasable with meta-currency
@@ -3159,8 +3170,8 @@ function buyItem(id) {
     const cost = Math.floor(item.cost * (GS.shopDiscount || 1.0));
     if (GS.breachCredits < cost) return;
     GS.breachCredits -= cost;
-    if (id === 'ball_refill') GS.balls += 2;
-    spawnFloatText(240, 300, '⚽ BALLS +2', '#00ff88');
+    if (id === 'ball_refill') GS.balls += 1;
+    spawnFloatText(240, 300, '⚡ BALL +1', '#00ff88');
     triggerFlash('#00ff8833', 0.2);
     document.getElementById('shop-credits').textContent = GS.breachCredits;
     updateHUD();
@@ -3579,6 +3590,7 @@ function startFloor() {
   GS.frenzyActive = false;
   GS.frenzyReady = false;
   GS.comboCount = 0;
+  GS.noBallsInterstitial = false;
   GS.currentPayloads = [];
   GS.totalPegsCleared = 0;
   GS.totalBallsUsed = 0;
@@ -3603,13 +3615,13 @@ function startFloor() {
   GS.jackpotBase = 500 * GS.floor;
   GS.jackpotPool = GS.jackpotPool || GS.jackpotBase;
   // Reset ball count — apply bonusStartingBalls from mastery upgrades
-  // Always reset to 5 on each new floor (safety net — prevents soft-lock on floor 2+)
+  // Option B: balls refresh each floor so running out mid-floor means
+  // "floor failed, retry" not "run over"
   GS.balls = GS.startingBallsOverride || (5 + (GS.bonusStartingBalls || 0));
   // Clear the override after first floor applies it
   if (GS.startingBallsOverride) {
     GS.startingBallsOverride = null;
   }
-
   // Time Lock — initialize countdown timer
   GS.floorTimeRemaining = GS.floorObjective.timeLimit || 0;
   // Ghost Mode — reset ice hit tracker
@@ -4287,20 +4299,30 @@ function update() {
 
   // Check no balls and no balls left — run ends regardless of objective
   if (GS.ballsInPlay.length === 0 && GS.balls <= 0 && GS.screen === 'playing') {
-    // Ghost mode: win if no ice hits were taken, fail otherwise
-    if (GS.floorObjective.type === 'ghost') {
-      if ((GS.ghostModeIceHits || 0) === 0) {
-        completeFloor();
-      } else {
-        triggerFlash('#ff224433', 0.3);
-        spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
-        endRun(false);
-      }
-    } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
-      completeFloor();
-    } else {
+    // Show NO BALLS interstitial first (1.5s warning before run ends)
+    if (!GS.noBallsInterstitial) {
+      GS.noBallsInterstitial = true;
       triggerFlash('#ff224433', 0.3);
-      endRun(false);
+      spawnFloatText(W/2, H/2, '⚠ NO BALLS LEFT ⚠', '#ff4444');
+      setTimeout(() => {
+        GS.noBallsInterstitial = false;
+        if (GS.screen !== 'playing') return; // already transitioned
+        // Ghost mode: win if no ice hits were taken, fail otherwise
+        if (GS.floorObjective.type === 'ghost') {
+          if ((GS.ghostModeIceHits || 0) === 0) {
+            completeFloor();
+          } else {
+            triggerFlash('#ff224433', 0.3);
+            spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
+            endRun(false);
+          }
+        } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
+          completeFloor();
+        } else {
+          endRun(false);
+        }
+      }, 1500);
+      return;
     }
     return;
   }

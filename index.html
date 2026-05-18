@@ -3057,7 +3057,8 @@ const SHOP_ITEMS = [
   { id: 'slowmo', type: 'payload', name: 'SLOW-MO', icon: '⏱', cost: 250, desc: 'Time slows — ball exits slow' },
   { id: 'extralife', type: 'upgrade', name: 'EXTRA BALL', icon: '●', cost: 300, desc: '+1 starting ball each run' },
   { id: 'multiball', type: 'upgrade', name: 'MULTI-DROP', icon: '●●', cost: 400, desc: 'Drop 2 balls at once' },
-  { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' }
+  { id: 'creditbonus', type: 'upgrade', name: 'DATA VAMP', icon: '◁', cost: 350, desc: '+25% credits from caches' },
+  { id: 'ball_refill', type: 'consumable', name: 'BALL REFILL', icon: '⚽', cost: 150, desc: '+2 balls — usable mid-run' }
 ];
 
 // Reputation Shop — permanent upgrades purchasable with meta-currency
@@ -3152,6 +3153,20 @@ function openShop(tab = 'credits') {
 function buyItem(id) {
   const item = SHOP_ITEMS.find(i => i.id === id);
   if (!item || GS.breachCredits < item.cost) return;
+
+  // Consumable: BALL REFILL — add 2 balls, no permanent unlock
+  if (item.type === 'consumable') {
+    const cost = Math.floor(item.cost * (GS.shopDiscount || 1.0));
+    if (GS.breachCredits < cost) return;
+    GS.breachCredits -= cost;
+    if (id === 'ball_refill') GS.balls += 2;
+    spawnFloatText(240, 300, '⚽ BALLS +2', '#00ff88');
+    triggerFlash('#00ff8833', 0.2);
+    document.getElementById('shop-credits').textContent = GS.breachCredits;
+    updateHUD();
+    return;
+  }
+
   if (GS.unlockedPayloads.includes(id) || GS.unlockedUpgrades.includes(id)) return;
 
   // Enforce rank unlock
@@ -3588,12 +3603,11 @@ function startFloor() {
   GS.jackpotBase = 500 * GS.floor;
   GS.jackpotPool = GS.jackpotPool || GS.jackpotBase;
   // Reset ball count — apply bonusStartingBalls from mastery upgrades
-  if (GS.floor === 1) {
-    GS.balls = GS.startingBallsOverride || (5 + (GS.bonusStartingBalls || 0));
-    // Clear the override after first floor applies it
-    if (GS.startingBallsOverride) {
-      GS.startingBallsOverride = null;
-    }
+  // Always reset to 5 on each new floor (safety net — prevents soft-lock on floor 2+)
+  GS.balls = GS.startingBallsOverride || (5 + (GS.bonusStartingBalls || 0));
+  // Clear the override after first floor applies it
+  if (GS.startingBallsOverride) {
+    GS.startingBallsOverride = null;
   }
 
   // Time Lock — initialize countdown timer

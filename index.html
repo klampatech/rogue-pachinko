@@ -1126,8 +1126,11 @@ function loadPersist() {
     PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   }
   // Apply mastery upgrades on load (permanent power)
-  applyMasteryUpgrades();
-  updateMenuStats();
+  try { applyMasteryUpgrades(); } catch(e) { console.error('applyMasteryUpgrades: ' + e.message); }
+  // Update menu stats - wrapped to prevent init chain break
+  try { updateMenuStats(); } catch(e) { console.error('updateMenuStats: ' + e.message); }
+  // Start game loop - standalone call since init chain may be broken on some browsers
+  try { gameLoop(); } catch(e) { console.error('gameLoop init: ' + e.message); }
 }
 function savePersist() {
   PERSIST.unlockedPayloads = GS.unlockedPayloads;

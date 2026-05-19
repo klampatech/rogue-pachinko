@@ -1310,6 +1310,46 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
+// ─── LAYER RENDER SYSTEM ─────────────────────────────────────
+// Unified render pipeline — all canvas drawing goes through layers.
+// This replaces the old flat render order and enables screen transitions,
+// layer toggling, and post-processing effects without DOM manipulation.
+const LAYER = {
+  BACKGROUND: 0,
+  BOARD:      1,
+  BALLS:      2,
+  FX:         3,
+  SLOTS:      4,
+};
+const layerVisible = {};
+const screenLayers = {
+  menu:          [LAYER.BACKGROUND],
+  playing:       [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS, LAYER.FX, LAYER.SLOTS],
+  shop:          [LAYER.BACKGROUND],
+  floor_complete:[LAYER.BACKGROUND],
+  run_end:       [LAYER.BACKGROUND],
+};
+
+function setActiveScreen(name) {
+  const active = screenLayers[name] || [LAYER.BACKGROUND];
+  for (const key in LAYER) {
+    layerVisible[key] = active.includes(LAYER[key]);
+  }
+}
+
+function drawLayers(time) {
+  if (layerVisible.BACKGROUND) drawBackground();
+  if (layerVisible.BOARD)      drawPegs();
+  if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
+  if (layerVisible.FX) {
+    drawParticles();
+    drawFragments();
+    drawShockwaves();
+    drawFloatTexts(ctx);
+  }
+  if (layerVisible.SLOTS)     drawSlots();
+}
+
 // ─── PEG EVOLUTION SYSTEM (Spec 1) ───────────────────────────
 // 5-state machine: Dormant → Normal → Glowing → Charged → Explosive
 const PegEvo = {
@@ -1802,8 +1842,9 @@ function drawShockwaves() {
 
 // ─── SLOT COLLECTOR ─────────────────────────────────────────
 function getSlotForX(x) {
-  // Slot 0: x in [0, 64], Slot 1: [66, 130], ..., Slot 3 center: [196, 264], ..., Slot 6: [394, 458]
+  // Slot 0: x in [0, 64], Slot 1: [66, 130], ..., Slot 3 center: [196, 264], ..., Slot 6: [394, 480]
   // 2px gaps between each slot
+  // Last slot (6) extends to W=480 to prevent balls falling through right edge unguarded
   const GAP = 2;
   const REG = SLOT_WIDTH;      // 64
   const CTR = SLOT_CENTER_WIDTH; // 68 — slot 3 is slightly wider
@@ -1811,10 +1852,12 @@ function getSlotForX(x) {
   let pos = 0;
   for (let i = 0; i < SLOT_COUNT; i++) {
     const w = (i === 3) ? CTR : REG;
-    if (x >= pos && x < pos + w) return i;
+    const isLastSlot = (i === SLOT_COUNT - 1);
+    const slotEnd = isLastSlot ? W : pos + w;  // last slot extends to canvas edge
+    if (x >= pos && x < slotEnd) return i;
     pos += w + GAP;
   }
-  return -1; // fell through a gap
+  return -1; // fell through a gap (shouldn't happen with last slot extending to W)
 }
 
 function getSlotX(slotIdx) {
@@ -2715,29 +2758,47 @@ function generateBoard(floor) {
   })(seed);
 
   if (floor <= 2) {
-    // Simple grid, generous spacing
+    // Dense grid — increased from 55px to 40px row spacing for better ball coverage
+    // Extra mid-rows every other row add additional collision opportunities
     for (let row = 0; row < 8; row++) {
       const cols = 7 - (row % 2);
-      const y = 120 + row * 55;
+      const y = 120 + row * 40;  // was 55, compressed for tighter peg density
       const offset = (row % 2) === 0 ? 0 : 30;
       for (let col = 0; col < cols; col++) {
         const x = 50 + offset + col * 60;
-        const r = Math.random();
+        const r = rng.random();
         let type = 'node';
         if (r < 0.12) type = 'ice';
         if (floor >= 2 && r < 0.08) type = 'crumbling';
         board.push({ x, y, type, hitCount: 0, id: board.length,
-          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
           evolution: assignEvolutionState(rng)
         });
+      }
+      // Extra mid-row pegs between main rows for floor 1-2 to eliminate large vertical gaps
+      // Adds ~50% more pegs without changing horizontal structure
+      if (row < 7) {
+        const midY = y + 20;  // halfway between this row and next
+        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
+        for (let col = 0; col < midCols; col++) {
+          const x = 80 + offset + col * 60 + (rng.random() - 0.5) * 15;  // slight x jitter
+          // Skip if too close to existing pegs (check against last row's pegs)
+          const r2 = rng.random();
+          let type = 'node';
+          if (r2 < 0.08) type = 'ice';
+          board.push({ x, y: midY, type, hitCount: 0, id: board.length,
+            hitsRemaining: 0, crumblingColor: null,
+            evolution: assignEvolutionState(rng)
+          });
+        }
       }
     }
     // Cache pegs
     for (let i = 0; i < 4; i++) {
       board.push({
-        x: 80 + Math.random() * 320,
-        y: 150 + Math.random() * 300,
+        x: 80 + rng.random() * 320,
+        y: 150 + rng.random() * 280,
         type: 'cache',
         hitCount: 0, id: board.length
       });
@@ -3770,6 +3831,7 @@ function updateMenuStats() {
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
 function completeFloor() {
   GS.screen = 'floor_complete';
+  setActiveScreen('floor_complete');
   playSound('floorClear');
   if (GS.floor === 1) showAchievement('firstFloor');
   if (GS.floor === 5) showAchievement('fullBreach');
@@ -4010,6 +4072,7 @@ const REP_SHOP_ITEMS = [
 
 function openShop(tab = 'credits') {
   GS.screen = 'shop';
+  setActiveScreen('shop');
   document.getElementById('shop-credits').textContent = GS.breachCredits;
   document.getElementById('shop-rep').textContent = GS.reputation;
 
@@ -4503,6 +4566,7 @@ function createLeaderboardOverlay() {
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
+  setActiveScreen('playing');
   startNextFloor();
 }
 
@@ -4651,6 +4715,7 @@ function endRun(won) {
   GS.noBallsInterstitial = false;
 
   GS.screen = 'run_end';
+  setActiveScreen('run_end');
   setRunEndMusic(won);
 
   // Sync reputation to PERSIST for meta-progression
@@ -4831,6 +4896,7 @@ function startNewRun() {
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
   GS.screen = 'playing';
+  setActiveScreen('playing');
   onScreenChange('playing');
   playSound('menuStart');
   startFloor();
@@ -4842,6 +4908,7 @@ function returnToMenu() {
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
+  setActiveScreen('menu');
   onScreenChange('menu');
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen
@@ -5281,33 +5348,12 @@ function render() {
     ctx.translate(sx, sy);
   }
 
-  // Background
-  drawBackground();
+  // ── LAYER-BASED RENDER ──────────────────────────────────────
+  drawLayers(Date.now());
 
-  // Board
-  drawPegs();
-
-  // Balls
-  for (const ball of GS.ballsInPlay) {
-    ball.draw();
-  }
-
-  // Drop zone
+  // Drop zone (playing only, not a full layer)
   if (GS.screen === 'playing' && canDrop) {
     drawBallDropZone();
-  }
-
-  // Particles
-  drawParticles();
-  drawFragments();
-  drawShockwaves();
-
-  // Float texts
-  drawFloatTexts(ctx);
-
-  // Slot Collector
-  if (GS.screen === 'playing') {
-    drawSlots();
   }
 
   // Close screen shake transform
@@ -5596,6 +5642,7 @@ document.getElementById('contrast-btn').onclick = () => {
 loadPersist();
 updateMenuStats();
 initBgmTracks();
+setActiveScreen('menu');  // Initialize layer system on load
 onScreenChange('menu');
 gameLoop();
 </script>

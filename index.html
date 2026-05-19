@@ -295,6 +295,35 @@ body.contrast-mode #peg-target-line {
   stroke: #00ff00 !important;
   opacity: 0.7 !important;
 }
+body.contrast-mode #shop-btn {
+  border-color: #00ff00 !important;
+  color: #00ff00 !important;
+}
+body.contrast-mode #multiplier-display {
+  color: #00ff00 !important;
+  text-shadow: 0 0 12px #00ff00 !important;
+}
+body.contrast-mode #objective-label {
+  color: #00ff00 !important;
+}
+body.contrast-mode .payload-slot {
+  border-color: #00ff0044 !important;
+}
+body.contrast-mode .payload-slot.active {
+  border-color: #00ff00 !important;
+  color: #00ff00 !important;
+}
+body.contrast-mode #drop-indicator {
+  border-color: #00ff0044 !important;
+  color: #00ff0044 !important;
+}
+body.contrast-mode #drop-indicator.active {
+  border-color: #00ff00 !important;
+  color: #00ff00 !important;
+}
+body.contrast-mode #combo-display {
+  color: #00ff00 !important;
+}
 
 /* Shop overlay */
 #shop-overlay {
@@ -818,6 +847,12 @@ const GS = {
   // Daily challenge mode
   dailyMode: false,
   dailyDate: null,
+  // Slot Collector
+  slotAnimations: [],   // active slot VFX
+  unlockedSlots: [0, 1, 6], // slots currently unlocked (floor 1 defaults)
+  shieldNextBall: false, // queued shield from shield slot
+  overclockActive: false,
+  overclockTimer: 0,
 };
 
 // ─── PERSISTENT STATE ────────────────────────────────────────
@@ -1204,6 +1239,29 @@ const BALL_RADIUS = 7;
 const STUCK_FRAMES = 180; // 3 sec at 60fps threshold for stuck ball detection
 const STUCK_DIST_THRESHOLD = 2; // px movement below which counts as stuck
 
+// ─── SLOT COLLECTOR ──────────────────────────────────────────
+const SLOT_COUNT = 7;
+const SLOT_START_Y = 560;    // top of slot zone
+const SLOT_HEIGHT = 50;      // pocket depth
+const SLOT_WIDTH = 64;        // regular slot
+const SLOT_CENTER_WIDTH = 68; // center slot (slightly wider)
+const SLOT_GAP = 2;
+
+// Slot type definitions
+const SLOT_TYPES = [
+  { name: 'CREDITS',  color: '#ffaa00', icon: 'C', desc: '+credits' },
+  { name: 'AMPLIFY',  color: '#00f0ff', icon: 'A', desc: '+mult'   },
+  { name: 'PAYLOAD',  color: '#ff00aa', icon: 'P', desc: '+payload'},
+  { name: 'CRUMBLE',  color: '#ff4444', icon: 'X', desc: 'crumble' },
+  { name: 'SHIELD',   color: '#00ff88', icon: 'S', desc: 'shield'  },
+  { name: 'OVERCLOCK',color: '#aa44ff', icon: 'O', desc: 'overclock'},
+  { name: 'JACKPOT',  color: '#ffd700', icon: 'J', desc: 'jackpot' },
+];
+
+// Slot unlock floors: which floor each slot unlocks on (0-indexed)
+// CREDITS(0), AMPLIFY(1), PAYLOAD(2), CRUMBLE(3), SHIELD(4), OVERCLOCK(5), JACKPOT(6)
+const SLOT_UNLOCK_FLOOR = [1, 1, 2, 4, 3, 5, 1];
+
 // Multiplier tier colors — x1 dim cyan → x7 blazing white
 const MULT_COLORS = {
   1: { color: '#00c8d4', glow: '#00c8d4', blur: 10 },
@@ -1301,6 +1359,8 @@ class Ball {
     // Stuck ball detection
     this.lastX = x; this.lastY = y;
     this.stuckFrames = 0;
+    // Shield bubble (from SHIELD slot)
+    this.shielded = false;
   }
 
   update() {
@@ -1333,10 +1393,12 @@ class Ball {
     this.lastY = this.y;
 
     // ── SLOW-MO: 50% time dilation ──────────────────────────────
+    // OVERCLOCK: 1.5x gravity for 5 sec (slot 5 bonus)
+    const overclockMult = (GS.overclockActive && GS.overclockTimer > 0) ? 1.5 : 1.0;
     const timeScale = this.slowmoActive ? 0.5 : 1.0;
 
     // Gravity (scaled)
-    this.vy += GRAVITY * timeScale;
+    this.vy += GRAVITY * timeScale * overclockMult;
 
     // Friction
     this.vx *= FRICTION;
@@ -1389,7 +1451,20 @@ class Ball {
     if (this.x < BALL_RADIUS) { this.x = BALL_RADIUS; this.vx *= -0.8; }
     if (this.x > W - BALL_RADIUS) { this.x = W - BALL_RADIUS; this.vx *= -0.8; }
 
-    // Exit bottom
+    // ── SLOT COLLECTOR ZONE ────────────────────────────────────
+    // Ball reaches slot zone (y=560): determine which slot captures it
+    if (this.y > SLOT_START_Y) {
+      const slotIdx = getSlotForX(this.x);
+      if (slotIdx !== -1) {
+        // Ball is captured by slot — play slot animation and effects
+        this.active = false;
+        triggerSlotCollected(this, slotIdx);
+        return;
+      }
+      // Missed all slots → falls through gap (2px gaps at edges/sides)
+      // Ball continues to fall below H+20 for normal exit
+    }
+    // Exit bottom (ball fell through gap or overshot)
     if (this.y > H + 20) {
       this.active = false;
       resolveBallExit(this);
@@ -1527,6 +1602,19 @@ class Ball {
       ctx.shadowColor = glowColor;
       ctx.shadowBlur = glowBlur;
       ctx.fill();
+
+      // Shield bubble: green ring around ball
+      if (this.shielded) {
+        const pulse = 0.6 + Math.sin(Date.now() / 100) * 0.3;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, BALL_RADIUS + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 255, 136, ${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 10 * pulse;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
       ctx.shadowBlur = 0;
       // Cascade Overload: magenta pulsing outer ring when overloaded
       if (this.isOverloaded) {
@@ -1676,6 +1764,275 @@ function drawShockwaves() {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
   });
+}
+
+// ─── SLOT COLLECTOR ─────────────────────────────────────────
+function getSlotForX(x) {
+  // Slot 0: x in [0, 64], Slot 1: [66, 130], ..., Slot 3 center: [196, 264], ..., Slot 6: [394, 458]
+  // 2px gaps between each slot
+  const GAP = 2;
+  const REG = SLOT_WIDTH;      // 64
+  const CTR = SLOT_CENTER_WIDTH; // 68 — slot 3 is slightly wider
+
+  let pos = 0;
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const w = (i === 3) ? CTR : REG;
+    if (x >= pos && x < pos + w) return i;
+    pos += w + GAP;
+  }
+  return -1; // fell through a gap
+}
+
+function getSlotX(slotIdx) {
+  const GAP = 2;
+  const REG = SLOT_WIDTH;
+  const CTR = SLOT_CENTER_WIDTH;
+  let pos = 0;
+  for (let i = 0; i < slotIdx; i++) {
+    pos += (i === 3) ? CTR : REG;
+    pos += GAP;
+  }
+  return pos;
+}
+
+function isSlotUnlocked(slotIdx) {
+  return GS.unlockedSlots.includes(slotIdx);
+}
+
+function updateUnlockedSlots() {
+  // Unlock slots based on current floor progression
+  GS.unlockedSlots = [];
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    if (GS.floor >= SLOT_UNLOCK_FLOOR[i]) {
+      GS.unlockedSlots.push(i);
+    }
+  }
+}
+
+function triggerSlotCollected(ball, slotIdx) {
+  const slot = SLOT_TYPES[slotIdx];
+  const mult = GS.frenzyActive ? GS.multiplier * 2 : GS.multiplier;
+  const centerX = getSlotX(slotIdx) + ((slotIdx === 3) ? SLOT_CENTER_WIDTH : SLOT_WIDTH) / 2;
+  const slotCenterY = SLOT_START_Y + SLOT_HEIGHT / 2;
+
+  // Animate ball settling into slot
+  GS.slotAnimations.push({
+    x: ball.x,
+    y: Math.max(ball.y, SLOT_START_Y + 5),
+    slotIdx,
+    color: slot.color,
+    phase: 'settle',  // settle → flash → fade
+    timer: 0,
+    total: 30,  // frames
+    triggered: false,
+  });
+
+  // Check if slot is unlocked
+  if (!isSlotUnlocked(slotIdx)) {
+    spawnFloatText(centerX, slotCenterY - 10, 'LOCKED', '#666666');
+    return;
+  }
+
+  // ── Apply slot effect ──────────────────────────────────────
+  let pts = 0;
+  let extraText = '';
+  let flashColor = slot.color + '55';
+
+  switch (slotIdx) {
+    case 0: // CREDITS: +credits
+      GS.breachCredits += 50 * mult;
+      pts = 50 * mult;
+      triggerFlash(flashColor, 0.1);
+      spawnFloatText(centerX, slotCenterY - 10, `+${50 * mult} CR`, slot.color);
+      break;
+
+    case 1: // AMPLIFY: +1 multiplier
+      GS.multiplier++;
+      pts = 25 * mult;
+      GS.chainTimer = 180; // 3 sec chain extension
+      triggerFlash(flashColor, 0.1);
+      spawnFloatText(centerX, slotCenterY - 10, `x${GS.multiplier}`, slot.color);
+      updateMultiplierDisplay();
+      break;
+
+    case 2: // PAYLOAD: add to inventory
+      if (GS.payloadInventory.length < 2) {
+        GS.payloadInventory.push('free-ball');
+        spawnFloatText(centerX, slotCenterY - 10, '+PAYLOAD', slot.color);
+      } else {
+        pts = 50 * mult;
+        spawnFloatText(centerX, slotCenterY - 10, `+${50 * mult}`, slot.color);
+      }
+      triggerFlash(flashColor, 0.1);
+      break;
+
+    case 3: { // CRUMBLE: clear 3 random pegs
+      pts = 30 * mult;
+      triggerFlash(flashColor, 0.1);
+      triggerShake(4);
+      let cleared = 0;
+      const alive = GS.board.filter(p => !p.destroyed);
+      for (let i = 0; i < 3 && alive.length > 0; i++) {
+        const idx = Math.floor(Math.random() * alive.length);
+        const peg = alive.splice(idx, 1)[0];
+        if (!peg.destroyed) {
+          peg.destroyed = true;
+          GS.floorObjective.progress++;
+          spawnParticles(peg.x, peg.y, peg.color || slot.color, 6, 3);
+          cleared++;
+        }
+      }
+      spawnFloatText(centerX, slotCenterY - 10, `CRUMBLE x${cleared}`, slot.color);
+      break;
+    }
+
+    case 4: // SHIELD: next ball gets shield bubble
+      GS.shieldNextBall = true;
+      pts = 40 * mult;
+      triggerFlash('#00ff8844', 0.12);
+      spawnFloatText(centerX, slotCenterY - 10, 'SHIELD READY', slot.color);
+      break;
+
+    case 5: // OVERCLOCK: 1.5x gravity for current ball run
+      GS.overclockActive = true;
+      GS.overclockTimer = 300; // 5 sec at 60fps
+      pts = 60 * mult;
+      triggerFlash('#aa44ff44', 0.15);
+      spawnFloatText(centerX, slotCenterY - 10, 'OVERCLOCK!', slot.color);
+      break;
+
+    case 6: // JACKPOT: add to pool
+      GS.jackpotPool += 100 * mult;
+      pts = 75 * mult;
+      triggerFlash('#ffd70044', 0.15);
+      triggerShake(3);
+      spawnFloatText(centerX, slotCenterY - 10, `JP+${100 * mult}`, slot.color);
+      break;
+  }
+
+  if (pts > 0) {
+    GS.score += pts;
+    updateHUD();
+  }
+
+  // Particles burst from slot
+  spawnParticles(centerX, slotCenterY, slot.color, 10, 4);
+}
+
+function updateSlotAnimations() {
+  for (let i = GS.slotAnimations.length - 1; i >= 0; i--) {
+    const a = GS.slotAnimations[i];
+    a.timer++;
+    if (a.timer >= a.total) {
+      GS.slotAnimations.splice(i, 1);
+    }
+  }
+}
+
+function drawSlots() {
+  const time = Date.now() / 1000;
+  const SLOT_Y = SLOT_START_Y;
+  const SLOT_H = SLOT_HEIGHT;
+  const GAP = 2;
+  const REG = SLOT_WIDTH;
+  const CTR = SLOT_CENTER_WIDTH;
+
+  let pos = 0;
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const w = (i === 3) ? CTR : REG;
+    const slot = SLOT_TYPES[i];
+    const unlocked = isSlotUnlocked(i);
+
+    // Background
+    ctx.fillStyle = unlocked ? '#0d0d1a' : '#111116';
+    ctx.fillRect(pos, SLOT_Y, w, SLOT_H);
+
+    // Border
+    const baseAlpha = unlocked ? (i === 6 ? 0.5 + Math.sin(time * 3) * 0.15 : 0.35) : 0.12;
+    const borderColor = unlocked ? slot.color : '#444455';
+    ctx.strokeStyle = borderColor;
+    ctx.globalAlpha = baseAlpha;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pos + 0.5, SLOT_Y + 0.5, w - 1, SLOT_H - 1);
+    ctx.globalAlpha = 1;
+
+    // Slot label (top-left)
+    if (unlocked) {
+      ctx.font = '7px Courier New';
+      ctx.fillStyle = slot.color;
+      ctx.globalAlpha = 0.6;
+      ctx.fillText(slot.name, pos + 3, SLOT_Y + 9);
+      ctx.globalAlpha = 1;
+
+      // Icon in center
+      ctx.font = 'bold 12px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = slot.color;
+      ctx.shadowColor = slot.color;
+      ctx.shadowBlur = 6;
+      ctx.fillText(slot.icon, pos + w / 2, SLOT_Y + SLOT_H / 2 + 4);
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'left';
+
+      // Shimmer sweep (3s loop)
+      const shimmerY = ((time * (SLOT_H / 3)) % (SLOT_H + 10)) - 5;
+      ctx.fillStyle = slot.color;
+      ctx.globalAlpha = 0.07;
+      ctx.fillRect(pos + 1, SLOT_Y + shimmerY, w - 2, 2);
+      ctx.globalAlpha = 1;
+
+      // JACKPOT pulsing glow
+      if (i === 6) {
+        const pulse = 0.5 + Math.sin(time * 4) * 0.3;
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 12 * pulse;
+        ctx.strokeStyle = '#ffd700';
+        ctx.globalAlpha = pulse * 0.4;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      // Locked: show dash
+      ctx.font = '10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#444455';
+      ctx.fillText('--', pos + w / 2, SLOT_Y + SLOT_H / 2 + 4);
+      ctx.textAlign = 'left';
+    }
+
+    // Active slot animations
+    const anims = GS.slotAnimations.filter(a => a.slotIdx === i);
+    if (anims.length > 0) {
+      const anim = anims[0];
+      const t = anim.timer / anim.total;
+
+      if (anim.phase === 'settle') {
+        // Flash border bright
+        ctx.strokeStyle = anim.color;
+        ctx.globalAlpha = (1 - t) * 0.9;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = anim.color;
+        ctx.shadowBlur = 15 * (1 - t);
+        ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+
+        // Ball fade-out
+        if (t > 0.5) {
+          ctx.globalAlpha = (1 - t) * 2;
+          ctx.beginPath();
+          ctx.arc(anim.x, Math.min(anim.y + t * 10, SLOT_Y + SLOT_H - 8), BALL_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = anim.color;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    pos += w + GAP;
+  }
 }
 
 // ─── FLOATING TEXT ───────────────────────────────────────────
@@ -2456,6 +2813,16 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     ball.vy -= (1 + bounce) * dot * ny;
   }
 
+  // ── SHIELD: absorb one hit (from SHIELD slot), then bubble pops ─
+  if (ball.shielded) {
+    ball.shielded = false;
+    triggerFlash('#00ff8844', 0.15);
+    triggerShake(3);
+    spawnFloatText(ball.x, ball.y - 10, 'SHIELD POP!', '#00ff88');
+    spawnParticles(ball.x, ball.y, '#00ff88', 10, 4);
+    return; // no bounce response, just absorb
+  }
+
   // Apply worm (pierce) payload
   if (ball.piercing) {
     ball.vx += nx * 2;
@@ -2953,6 +3320,14 @@ function dropBall() {
   GS.runMaxCombo = 0;
   updatePayloadSlots();
   updateHUD();
+
+  // SHIELD slot: apply queued shield to this ball
+  if (GS.shieldNextBall) {
+    ball.shielded = true;
+    GS.shieldNextBall = false;
+    spawnFloatText(ball.x, ball.y - 20, 'SHIELD ACTIVE', '#00ff88');
+    spawnParticles(ball.x, ball.y, '#00ff88', 6, 2);
+  }
 
   setTimeout(() => { canDrop = true; }, 800);
 }
@@ -3930,6 +4305,12 @@ function startFloor() {
   GS.floorTimeRemaining = GS.floorObjective.timeLimit || 0;
   // Ghost Mode — reset ice hit tracker
   GS.ghostModeIceHits = 0;
+  // Slot Collector: update which slots are unlocked for this floor
+  updateUnlockedSlots();
+  // Reset slot state
+  GS.overclockActive = false;
+  GS.overclockTimer = 0;
+  GS.slotAnimations = [];
 
   // Grant random payload for this run
   if (GS.floor === 1 && GS.payloadInventory.length === 0) {
@@ -4573,6 +4954,11 @@ function render() {
   // Float texts
   drawFloatTexts(ctx);
 
+  // Slot Collector
+  if (GS.screen === 'playing') {
+    drawSlots();
+  }
+
   // Close screen shake transform
   if (screenShake > 0) {
     ctx.restore();
@@ -4655,6 +5041,7 @@ function update() {
   updateFragments();
   updateShockwaves();
   updateFloatTexts();
+  updateSlotAnimations();
 
   // Check no balls and no balls left — run ends regardless of objective
   if (GS.ballsInPlay.length === 0 && GS.balls <= 0 && GS.screen === 'playing') {

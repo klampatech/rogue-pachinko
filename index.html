@@ -1343,6 +1343,15 @@ const PEG_TYPES = {
   speedboost: { color: '#ffff00', glow: '#ffff00', radius: 6, bounce: 0.7, label: 'BOOST', velocityMult: 1.5 }
 };
 
+// ─── TIMING CONSTANTS ──────────────────────────────────────
+const TIMING = {
+  CHAIN_EXTEND: 30,        // frames per peg hit (~0.5s at 60fps)
+  CHAIN_AMPLIFY: 180,     // AMPLIFY slot bonus extension (~3s)
+  FRENZY_DURATION: 180,   // frenzy active duration (~3s)
+  COMBO_THRESHOLD: 5,      // peg hits to trigger frenzy
+  MAX_MULTIPLIER: 7,      // cap
+};
+
 // ─── PHYSICS CONSTANTS ───────────────────────────────────────
 const GRAVITY = 0.18;
 const FRICTION = 0.995;
@@ -2104,7 +2113,7 @@ function triggerSlotCollected(ball, slotIdx) {
     case 1: // AMPLIFY: +1 multiplier
       GS.multiplier++;
       pts = 25 * mult;
-      GS.chainTimer = 180; // 3 sec chain extension
+      GS.chainTimer = TIMING.CHAIN_AMPLIFY; // ~3 sec chain extension
       triggerFlash(flashColor, 0.1);
       spawnFloatText(centerX, slotCenterY - 10, `x${GS.multiplier}`, slot.color);
       updateMultiplierDisplay();
@@ -3352,8 +3361,8 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
     GS.floorObjective.progress++;
     GS.totalPegsCleared++;
-    GS.chainTimer = 30;
-    GS.multiplier = Math.min(7, GS.multiplier + 1);
+    GS.chainTimer = TIMING.CHAIN_EXTEND;
+    GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
     updateMultiplierDisplay();
     peg.hitCount++;
     updateHUD();
@@ -3377,8 +3386,8 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
     GS.floorObjective.progress++;
     GS.totalPegsCleared++;
-    GS.chainTimer = 30;
-    GS.multiplier = Math.min(7, GS.multiplier + 1);
+    GS.chainTimer = TIMING.CHAIN_EXTEND;
+    GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
     updateMultiplierDisplay();
     peg.hitCount++;
     updateHUD();
@@ -3395,7 +3404,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       ev.state = PegEvo.GLOWING;
       GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier;
       const prevMult = GS.multiplier;
-      GS.multiplier = Math.min(7, GS.multiplier + 1);
+      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
       if (GS.multiplier > prevMult) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFD700', 12, 4);
@@ -3406,7 +3415,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       ev.state = PegEvo.CHARGED;
       GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier;
       const prevMult2 = GS.multiplier;
-      GS.multiplier = Math.min(7, GS.multiplier + 1);
+      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
       if (GS.multiplier > prevMult2) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFFFFF', 12, 4);
@@ -3667,9 +3676,9 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   }
 
   // Chain multiplier
-  GS.chainTimer = 30; // ~0.5s at 60fps
+  GS.chainTimer = TIMING.CHAIN_EXTEND; // ~0.5s at 60fps
   const prevMult = GS.multiplier;
-  GS.multiplier = Math.min(7, GS.multiplier + 1);
+  GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
   GS.runMaxCombo = Math.max(GS.runMaxCombo || 0, GS.comboCount);
   updateMultiplierDisplay();
   if (GS.multiplier > prevMult) playSound('multiplierUp');
@@ -6185,7 +6194,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── BUTTON BINDINGS ─────────────────────────────────────────
-document.getElementById('start-btn').onclick = () => {
+const startBtn = document.getElementById('start-btn');
+if (startBtn) startBtn.onclick = () => {
   GS.dailyMode = false;
   GS.dailyDate = null;
   startNewRun();
@@ -6204,13 +6214,15 @@ document.getElementById('start-btn').onclick = () => {
   }
 };
 
-document.getElementById('daily-btn').onclick = () => {
+const dailyBtn = document.getElementById('daily-btn');
+if (dailyBtn) dailyBtn.onclick = () => {
   GS.dailyMode = true;
   GS.dailyDate = new Date().toISOString().slice(0, 10);
   startNewRun();
 };
 
-document.getElementById('reset-btn').onclick = () => {
+const resetBtn = document.getElementById('reset-btn');
+if (resetBtn) resetBtn.onclick = () => {
   if (confirm('Reset all progress? This cannot be undone.')) {
     localStorage.removeItem('slotprotocol');
     PERSIST = {

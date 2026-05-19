@@ -4484,6 +4484,7 @@ function endRun(won) {
   }
 
   PERSIST.lifetimeBreach += GS.score;
+  GS.lifetimeBreach = PERSIST.lifetimeBreach;
 
   // Award mastery points for this run (already calculated above as mpEarned)
   PERSIST.masteryPoints = (PERSIST.masteryPoints || 0) + mpEarned;
@@ -5217,9 +5218,7 @@ document.getElementById('reset-btn').onclick = () => {
 };
 
 document.getElementById('shop-btn').onclick = () => {
-  if (GS.screen === 'playing') {
-    openShop();
-  }
+  openShop();
 };
 
 document.getElementById('mastery-btn').onclick = () => {

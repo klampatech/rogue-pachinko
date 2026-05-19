@@ -2520,6 +2520,27 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             }
           }
           break;
+        case 'daemon':
+          if (!ball.daemonSplit) {
+            ball.daemonSplit = true;
+            const baseAngle = Math.atan2(ball.vy, ball.vx);
+            const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            const angles = [baseAngle - 0.523, baseAngle, baseAngle + 0.523]; // -30°, 0°, +30°
+            for (let i = 0; i < 2; i++) {
+              const newBall = new Ball(
+                ball.x, ball.y,
+                Math.cos(angles[i + 1]) * speed,
+                Math.sin(angles[i + 1]) * speed,
+                []
+              );
+              newBall.daemonChild = true;
+              newBall.dropMultiplier = ball.dropMultiplier;
+              GS.ballsInPlay.push(newBall);
+            }
+            spawnFloatText(ball.x, ball.y - 15, 'DAEMON SPLIT!', '#aa44ff');
+            triggerFlash('#aa44ff33', 0.2);
+          }
+          break;
         case 'explosive':
           if (!ball.explosiveTriggered) {
             ball.explosiveTriggered = true;

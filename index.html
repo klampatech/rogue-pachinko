@@ -3103,7 +3103,14 @@ function _seedHash(n) {
 
 function generateBoard(floor) {
   const board = [];
-  const seed = floor * 1000 + 42;
+  // Accept either a floor number or a date string (for daily challenge)
+  // Date string like '2025-05-19' gets hashed to a repeatable seed
+  let seed;
+  if (typeof floor === 'string') {
+    seed = getDailySeed(floor);
+  } else {
+    seed = floor * 1000 + 42;
+  }
   _boardSeed = seed;
   const rng = (function(s) {
     let state = s | 0;
@@ -4943,7 +4950,9 @@ function createSkinsOverlay() {
 }
 
 function openLeaderboard() {
-  const lb = PERSIST.leaderboard || [];
+  const allLb = PERSIST.leaderboard || [];
+  // Apply daily filter
+  const lb = _lbFilter === 'daily' ? allLb.filter(e => e.daily) : allLb;
   const overlay = document.getElementById('leaderboard-overlay') || createLeaderboardOverlay();
   const lbBody = document.getElementById('lb-body');
   if (!lbBody) {
@@ -4953,7 +4962,7 @@ function openLeaderboard() {
   }
 
   if (!lb.length) {
-    lbBody.innerHTML = '<div style="text-align:center;color:#444;font-size:11px;padding:20px;">No scores yet — play a run!</div>';
+    lbBody.innerHTML = `<div style="text-align:center;color:#444;font-size:11px;padding:20px;">${_lbFilter === 'daily' ? 'No daily challenge scores yet!' : 'No scores yet — play a run!'}</div>`;
   } else {
     lbBody.innerHTML = lb.map((entry, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
@@ -5026,11 +5035,26 @@ function createLeaderboardOverlay() {
       <div style="font-size:20px;color:#00ffaa;font-weight:700;letter-spacing:4px;">LEADERBOARD</div>
       <div style="font-size:11px;color:#666;margin-top:4px;">TOP 10 LOCAL SCORES</div>
     </div>
+    <div id="lb-filter-bar" style="display:flex;gap:8px;margin-bottom:12px;">
+      <button id="lb-filter-all" onclick="setLbFilter('all')" style="background:#1a1a2e;border:1px solid #00ffaa44;color:#00ffaa;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ALL</button>
+      <button id="lb-filter-daily" onclick="setLbFilter('daily')" style="background:#1a1a2e;border:1px solid #ffcc0044;color:#ffcc00;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DAILY ONLY</button>
+    </div>
     <div id="lb-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
     <button onclick="closeLeaderboard()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
   `;
   document.body.appendChild(overlay);
   return overlay;
+}
+
+let _lbFilter = 'all';
+
+function setLbFilter(f) {
+  _lbFilter = f;
+  document.getElementById('lb-filter-all').style.background = f === 'all' ? '#00ffaa22' : '#1a1a2e';
+  document.getElementById('lb-filter-all').style.borderColor = f === 'all' ? '#00ffaa' : '#00ffaa44';
+  document.getElementById('lb-filter-daily').style.background = f === 'daily' ? '#ffcc0022' : '#1a1a2e';
+  document.getElementById('lb-filter-daily').style.borderColor = f === 'daily' ? '#ffcc00' : '#ffcc0044';
+  openLeaderboard();
 }
 
 function openAchievements() {
@@ -5118,7 +5142,12 @@ function startNextFloor() {
 }
 
 function startFloor() {
-  GS.board = generateBoard(GS.floor);
+  // In daily mode, seed board from date so all players get same layout
+  if (GS.dailyMode && GS.dailyDate) {
+    GS.board = generateBoard(GS.dailyDate);
+  } else {
+    GS.board = generateBoard(GS.floor);
+  }
   pairTeleportPegs(GS.board, GS.floor);
   GS.floorObjective = setupObjective(GS.floor);
   GS.ballsInPlay = [];
@@ -5420,6 +5449,17 @@ function startNewRun() {
       const idx = Math.floor(Math.random() * available.length);
       GS.currentPayloads.push(available.splice(idx, 1)[0]);
     }
+  }
+
+  // Daily Challenge: fixed 3 balls, floor 3, no mastery bonuses
+  if (GS.dailyMode) {
+    GS.balls = 3;
+    GS.bonusStartingBalls = 0;
+    GS.startingCreditsBonus = 0;
+    GS.startingPayloadCount = 0;
+    GS.currentPayloads = [];
+    GS.floor = 3;  // fixed floor 3 for daily
+    applyDailyModifiers(GS, GS.dailyDate);
   }
 
   // Hide all overlays

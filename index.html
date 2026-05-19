@@ -5817,6 +5817,7 @@ canvas.addEventListener('mousemove', (e) => {
   if (GS.screen !== 'playing') return;
   const rect = canvas.getBoundingClientRect();
   dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
+  previewArc = simulatePreviewArc(dropX);
 });
 
 canvas.addEventListener('click', (e) => {

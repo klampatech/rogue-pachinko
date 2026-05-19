@@ -1346,6 +1346,21 @@ function drawLayers(time) {
   if (layerVisible.BACKGROUND) drawBackground();
   if (layerVisible.BOARD)      drawPegs();
   if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
+  // Preview arc — dashed cyan arc showing predicted ball trajectory
+  if (GS.screen === 'playing' && previewArc.length > 0) {
+    ctx.save();
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(previewArc[0].x, previewArc[0].y);
+    for (let i = 1; i < previewArc.length; i++) ctx.lineTo(previewArc[i].x, previewArc[i].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
   if (layerVisible.FX) {
     drawParticles();
     drawFragments();
@@ -3858,6 +3873,7 @@ function dropBall() {
 
   const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, [...GS.currentPayloads]);
   GS.ballsInPlay = [ball];
+  previewArc = []; // clear preview on drop
 
   // Initialize Slot Protocol 2.0 payload states
   GS.comboCount = 0;
@@ -5843,6 +5859,7 @@ canvas.addEventListener('touchmove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
   dropX = Math.max(20, Math.min(W - 20, (touch.clientX - rect.left) * (W / rect.width)));
+  previewArc = simulatePreviewArc(dropX);
   touchDragging = true; // any movement = drag
 });
 

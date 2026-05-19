@@ -122,7 +122,7 @@ body {
 /* Objective bar */
 #objective-bar {
   position: absolute;
-  top: 40px; left: 0; right: 0;
+  top: 56px; left: 0; right: 0;
   height: 6px;
   background: #1a1a2e;
   z-index: 20;
@@ -136,7 +136,7 @@ body {
 }
 #objective-label {
   position: absolute;
-  top: 48px; right: 10px;
+  top: 64px; right: 10px;
   font-size: 9px;
   color: #666;
   z-index: 20;
@@ -532,8 +532,13 @@ body.contrast-mode #combo-display {
   align-items: center;
   justify-content: center;
   gap: 20px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
 }
-#runend-overlay.active { display: flex; }
+#runend-overlay.active {
+  display: flex;
+  opacity: 1;
+}
 
 .runend-title {
   font-size: 18px;
@@ -696,6 +701,23 @@ body.contrast-mode #combo-display {
     <div class="payload-slot" id="payload-slot-0">—</div>
     <div class="payload-slot" id="payload-slot-1">—</div>
   </div>
+
+  <!-- Background Music -->
+  <audio id="bgm-title" preload="auto" loop>
+    <source src="audio/title-screen.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="bgm-gameplay" preload="auto" loop>
+    <source src="audio/gameplay-bgm.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="bgm-connection-lost" preload="auto">
+    <source src="audio/connection-lost.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="bgm-ending" preload="auto">
+    <source src="audio/ending-screen.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="bgm-slot-spin" preload="auto">
+    <source src="audio/slot-machine.mp3" type="audio/mpeg">
+  </audio>
 
   <!-- Menu overlay -->
   <div id="menu-overlay">
@@ -1381,6 +1403,7 @@ class Ball {
       if (this.stuckFrames >= STUCK_FRAMES) {
         this.active = false;
         spawnFloatText(this.x, this.y, 'STUCK!', '#ff4400');
+        playSound('stuck');
         GS.balls++; // refund
         updateHUD();
         spawnReplacementBall();
@@ -2117,6 +2140,110 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
+// ─── BACKGROUND MUSIC MANAGER ──────────────────────────────────────────
+let _currentBgm = null;
+let _bgmVolume = 0.45;
+let _bgmFadeStep = 0;
+const _bgmTracks = {};
+
+function initBgmTracks() {
+  const tracks = ['title', 'gameplay', 'connection-lost', 'ending', 'slot-spin'];
+  tracks.forEach(id => {
+    const el = document.getElementById('bgm-' + id);
+    if (el) {
+      el.volume = _bgmVolume;
+      _bgmTracks[id] = el;
+    }
+  });
+}
+
+function stopBgm(immediate = false) {
+  if (_currentBgm) {
+    if (immediate) {
+      _currentBgm.pause();
+      _currentBgm.currentTime = 0;
+    } else {
+      fadeBgmOut();
+    }
+    _currentBgm = null;
+  }
+}
+
+function fadeBgmOut() {
+  const bgm = _currentBgm;
+  if (!bgm) return;
+  const vol = bgm.volume;
+  const step = vol / 20;
+  const interval = setInterval(() => {
+    if (bgm.volume <= step) {
+      bgm.pause();
+      bgm.currentTime = 0;
+      bgm.volume = _bgmVolume;
+      clearInterval(interval);
+    } else {
+      bgm.volume = Math.max(0, bgm.volume - step);
+    }
+  }, 50);
+}
+
+function playBgm(trackId) {
+  // Resume audio context on user interaction (browser policy)
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+
+  const track = _bgmTracks[trackId];
+  if (!track) return;
+
+  if (_currentBgm && _currentBgm !== track) {
+    _currentBgm.pause();
+    _currentBgm.currentTime = 0;
+  }
+  track.volume = _bgmVolume;
+  track.play().catch(() => {});
+  _currentBgm = track;
+}
+
+function onScreenChange(screen) {
+  // Prevent double-triggering during transitions
+  stopBgm(true);
+  switch (screen) {
+    case 'menu':
+      playBgm('title');
+      break;
+    case 'playing':
+      playBgm('gameplay');
+      break;
+    case 'floor_complete':
+      // Slot machine spin music handled separately via triggerSlotSpinMusic()
+      break;
+    case 'run_end':
+      // Music set by endRun() based on win/loss
+      break;
+    case 'shop':
+      // Pause BGM during shop — keep it silent
+      stopBgm(true);
+      break;
+  }
+}
+
+function triggerSlotSpinMusic() {
+  playBgm('slot-spin');
+}
+
+function setRunEndMusic(won) {
+  stopBgm(true);
+  playBgm(won ? 'ending' : 'connection-lost');
+}
+
+function setMusicVolume(vol) {
+  _bgmVolume = Math.max(0, Math.min(1, vol));
+  if (_currentBgm) _currentBgm.volume = _bgmVolume;
+  Object.values(_bgmTracks).forEach(t => { if (t) t.volume = _bgmVolume; });
+}
+
+// Initialize tracks when DOM is ready
+document.addEventListener('DOMContentLoaded', initBgmTracks);
+
 function playSound(type) {
   const ctx = getAudioCtx();
   if (!ctx) return;
@@ -2179,6 +2306,41 @@ function playSound(type) {
           osc.start(start);
           osc.stop(start + 0.12);
         });
+        break;
+      }
+      case 'stuck': {
+        // Warning buzz for stuck ball
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.3);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.start(t);
+        osc.stop(t + 0.3);
+        break;
+      }
+      case 'shield': {
+        // Defensive shimmer
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.setValueAtTime(1100, t + 0.05);
+        osc.frequency.setValueAtTime(880, t + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.start(t);
+        osc.stop(t + 0.2);
         break;
       }
       case 'floorClear': {
@@ -3326,7 +3488,7 @@ function dropBall() {
     ball.shielded = true;
     GS.shieldNextBall = false;
     spawnFloatText(ball.x, ball.y - 20, 'SHIELD ACTIVE', '#00ff88');
-    spawnParticles(ball.x, ball.y, '#00ff88', 6, 2);
+    playSound('shield');
   }
 
   setTimeout(() => { canDrop = true; }, 800);

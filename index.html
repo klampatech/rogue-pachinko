@@ -2101,9 +2101,10 @@ function drawSlots() {
     ctx.fillStyle = '#0d0d1a';
     ctx.fillRect(pos + 4, SLOT_Y + SLOT_H - 8, w - 8, 8);
 
-    // Draw rim: 1px bright line at top edge
+    // Draw rim: 1px bright line at top edge, ambient pulse per slot (out of sync)
+    const rimAmbient = 0.25 + Math.sin(time * 1.5 + i * 0.4) * 0.1;
     ctx.strokeStyle = slot.color;
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = rimAmbient;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(pos + 1, SLOT_Y + 0.5);
@@ -2172,6 +2173,26 @@ function drawSlots() {
       }
     }
 
+    // ── P2-5: Slot entry tracking glow — nearest ball within 80px above slot zone ──
+    const nearestBall = GS.ballsInPlay.find(b =>
+      b.active && b.y > SLOT_START_Y - 80 && b.y < SLOT_START_Y
+    );
+    if (nearestBall && unlocked) {
+      const slotCenterX = pos + w / 2;
+      const distToSlotCenter = Math.abs(nearestBall.x - slotCenterX);
+      if (distToSlotCenter < w / 2 + 10) {
+        // This is the nearest slot — draw incoming tracking glow
+        ctx.shadowColor = slot.color;
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = slot.color;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // Active slot animations
     const anims = GS.slotAnimations.filter(a => a.slotIdx === i);
     if (anims.length > 0) {
@@ -2226,15 +2247,33 @@ function drawSlots() {
         } else if (t < 0.42) {
           // Phase 2 — The Flash (15–25): full-bucket white-gold flash + particles
           const t2 = (t - 0.25) / 0.17;
-          const flashAlpha = Math.sin(t2 * Math.PI) * 0.7;
+          const isMaxPool = GS.jackpotPool >= 1000;
+          const flashColor = isMaxPool ? '255,255,255' : '255,255,220';
+          const flashAlpha = Math.sin(t2 * Math.PI) * (isMaxPool ? 0.9 : 0.7);
           const flGrad = ctx.createRadialGradient(
             pos + w / 2, SLOT_Y + SLOT_H / 2, 0,
-            pos + w / 2, SLOT_Y + SLOT_H / 2, w * 0.8
+            pos + w / 2, SLOT_Y + SLOT_H / 2, w * (isMaxPool ? 1.5 : 0.8)
           );
-          flGrad.addColorStop(0, `rgba(255,255,220,${flashAlpha})`);
+          flGrad.addColorStop(0, `rgba(${flashColor},${flashAlpha})`);
           flGrad.addColorStop(1, 'transparent');
           ctx.fillStyle = flGrad;
           ctx.fillRect(pos, SLOT_Y, w, SLOT_H);
+
+          // Max-pool: screen-wide gold sweep + oscillating shake
+          if (isMaxPool) {
+            const sweepX = t2 * W;
+            const sweepGrad = ctx.createLinearGradient(sweepX - 40, 0, sweepX + 40, 0);
+            sweepGrad.addColorStop(0, 'transparent');
+            sweepGrad.addColorStop(0.5, `rgba(255,215,0,${0.3 * (1 - t2)})`);
+            sweepGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = sweepGrad;
+            ctx.fillRect(0, 0, W, H);
+            // Oscillating shake for 20 frames
+            if (anim.timer < 20) {
+              const oscShake = Math.sin(anim.timer * 0.5) * 8;
+              ctx.setTransform(1, 0, 0, 1, Math.cos(oscShake * 0.1) * oscShake, Math.sin(oscShake * 0.1) * oscShake);
+            }
+          }
           // Gold ripple expanding outward
           const rippleR = t2 * 80;
           ctx.beginPath();

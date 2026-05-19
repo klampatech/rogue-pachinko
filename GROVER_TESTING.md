@@ -6,11 +6,12 @@
 
 ---
 
-## Status: BUG FIXED ✅
+## Status: BUG FIXED + SOUNDS ADDED ✅
 
-Two bugs fixed and verified:
+Three items completed:
 1. **Ball refill on every floor** — `startFloor()` now resets balls regardless of floor number (previously only on floor 1)
 2. **gameover-interstitial stale overlay** — `startNewRun()` now hides the `#gameover-interstitial` div to prevent it persisting from a previous run
+3. **Enhanced jackpot and UI sounds** — 10 new synthesized sounds (jpSpin, jpReelStop, jpWin, jpMinorWin, jpNoMatch, buttonClick, shopOpen, shopPurchase, gameOver, menuStart) integrated across jackpot machine and UI flows
 
 ---
 
@@ -239,5 +240,5 @@ After a loss (0 balls, objective incomplete), the flow is:
 
 1. **✅ DONE:** Ball refill fix implemented — balls reset to 5 each floor.
 2. **✅ DONE:** gameover-interstitial hygiene fix — stale overlay hidden on new run.
-3. **🟢 LOW:** Add visual warning when balls ≤ 2 ("LOW BALLS" indicator in HUD)
-4. **🟢 LOW:** Consider adding ball purchase item to shop as an emergency option (purely nice-to-have now that floor-ball-refresh works)
+3. **✅ DONE:** Enhanced jackpot and UI sounds — 10 new synthesized sounds integrated across jackpot machine and UI flows.
+4. **🟢 LOW:** Add visual warning when balls ≤ 2 ("LOW BALLS" indicator in HUD)

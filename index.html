@@ -1383,6 +1383,11 @@ class Ball {
     this.stuckFrames = 0;
     // Shield bubble (from SHIELD slot)
     this.shielded = false;
+    // Dynamic trail length — scales with combo/frenzy/payloads
+    const comboBoost = GS.comboCount >= 5 ? 2.0 : GS.comboCount >= 3 ? 1.5 : 1.0;
+    const frenzyBoost = GS.frenzyActive ? 2.0 : 1.0;
+    const payloadBoost = this.payloads.length >= 2 ? 1.5 : this.payloads.length >= 1 ? 1.25 : 1.0;
+    this.trailBoost = comboBoost * frenzyBoost * payloadBoost;
   }
 
   update() {
@@ -1439,7 +1444,7 @@ class Ball {
 
     // Trail — ghost trail stores RGB separate positions
     this.trail.unshift({ x: this.x, y: this.y, age: 0 });
-    if (this.trail.length > 16) this.trail.pop();
+    if (this.trail.length > Math.round(16 * (this.trailBoost || 1))) this.trail.pop();
     this.trail.forEach(t => t.age++);
 
     // Ghost RGB split trail
@@ -1463,7 +1468,7 @@ class Ball {
       mb.x += mb.vx;
       mb.y += mb.vy;
       mb.trail.unshift({ x: mb.x, y: mb.y, age: 0 });
-      if (mb.trail.length > 10) mb.trail.pop();
+      if (mb.trail.length > Math.round(10 * (this.trailBoost || 1))) mb.trail.pop();
       mb.trail.forEach(t => t.age++);
       if (mb.y > H + 20) {
         this.miniBalls.splice(i, 1);

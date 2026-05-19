@@ -389,6 +389,7 @@ body.contrast-mode #peg-target-line {
   gap: 20px;
 }
 #floor-overlay.active { display: flex; }
+#leaderboard-overlay.active { display: flex; }
 
 .floor-complete-title {
   font-size: 20px;
@@ -3802,6 +3803,11 @@ function openLeaderboard() {
 function closeLeaderboard() {
   const overlay = document.getElementById('leaderboard-overlay');
   if (overlay) overlay.classList.remove('active');
+  // Also hide the name-entry section if visible
+  const lbEntry = document.getElementById('lb-name-entry');
+  if (lbEntry) lbEntry.style.display = 'none';
+  const lbPreview = document.getElementById('lb-preview');
+  if (lbPreview) lbPreview.innerHTML = '';
 }
 
 function submitHighScore() {

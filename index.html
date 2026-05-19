@@ -4190,7 +4190,13 @@ function openLeaderboard() {
 
 function closeLeaderboard() {
   const overlay = document.getElementById('leaderboard-overlay');
-  if (overlay) overlay.classList.remove('active');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+      overlay.classList.remove('active');
+      overlay.style.opacity = '';
+    }, 200);
+  }
   // Also hide the name-entry section if visible
   const lbEntry = document.getElementById('lb-name-entry');
   if (lbEntry) lbEntry.style.display = 'none';

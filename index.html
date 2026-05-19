@@ -2170,6 +2170,7 @@ function triggerSlotCollected(ball, slotIdx) {
       triggerShake(12);
       spawnParticles(centerX, slotCenterY, '#ffd700', 20, 8);
       spawnFloatText(centerX, slotCenterY - 10, `JP+${100 * mult}`, slot.color);
+      showAchievement('jackpotWin');
       break;
   }
 
@@ -2477,15 +2478,22 @@ function drawFloatTexts(ctx) {
 
 // ─── ACHIEVEMENT TOASTS ─────────────────────────────────────
 const ACHIEVEMENTS = {
-  firstPeg:      { icon: '🔵', title: 'First Contact',   desc: 'Cleared your first peg' },
-  firstFloor:    { icon: '🏠', title: 'Floor Breached',   desc: 'Cleared floor 1' },
-  firstJackpot:  { icon: '💰', title: 'Jackpot Hit',      desc: 'Won the slot jackpot' },
-  firstOverload: { icon: '⚡', title: 'Cascade Overload',  desc: 'Triggered OVERLOAD mode' },
-  firstFrenzy:   { icon: '🔥', title: 'Frenzy Ready',     desc: 'Entered frenzy state' },
-  x3mult:        { icon: '⬆',  title: 'Hot Streak',        desc: 'Reached x3 multiplier' },
-  x5mult:        { icon: '🚀', title: 'On Fire',           desc: 'Reached x5 multiplier' },
-  x7mult:        { icon: '💫', title: 'Maximum Power',     desc: 'Hit x7 multiplier' },
-  fullBreach:    { icon: '👾', title: 'Full Breach',        desc: 'Completed all 5 floors' },
+  firstPeg:      { icon: '🔵', title: 'First Contact',     desc: 'Cleared your first peg' },
+  firstFloor:    { icon: '🏠', title: 'Floor Breached',     desc: 'Cleared floor 1' },
+  firstJackpot:  { icon: '💰', title: 'Jackpot Hit',        desc: 'Won the slot jackpot' },
+  firstOverload: { icon: '⚡', title: 'Cascade Overload',   desc: 'Triggered OVERLOAD mode' },
+  firstFrenzy:   { icon: '🔥', title: 'Frenzy Ready',       desc: 'Entered frenzy state' },
+  x3mult:        { icon: '⬆',  title: 'Hot Streak',         desc: 'Reached x3 multiplier' },
+  x5mult:        { icon: '🚀', title: 'On Fire',            desc: 'Reached x5 multiplier' },
+  x7mult:        { icon: '💫', title: 'Maximum Power',      desc: 'Hit x7 multiplier' },
+  fullBreach:    { icon: '👾', title: 'Full Breach',         desc: 'Completed all 5 floors' },
+  floor3:        { icon: '🔰', title: 'Advanced Operative',  desc: 'Reached floor 3' },
+  floor5:        { icon: '🏅', title: 'Elite Hacker',        desc: 'Reached floor 5' },
+  combo5:        { icon: '🔗', title: 'Chain Reaction',   desc: '5 consecutive pegs' },
+  combo10:       { icon: '💥', title: 'Cascade Failure',  desc: '10 consecutive pegs' },
+  fiftyRuns:     { icon: '🎖', title: 'Veteran',          desc: 'Completed 50 runs' },
+  hundredRuns:   { icon: '🛡', title: 'Lifetime Member',   desc: 'Completed 100 runs' },
+  jackpotWin:    { icon: '🌟', title: 'Jackpot Winner',    desc: 'Won the slot jackpot' },
 };
 
 const _seenAchs = new Set();
@@ -3090,11 +3098,14 @@ function generateBoard(floor) {
   const seed = floor * 1000 + 42;
   _boardSeed = seed;
   const rng = (function(s) {
-    return function() {
-      s |= 0; s = s + 0x6D2B79F5 | 0;
-      let t = Math.imul(s ^ s >>> 15, 1 | s);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    let state = s | 0;
+    return {
+      random: function() {
+        state = (state + 0x6D2B79F5) | 0;
+        let t = Math.imul(state ^ state >>> 15, 1 | state);
+        t = (t + Math.imul(t ^ t >>> 7, 61 | t) ^ t) >>> 0;
+        return t / 4294967296;
+      }
     };
   })(seed);
 
@@ -4282,7 +4293,9 @@ function completeFloor() {
   setActiveScreen('floor_complete');
   playSound('floorClear');
   if (GS.floor === 1) showAchievement('firstFloor');
+  if (GS.floor === 3) showAchievement('floor3');
   if (GS.floor === 5) showAchievement('fullBreach');
+  if (GS.floor === 5) showAchievement('floor5');
 
   const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
   GS.breachCredits += creditGain;

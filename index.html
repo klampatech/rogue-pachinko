@@ -799,6 +799,7 @@ body.contrast-mode #combo-display {
     <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
     <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
     <button class="game-btn tertiary" id="skins-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ff44ff;color:#ff44ff;">SKINS</button>
+    <button class="game-btn tertiary" id="achievements-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">ACHIEVEMENTS</button>
     <button class="game-btn tertiary" id="leaderboard-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#00ffaa;color:#00ffaa;">LEADERBOARD</button>
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
@@ -1260,6 +1261,9 @@ function loadPersist() {
     GS.bestScore = PERSIST.bestScore || 0;
     GS.lastScore = PERSIST.lastScore || 0;
     GS.hasSeenTutorial = PERSIST.hasSeenTutorial || false;
+    // Seed in-memory achievement set from persisted earned achievements
+    if (!PERSIST.achievements) PERSIST.achievements = [];
+    (PERSIST.achievements || []).forEach(k => _seenAchs.add(k));
   } catch(e) {
     PERSIST = {};
   }
@@ -2503,6 +2507,10 @@ function showAchievement(key) {
   _seenAchs.add(key);
   const ach = ACHIEVEMENTS[key];
   if (!ach) return;
+  // Persist earned achievements to PERSIST
+  if (!PERSIST.achievements) PERSIST.achievements = [];
+  if (!PERSIST.achievements.includes(key)) PERSIST.achievements.push(key);
+  savePersist(); // persist immediately so achievement survives page refresh
   const el = document.getElementById('achievement-toast');
   if (!el) return;
   el.querySelector('.ach-icon').textContent = ach.icon;
@@ -5025,6 +5033,72 @@ function createLeaderboardOverlay() {
   return overlay;
 }
 
+function openAchievements() {
+  const earned = PERSIST.achievements || [];
+  const overlay = document.getElementById('achievements-overlay') || createAchievementsOverlay();
+  const achBody = document.getElementById('ach-body');
+  if (!achBody) return;
+
+  const allKeys = Object.keys(ACHIEVEMENTS);
+  achBody.innerHTML = allKeys.map(key => {
+    const ach = ACHIEVEMENTS[key];
+    const isEarned = earned.includes(key);
+    if (isEarned) {
+      return `
+        <div style="background:#1a1a2e;border:1px solid #ffd70044;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;opacity:1;">
+          <div style="font-size:24px;flex-shrink:0;">${ach.icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;color:#ffd700;letter-spacing:1px;">${ach.title}</div>
+            <div style="font-size:9px;color:#888;margin-top:2px;">${ach.desc}</div>
+          </div>
+          <div style="font-size:9px;color:#00ff88;flex-shrink:0;">✓ EARNED</div>
+        </div>
+      `;
+    } else {
+      return `
+        <div style="background:#0d0d1a;border:1px solid #333;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;opacity:0.4;">
+          <div style="font-size:24px;flex-shrink:0;">🔒</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;">???</div>
+            <div style="font-size:9px;color:#444;margin-top:2px;">Keep playing to unlock</div>
+          </div>
+          <div style="font-size:9px;color:#444;flex-shrink:0;">LOCKED</div>
+        </div>
+      `;
+    }
+  }).join('');
+
+  overlay.classList.add('active');
+}
+
+function closeAchievements() {
+  const overlay = document.getElementById('achievements-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+      overlay.classList.remove('active');
+      overlay.style.opacity = '';
+    }, 200);
+  }
+}
+
+function createAchievementsOverlay() {
+  const overlay = document.createElement('div');
+  overlay.id = 'achievements-overlay';
+  overlay.className = 'overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
+  overlay.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:20px;color:#ffd700;font-weight:700;letter-spacing:4px;">ACHIEVEMENTS</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;">${(PERSIST.achievements||[]).length} / ${Object.keys(ACHIEVEMENTS).length} UNLOCKED</div>
+    </div>
+    <div id="ach-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:6px;"></div>
+    <button onclick="closeAchievements()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
@@ -5335,7 +5409,7 @@ function startNewRun() {
   GS.totalBallsUsed = 0;
   particles.length = 0;
   floatTexts.length = 0;
-  _seenAchs.clear(); // reset achievements per run
+  // Note: do NOT clear _seenAchs — achievements persist across runs via PERSIST.achievements
 
   // Apply permanent upgrades
   if (GS.bonusStartingBalls > 0) GS.balls += GS.bonusStartingBalls;
@@ -6127,6 +6201,10 @@ document.getElementById('skins-btn').onclick = () => {
 
 document.getElementById('leaderboard-btn').onclick = () => {
   openLeaderboard();
+};
+
+document.getElementById('achievements-btn').onclick = () => {
+  openAchievements();
 };
 
 document.getElementById('shop-continue-btn').onclick = closeShop;

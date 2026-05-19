@@ -4167,7 +4167,7 @@ function updateChainTimerBar() {
   }
 
   bar.classList.add('active');
-  const pct = Math.min(100, (GS.chainTimer / 30) * 100);
+  const pct = Math.min(100, (GS.chainTimer / TIMING.CHAIN_EXTEND) * 100); // 30 frames per chain extension
   fill.style.width = pct + '%';
 
   // Danger zone: last 25% of time
@@ -5157,6 +5157,11 @@ function startNextFloor() {
 
 function startFloor() {
   // In daily mode, seed board from date so all players get same layout
+  // Close any lingering overlays before rendering new floor
+  const floorOverlay = document.getElementById('floor-overlay');
+  if (floorOverlay) floorOverlay.classList.remove('active');
+  const shopOverlay = document.getElementById('shop-overlay');
+  if (shopOverlay) shopOverlay.classList.remove('active');
   if (GS.dailyMode && GS.dailyDate) {
     GS.board = generateBoard(GS.dailyDate);
   } else {
@@ -5329,9 +5334,13 @@ function endRun(won) {
   const unlockPct = Math.round((unlockCount / totalUnlocks) * 100);
   const canPrestige = checkPrestigeEligibility();
 
+  // Compute livesLost penalty
+  const livesLostPenalty = (GS.livesLost || 0) * 50;
+  const effectiveScore = Math.max(0, GS.score - livesLostPenalty);
+
   // Check if score qualifies for leaderboard (top 10 or empty slots)
   const lb = PERSIST.leaderboard || [];
-  const livesLostPenalty = (GS.livesLost || 0) * 50;
+const livesLostPenalty = (GS.livesLost || 0) * 50;
   const effectiveScore = Math.max(0, GS.score - livesLostPenalty);
   const qualifies = lb.length < 10 || effectiveScore > (lb[lb.length - 1]?.score || 0);
   const isNewHighScore = !lb.length || effectiveScore > (lb[0]?.score || 0);
@@ -6045,10 +6054,15 @@ function update() {
       spawnFloatText(W/2, H/2, '⚠ NO BALLS LEFT ⚠', '#ff4444');
       setTimeout(() => {
         if (GS.screen !== 'playing') return; // already transitioned
-        // Ghost mode: win if no ice hits were taken, fail otherwise
+        // Ghost mode: win if at least 1 ball fired and no ice hits taken, fail otherwise
         if (GS.floorObjective.type === 'ghost') {
           const maxHits = GS.floorObjective.maxIceHits || 2;
-          if ((GS.ghostModeIceHits || 0) <= maxHits) {
+          if ((GS.totalBallsUsed || 0) === 0) {
+            // 0 balls fired — can't win ghost floor this way, must fail
+            triggerFlash('#ff224433', 0.3);
+            spawnFloatText(W/2, H/2, 'GHOST FAILED — NO BALLS FIRED', '#ff4444');
+            showGameOverInterstitial(() => endRun(false));
+          } else if ((GS.ghostModeIceHits || 0) <= maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);

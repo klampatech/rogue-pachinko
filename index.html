@@ -3870,6 +3870,9 @@ function startNewRun() {
   document.getElementById('floor-overlay').classList.remove('active');
   document.getElementById('runend-overlay').classList.remove('active');
   document.getElementById('shop-overlay').classList.remove('active');
+  // gameover-interstitial may still be visible from a prior run — hide it too
+  const goi = document.getElementById('gameover-interstitial');
+  if (goi) goi.style.display = 'none';
 
   GS.screen = 'playing';
   startFloor();

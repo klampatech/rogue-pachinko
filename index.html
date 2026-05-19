@@ -3981,6 +3981,9 @@ function showGameOverInterstitial(callback) {
 }
 
 function endRun(won) {
+  // Hide game canvas so overlays render on clean background
+  const canvas = document.getElementById('game-canvas');
+  if (canvas) canvas.style.display = 'none';
   // Reset per-run flags so they work on subsequent runs
   GS.noBallsInterstitial = false;
 
@@ -4160,6 +4163,8 @@ function startNewRun() {
   const goi = document.getElementById('gameover-interstitial');
   if (goi) goi.style.display = 'none';
 
+  const canvas = document.getElementById('game-canvas');
+  if (canvas) canvas.style.display = '';
   GS.screen = 'playing';
   playSound('menuStart');
   startFloor();
@@ -4168,6 +4173,8 @@ function startNewRun() {
 function returnToMenu() {
   document.getElementById('runend-overlay').classList.remove('active');
   document.getElementById('menu-overlay').classList.remove('hidden');
+  const canvas = document.getElementById('game-canvas');
+  if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen

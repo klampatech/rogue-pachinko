@@ -1662,9 +1662,13 @@ class Ball {
     if (this.y > SLOT_START_Y) {
       const slotIdx = getSlotForX(this.x);
       if (slotIdx !== -1) {
-        // Ball is captured by slot — play slot animation and effects
-        this.active = false;
-        triggerSlotCollected(this, slotIdx);
+        // Locked slots: show message but keep ball alive — it falls through to overflow
+        if (!isSlotUnlocked(slotIdx)) {
+          spawnFloatText(getSlotX(slotIdx) + SLOT_WIDTH/2, SLOT_START_Y + SLOT_HEIGHT/2 - 10, 'LOCKED', '#666666');
+        } else {
+          this.active = false;
+          triggerSlotCollected(this, slotIdx);
+        }
         return;
       }
       // Missed all slots → ball is in the OVERFLOW zone
@@ -4844,6 +4848,7 @@ function openMasteryScreen() {
 function closeMasteryScreen() {
   const overlay = document.getElementById('mastery-overlay');
   if (overlay) overlay.classList.remove('active');
+  GS.screen = 'playing';
 }
 
 function handleMasteryPurchase(id) {
@@ -6047,7 +6052,7 @@ function update() {
             spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
             showGameOverInterstitial(() => endRun(false));
           }
-        } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
+        } else if (GS.floorObjective.progress >= GS.floorObjective.target && GS.floorObjective.target > 0) {
           showGameOverInterstitial(() => completeFloor());
         } else {
           showGameOverInterstitial(() => endRun(false));

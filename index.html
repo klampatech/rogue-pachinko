@@ -5331,8 +5331,10 @@ function endRun(won) {
 
   // Check if score qualifies for leaderboard (top 10 or empty slots)
   const lb = PERSIST.leaderboard || [];
-  const qualifies = lb.length < 10 || GS.score > (lb[lb.length - 1]?.score || 0);
-  const isNewHighScore = !lb.length || GS.score > (lb[0]?.score || 0);
+  const livesLostPenalty = (GS.livesLost || 0) * 50;
+  const effectiveScore = Math.max(0, GS.score - livesLostPenalty);
+  const qualifies = lb.length < 10 || effectiveScore > (lb[lb.length - 1]?.score || 0);
+  const isNewHighScore = !lb.length || effectiveScore > (lb[0]?.score || 0);
 
   const prestigeInfo = canPrestige
     ? `<div style="margin-top:10px;padding:8px;border:1px solid #ffd70044;border-radius:6px;background:#ffd70011;">
@@ -5347,8 +5349,9 @@ function endRun(won) {
   stats.innerHTML = `
     <div>FLOOR REACHED: <span class="runend-stat-value">${Math.min(GS.floor, 5)}/5</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
-    <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}${scoreHighlight}</span></div>
-    ${qualifies && GS.score > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
+    <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
+    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} BREACH PENALTY (${GS.livesLost} overflow${GS.livesLost > 1 ? 's' : ''})</div>` : ''}
+    ${qualifies && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
     <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>

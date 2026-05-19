@@ -3696,7 +3696,7 @@ function handleMasteryPurchase(id) {
 function createMasteryOverlay() {
   const overlay = document.createElement('div');
   overlay.id = 'mastery-overlay';
-  overlay.className = 'overlay hidden';
+  overlay.className = 'overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
   overlay.innerHTML = `
     <div style="text-align:center;margin-bottom:20px;">
@@ -3765,7 +3765,7 @@ function selectBallSkin(id) {
 function createSkinsOverlay() {
   const overlay = document.createElement('div');
   overlay.id = 'skins-overlay';
-  overlay.className = 'overlay hidden';
+  overlay.className = 'overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
   overlay.innerHTML = `
     <div style="text-align:center;margin-bottom:16px;">
@@ -3850,7 +3850,7 @@ function submitHighScore() {
 function createLeaderboardOverlay() {
   const overlay = document.createElement('div');
   overlay.id = 'leaderboard-overlay';
-  overlay.className = 'overlay hidden';
+  overlay.className = 'overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
   overlay.innerHTML = `
     <div style="text-align:center;margin-bottom:16px;">

@@ -1276,6 +1276,7 @@ class Ball {
     this.hitPegs = new Set();
     this.piercing = false;
     this.cloneSpawned = false;
+    this.scramblerActive = false;
     // Snapshot multiplier at drop time — ball keeps its tier color for its entire flight
     this.dropMultiplier = GS.multiplier || 1;
     // Worm payload state
@@ -2626,6 +2627,14 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             }
             spawnFloatText(ball.x, ball.y - 15, 'TROJAN!', '#ff00aa');
             spawnParticles(ball.x, ball.y, '#ff00aa', 10, 3);
+          }
+          break;
+        case 'scrambler':
+          if (!ball.scramblerActive) {
+            ball.scramblerActive = true;
+            ball.vx *= -1;
+            spawnFloatText(ball.x, ball.y - 10, 'SCRAMBLED!', '#ffee00');
+            spawnParticles(ball.x, ball.y, '#ffee00', 6, 2);
           }
           break;
       }

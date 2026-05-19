@@ -3758,6 +3758,7 @@ function initJackpotSlots() {
   }
 
   function showResult() {
+    stopBgm(true); // stop slot spin music on result
     const [a, b, c] = reels.map(r => r.textContent);
     const mult = GS.frenzyReady ? 3 : 1;
     GS.frenzyReady = false;
@@ -3819,6 +3820,7 @@ function initJackpotSlots() {
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
     playSound('jpSpin');
+    triggerSlotSpinMusic();
 
     // Spinning state — blur ramp + scale pulse on each reel
     reels.forEach(r => r && (r.style.filter = 'blur(6px)'));
@@ -3917,6 +3919,7 @@ const REP_SHOP_ITEMS = [
 
 function openShop(tab = 'credits') {
   GS.screen = 'shop';
+  onScreenChange('shop');
   document.getElementById('shop-credits').textContent = GS.breachCredits;
   document.getElementById('shop-rep').textContent = GS.reputation;
 
@@ -4410,6 +4413,7 @@ function createLeaderboardOverlay() {
 function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
+  onScreenChange('playing');
   startNextFloor();
 }
 

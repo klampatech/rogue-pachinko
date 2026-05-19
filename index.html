@@ -1249,7 +1249,10 @@ const PEG_TYPES = {
   honeypot: { color: '#ff2244', glow: '#ff2244', radius: 9, trap: true, bounce: 0.5, label: 'HONEYPOT' },
   overload: { color: '#ff00aa', glow: '#ff00aa', radius: 7, explosive: true, bounce: 0.7, label: 'OVERLOAD' },
   crumbling:{ color: '#00f0ff', glow: '#00f0ff', radius: 6, bounce: 0.65, label: 'CRUMBLING', crumbling: true },
-  seismic:  { color: '#ff00aa', glow: '#ff00aa', radius: 7, bounce: 0.7, label: 'SEISMIC', seismic: true, points: 100 }
+  seismic:  { color: '#ff00aa', glow: '#ff00aa', radius: 7, bounce: 0.7, label: 'SEISMIC', seismic: true, points: 100 },
+  directional: { color: '#00ff88', glow: '#00ff88', radius: 7, bounce: 0.6, label: 'DIRECT', deflectAngle: Math.PI / 4, directional: true },
+  teleport:   { color: '#aa88ff', glow: '#aa88ff', radius: 8, bounce: 0.6, label: 'TELEPORT', teleport: true },
+  speedboost: { color: '#ffff00', glow: '#ffff00', radius: 6, bounce: 0.7, label: 'BOOST', velocityMult: 1.5 }
 };
 
 // ─── PHYSICS CONSTANTS ───────────────────────────────────────
@@ -1383,6 +1386,7 @@ class Ball {
     this.stuckFrames = 0;
     // Shield bubble (from SHIELD slot)
     this.shielded = false;
+    this.teleportCooldown = 0; // frames until ball can teleport again
     // Dynamic trail length — scales with combo/frenzy/payloads
     const comboBoost = GS.comboCount >= 5 ? 2.0 : GS.comboCount >= 3 ? 1.5 : 1.0;
     const frenzyBoost = GS.frenzyActive ? 2.0 : 1.0;
@@ -1417,6 +1421,8 @@ class Ball {
     } else {
       this.stuckFrames = 0;
     }
+    // Cooldown for teleport pegs — prevents instant re-trigger
+    if (this.teleportCooldown > 0) this.teleportCooldown--;
     this.lastX = this.x;
     this.lastY = this.y;
 
@@ -2753,6 +2759,9 @@ function generateBoard(floor) {
         else if (r < 0.26) type = 'overload';
         else if (r < 0.20 + (floor === 4 ? 0.08 : 0.04)) type = 'crumbling';
         else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
+        else if (floor >= 3 && r < 0.34) type = 'directional';
+        else if (floor >= 3 && r < 0.36) type = 'teleport';
+        else if (floor >= 3 && r < 0.38) type = 'speedboost';
         board.push({ x, y, type, hitCount: 0, id: board.length,
           hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
           crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
@@ -2787,6 +2796,9 @@ function generateBoard(floor) {
         else if (r < 0.22) type = 'honeypot';
         else if (r < 0.27) type = 'crumbling';
         else if (r < 0.32) type = 'seismic';
+        else if (r < 0.36) type = 'directional';
+        else if (r < 0.38) type = 'teleport';
+        else if (r < 0.40) type = 'speedboost';
         board.push({ x, y, type, hitCount: 0, id: board.length,
           hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
           crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
@@ -2797,6 +2809,34 @@ function generateBoard(floor) {
   }
 
   return board;
+}
+
+// Pair teleport pegs after board generation — call after generateBoard() returns
+function pairTeleportPegs(board, floor) {
+  if (floor < 3) return; // teleport starts on floor 3
+  const teleportPegs = board.filter(p => p.type === 'teleport');
+  if (teleportPegs.length < 2) return;
+  // Try to pair them up with minimum 200px separation
+  const pairCount = Math.floor(floor / 2);
+  let paired = 0;
+  for (let i = 0; i < teleportPegs.length && paired < pairCount; i++) {
+    const pegA = teleportPegs[i];
+    if (pegA.teleportPartner) continue; // already paired
+    for (let j = i + 1; j < teleportPegs.length; j++) {
+      const pegB = teleportPegs[j];
+      if (pegB.teleportPartner) continue;
+      const dist = Math.hypot(pegA.x - pegB.x, pegA.y - pegB.y);
+      if (dist >= 200) {
+        const pairId = `tp_${paired}`;
+        pegA.teleportId = pairId;
+        pegA.teleportPartner = pegB.id;
+        pegB.teleportId = pairId;
+        pegB.teleportPartner = pegA.id;
+        paired++;
+        break;
+      }
+    }
+  }
 }
 
 // Add extra pegs for PEG_STORM modifier — adds 40% more pegs spread across board
@@ -3279,6 +3319,51 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     spawnParticles(peg.x, peg.y, '#FF4500', 25, 6); // 2x spark burst
     GS.score += 100 * GS.multiplier; // flat +100 bonus
     spawnFloatText(peg.x, peg.y, '+100', '#ff00aa');
+  }
+
+  // ── TELEPORT PEG ─────────────────────────────────────────
+  if (pegDef.teleport && ball.teleportCooldown <= 0) {
+    const partner = GS.board.find(p =>
+      p.id === peg.teleportPartner &&
+      p.teleportId === peg.teleportId &&
+      p.id !== peg.id
+    );
+    if (partner) {
+      // Entry particle burst at entry peg
+      spawnParticles(peg.x, peg.y, '#aa88ff', 12, 5);
+      spawnFloatText(peg.x, peg.y, 'TELEPORT', '#aa88ff');
+      // Warp ball to partner position
+      ball.x = partner.x;
+      ball.y = partner.y;
+      ball.teleportCooldown = 30; // 0.5s cooldown prevents instant re-trigger
+      // Exit particle burst at partner peg
+      spawnParticles(partner.x, partner.y, '#aa88ff', 12, 5);
+      triggerFlash('#aa88ff22', 0.1);
+      triggerShake(4);
+      return; // skip bounce — ball has moved
+    }
+  }
+
+  // ── DIRECTIONAL PEG ──────────────────────────────────────
+  if (pegDef.directional) {
+    const angle = peg.deflectAngle ?? pegDef.deflectAngle ?? (Math.PI / 4);
+    const speed = Math.hypot(ball.vx, ball.vy);
+    ball.vx = Math.cos(angle) * speed;
+    ball.vy = -Math.abs(Math.sin(angle) * speed); // always deflect upward-ish
+    spawnFloatText(peg.x, peg.y, 'DIRECT!', '#00ff88');
+    spawnParticles(peg.x, peg.y, '#00ff88', 6, 2);
+  }
+
+  // ── SPEEDBOOST PEG ──────────────────────────────────────
+  if (pegDef.speedboost || peg.speedboost) {
+    const mult = peg.velocityMult ?? pegDef.velocityMult ?? 1.5;
+    const speed = Math.hypot(ball.vx, ball.vy);
+    const newSpeed = Math.min(speed * mult, MAX_VEL);
+    const ratio = newSpeed / speed;
+    ball.vx *= ratio;
+    ball.vy *= ratio;
+    spawnFloatText(peg.x, peg.y, `SPEED x${mult.toFixed(1)}`, '#ffff00');
+    spawnParticles(peg.x, peg.y, '#ffff00', 8, 3);
   }
 }
 
@@ -4434,6 +4519,7 @@ function startNextFloor() {
 
 function startFloor() {
   GS.board = generateBoard(GS.floor);
+  pairTeleportPegs(GS.board, GS.floor);
   GS.floorObjective = setupObjective(GS.floor);
   GS.ballsInPlay = [];
   GS.pegsHit = new Set();
@@ -4936,6 +5022,89 @@ function drawPegs() {
       ctx.fillStyle = '#ff00aa';
       ctx.fill();
       ctx.shadowBlur = 0;
+    }
+
+    // ── DIRECTIONAL PEG: arrow pointing in deflect direction ──
+    if (def.directional && !peg.destroyed) {
+      const angle = peg.deflectAngle ?? def.deflectAngle ?? (Math.PI / 4);
+      ctx.save();
+      ctx.translate(peg.x, peg.y);
+      ctx.rotate(-angle + Math.PI / 2); // point up in deflect direction
+      // Draw arrow
+      ctx.beginPath();
+      ctx.moveTo(0, -def.radius - 6);
+      ctx.lineTo(-4, -def.radius + 2);
+      ctx.lineTo(4, -def.radius + 2);
+      ctx.closePath();
+      ctx.fillStyle = def.color;
+      ctx.shadowColor = def.color;
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // ── TELEPORT PEG: pulsing ring + pair indicator ────────────
+    if (def.teleport && !peg.destroyed) {
+      const pulseRadius = def.radius + 6 + Math.sin(time * 3) * 2;
+      const pulseAlpha = 0.4 + Math.sin(time * 3) * 0.2;
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, pulseRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(170, 136, 255, ${pulseAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#aa88ff';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      // ⤵ icon
+      ctx.fillStyle = '#aa88ff';
+      ctx.font = '8px Courier New';
+      ctx.fillText('⤵', peg.x - 4, peg.y + 3);
+      // Draw dashed line to partner if visible
+      const partner = GS.board.find(p =>
+        p.id === peg.teleportPartner && p.teleportId === peg.teleportId && p.id !== peg.id
+      );
+      if (partner) {
+        ctx.beginPath();
+        ctx.moveTo(peg.x, peg.y);
+        ctx.lineTo(partner.x, partner.y);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(170, 136, 255, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // ── SPEEDBOOST PEG: lightning bolt + speed lines ──────────
+    if (def.speedboost && !peg.destroyed) {
+      const boltPulse = 0.7 + Math.sin(time * 8 + peg.x * 0.1) * 0.3;
+      ctx.save();
+      ctx.translate(peg.x, peg.y);
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = def.color;
+      ctx.shadowBlur = 10 * boltPulse;
+      // Lightning bolt shape
+      ctx.beginPath();
+      ctx.moveTo(1, -def.radius - 4);
+      ctx.lineTo(-2, -1);
+      ctx.lineTo(1, -1);
+      ctx.lineTo(-1, def.radius + 4);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      // Speed lines radiating outward
+      const lineCount = 4;
+      for (let i = 0; i < lineCount; i++) {
+        const a = (i / lineCount) * Math.PI * 2 + time * 2;
+        ctx.beginPath();
+        ctx.moveTo(peg.x + Math.cos(a) * (def.radius + 3), peg.y + Math.sin(a) * (def.radius + 3));
+        ctx.lineTo(peg.x + Math.cos(a) * (def.radius + 9), peg.y + Math.sin(a) * (def.radius + 9));
+        ctx.strokeStyle = `rgba(255, 255, 0, ${0.4 * boltPulse})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     }
 
     // Boss target

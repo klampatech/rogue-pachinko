@@ -795,6 +795,7 @@ const GS = {
   comboThreshold: 5,
   frenzyActive: false,
   frenzyReady: false,
+  frenzyTimer: 0,  // ~3 seconds at 60fps when active
   // Jackpot
   slotReels: [0, 0, 0],
   slotSpinning: false,
@@ -2355,7 +2356,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.comboCount++;
     checkFrenzy();
     // Still increment score/progress for peg contact
-    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier;
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
     GS.floorObjective.progress++;
     GS.totalPegsCleared++;
     GS.chainTimer = 30;
@@ -2380,7 +2381,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     }
     GS.comboCount++;
     checkFrenzy();
-    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier;
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
     GS.floorObjective.progress++;
     GS.totalPegsCleared++;
     GS.chainTimer = 30;
@@ -2481,7 +2482,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
-  GS.score += baseScore * GS.multiplier;
+  GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1);
   GS.floorObjective.progress++;
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
@@ -2771,6 +2772,11 @@ function resolveBallExit(ball) {
     // All balls done
     GS.multiplier = 1;
     GS.multiplierTimer = 0;
+    // ── Clear frenzy state ──
+    GS.frenzyActive = false;
+    GS.frenzyReady = false;
+    GS.frenzyTimer = 0;
+    GS.comboCount = 0;
     updateMultiplierDisplay();
   }
 }
@@ -3068,6 +3074,13 @@ function checkFrenzy() {
     showAchievement('firstFrenzy');
     spawnFloatText(W / 2, H / 2, 'FRENZY READY!', '#ff00aa');
     triggerFlash('#ff00aa33', 0.3);
+  }
+  // ── Activate on NEXT peg hit after trigger ──
+  if (GS.frenzyReady) {
+    GS.frenzyActive = true;
+    GS.frenzyReady = false;  // one-shot
+    GS.frenzyTimer = 180;   // ~3 seconds at 60fps
+    spawnFloatText(W / 2, H / 2 - 40, '✦ FRENZY! ✦', '#ffd700');
   }
 }
 
@@ -4624,6 +4637,14 @@ function update() {
   } else if (GS.multiplier > 1) {
     GS.multiplier = 1; // Snap to 1 when chain ends
     updateMultiplierDisplay();
+  }
+
+  // Frenzy timer countdown
+  if (GS.frenzyActive && GS.frenzyTimer > 0) {
+    GS.frenzyTimer--;
+    if (GS.frenzyTimer <= 0) {
+      GS.frenzyActive = false;
+    }
   }
 
   // Remove inactive balls

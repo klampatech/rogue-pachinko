@@ -1892,7 +1892,7 @@ function triggerSlotCollected(ball, slotIdx) {
     case 3: { // CRUMBLE: clear 3 random pegs
       pts = 30 * mult;
       triggerFlash(flashColor, 0.1);
-      triggerShake(4);
+      triggerShake(6);
       let cleared = 0;
       const alive = GS.board.filter(p => !p.destroyed);
       for (let i = 0; i < 3 && alive.length > 0; i++) {
@@ -1928,7 +1928,7 @@ function triggerSlotCollected(ball, slotIdx) {
       GS.jackpotPool += 100 * mult;
       pts = 75 * mult;
       triggerFlash('#ffd70044', 0.15);
-      triggerShake(3);
+      triggerShake(8);
       spawnFloatText(centerX, slotCenterY - 10, `JP+${100 * mult}`, slot.color);
       break;
   }
@@ -2979,7 +2979,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   if (ball.shielded) {
     ball.shielded = false;
     triggerFlash('#00ff8844', 0.15);
-    triggerShake(3);
+    triggerShake(5);
     spawnFloatText(ball.x, ball.y - 10, 'SHIELD POP!', '#00ff88');
     spawnParticles(ball.x, ball.y, '#00ff88', 10, 4);
     return; // no bounce response, just absorb
@@ -3045,7 +3045,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             spawnParticles(ball.x, ball.y, '#ffffff', 15, 6);
             spawnFloatText(ball.x, ball.y - 15, ball.isOverloaded ? 'CLUSTER OVERLOAD!' : 'CLUSTER!', '#ff00ff');
             triggerFlash('#ff00ff33', 0.15);
-            triggerShake(ball.isOverloaded ? 6 : 3);
+            triggerShake(ball.isOverloaded ? 8 : 5);
             if (ball.isOverloaded) {
               playSound('overload');
               showAchievement('firstOverload');
@@ -3077,7 +3077,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
           if (!ball.explosiveTriggered) {
             ball.explosiveTriggered = true;
             const radius = ball.isOverloaded ? 120 : 80;
-            const shakeAmt = ball.isOverloaded ? 12 : 8;
+            const shakeAmt = ball.isOverloaded ? 15 : 10;
             const particleCount = ball.isOverloaded ? 24 : 12;
             triggerFlash('#ff440033', 0.2);
             triggerShake(shakeAmt);
@@ -3268,7 +3268,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // ── SEISMIC PEG ────────────────────────────────────────────
   if (pegDef.seismic) {
-    triggerShake(6);
+    triggerShake(10);
     triggerFlash('#ff00aa22', 0.15);
     spawnShockwave(peg.x, peg.y, '#FF4500', 100);
     spawnParticles(peg.x, peg.y, '#FF4500', 25, 6); // 2x spark burst
@@ -3281,7 +3281,7 @@ function resolveBallExit(ball) {
   // Logic bomb: explode all nearby pegs
   if (ball.payloads.includes('logicbomb')) {
     triggerFlash('#ffaa0033', 0.2);
-    triggerShake(6);
+    triggerShake(10);
     spawnFloatText(ball.x, ball.y, 'LOGIC BOMB!', '#ffaa00');
     for (const peg of GS.board) {
       if (peg.destroyed) continue;
@@ -5086,9 +5086,10 @@ function render() {
   // Screen shake
   ctx.save();
   if (screenShake > 0) {
+    const scaleFactor = W / 400;
     ctx.translate(
-      (Math.random() - 0.5) * screenShake,
-      (Math.random() - 0.5) * screenShake
+      (Math.random() - 0.5) * screenShake * scaleFactor,
+      (Math.random() - 0.5) * screenShake * scaleFactor
     );
     screenShake *= 0.9;
     if (screenShake < 0.5) screenShake = 0;

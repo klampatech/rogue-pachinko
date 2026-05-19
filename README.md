@@ -1,62 +1,120 @@
 # Slot Protocol
 
-*A cyberpunk pachinko roguelike.*
-
-Drop balls through a procedurally-generated board, trigger chain reactions, hit jackpots, and buy upgrades in a shop between runs. Mastery points spent on permanent upgrades create long-term progression alongside short-term run decisions.
+**A cyberpunk pachinko roguelike.** Drop balls through a procedurally generated board, hit pegs to build multipliers, and survive 5 floors of escalating chaos. Every run is a new board.
 
 ---
 
-## How to Play
+## What is this?
 
-Open `index.html` in a browser. Click **INITIATE BREACH** to start a run.
+Slot Protocol is a single-file browser game about dropping balls through a grid of pegs, triggering chain reactions, and exploiting the slot machine between floors. It's part pachinko, part roguelike, part slot machine — built as a love letter to arcade chaos.
 
-**Controls:**
-- **Mouse / Touch:** Click/tap to drop a ball. Drag left/right to aim.
-- **On mobile:** Tap and hold to aim, release to drop. 300ms tap delay prevents accidental drops.
-
-**Goal:** Clear pegs to fill the progress bar. Reach floor 5 and clear the vault to complete a full breach. Runs take 2–5 minutes depending on ball management and luck.
+**Core loop:** Drop ball → hit pegs → build multiplier → survive floor → spin slot → spend credits → repeat. Die on floor 5 and start over.
 
 ---
 
-## Features
+## How to play
 
-- **5 floors** with increasing board complexity and new peg types
-- **8 peg types** — node, ice, fiber, mirror, cache, honeypot, overload, seismic
-- **12 payload types** — scrambler, trojan, worm, logic bomb, daemon, ghost, cluster, explosive, slow-mo, and more
-- **Chain reactions** — explosive pegs trigger cascading explosions, ball splits spawn mini-balls
-- **Peg evolution** — pegs evolve through dormant → glowing → charged → explosive states on repeated hits
-- **Progressive jackpot** — grows 15% per missed spin, resets on a win
-- **Reputation + rank system** — earn rep per run, unlock new payloads and upgrades at rank thresholds
-- **Prestige mastery** — earn mastery points per run, spend on 6 permanent upgrades (extra balls, jackpot bonus, credit magnet, shop discount, payload start, peg radar)
-- **7 ball skins** — unlocked via achievements and rank milestones
-- **Daily challenges** — date-seeded modifier combinations, new challenge every day
-- **Local leaderboard** — top 10 scores with name entry
-- **Mobile-ready** — touch drag-to-aim, 300ms tap delay, in-bounds clamp
+Open: **[klampatech.github.io/rogue-pachinko](https://klampatech.github.io/rogue-pachinko)**
+
+### Controls
+- **Click / tap** anywhere above the ball drop zone to launch a ball from that horizontal position
+- Ball drops with the current multiplier active at drop time
+- **Chain hits** within 1 second increment the combo counter (×2, ×3, ×4...)
+- Balls cost **1 credit each** from your per-floor supply of 5
+
+### Pegs
+| Peg Type | Color | Effect |
+|---|---|---|
+| Node | Cyan | +1 to objective progress |
+| Cache | Gold | +breach credits |
+| Ice | White/blue | Freezes ball briefly |
+| Crumbling | Purple/gold | Destroys after 1 hit |
+| Fiber | Green | Multiplier amplifier |
+| Seismic | Orange | Screen shake on hit |
+| Honeypot | Magenta | Ends ball, steals payload |
+| Mirror | Silver | Reflects ball back |
+| Overload | Red pulse | Explodes nearby pegs |
+
+### Payloads (9 total)
+Stack up to **3 payloads** per ball by hitting PAYLOAD pegs. Each applies on peg hit:
+
+- **Worm** — pierce through pegs, no bounce
+- **Ghost** — phase through pegs without collision
+- **Cluster** — splits into 6 mini-balls on peg hit
+- **Explosive** — 120px radius blast chain reaction
+- **Slow-mo** — time dilation for 4 seconds
+- **Overclock** — 2× speed for 3 seconds
+- **Shield** — absorbs one honeypot hit
+- **Logic Bomb** — chains to 3 nearby pegs with lightning
+- **Free Ball** — adds to ball inventory (rare)
+
+### Cascade Overload
+When combo reaches **×3 or higher**, the next payload activation goes into **OVERLOAD MODE** — amplified tier with enhanced effects, chain lightning, and visual feedback (magenta ring + screen shake).
+
+### Slot Machine
+Between floors, spin the slot machine. Three of a kind = **jackpot** (resets and pays out). Miss = **+15% to the next jackpot pool**. The pool carries across floors until you hit it. Jackpot base increases each floor (500 × floor number).
+
+**7 slot symbols:** Credits, Amplify, Payload, Crumble, Shield, Overclock, Jackpot.
+
+### Shop
+Spend breach credits earned from Cache pegs on upgrades:
+- Extra ball per floor
+- Payload charge (start ball with a payload)
+- Multiplier seed (start floor with higher multiplier)
+- Ball speed modifications
+- Persistent unlocks (new payloads + upgrades purchased once, stay forever)
 
 ---
 
-## Screenshots
+## Game systems
 
-```
-mockups/gameplay-1.png    — Floor 1 gameplay with ball mid-flight
-mockups/shop-overlay.png  — Shop screen between floors
-mockups/run-end.png       — Run-end screen with stats and score entry
-mockups/main-menu.png     — Main menu with all buttons
-mockups/daily-challenge.png — Daily challenge mode
-```
+### Multiplier
+Starts at ×1. Every peg hit without dropping below ×1.5 speed increments the multiplier (capped at ×7). Ball color changes with multiplier tier — ×1 dim cyan, ×2 cyan, ×3 blue-white, ×4 green-white, ×5 yellow-white, ×6 orange-white, ×7 white with glow.
+
+### Breach credits
+Earned from Cache pegs. Spent in the shop. Persist across runs. Reputation score grows with lifetime breach earned.
+
+### Floor progression
+- **Floor 1:** 56 pegs, simple board, 500 credit jackpot base
+- **Floor 2:** 56 pegs, introduces crumbling and ice
+- **Floor 3–4:** 80 pegs, full peg variety, more hazards
+- **Floor 5 (Boss):** 45 pegs, high-stakes layout, 2500 credit jackpot base
+
+### Objectives
+Each floor has a peg-clear objective (e.g., hit 20 pegs on floor 1). Completing it grants ball inventory back. Failing it (running out of balls before objective) ends the run.
 
 ---
 
-## Technical
+## Design
 
-Single `index.html` file — no build step, no dependencies. Works offline once loaded.
-
-Tested in Chrome/Firefox/Safari. Mobile Safari and touch devices supported.
+- **Aesthetic:** Terminal cyberpunk — dark background, neon accents, monospace UI elements, glitch effects
+- **Platform:** Single HTML file, no dependencies, runs in any modern browser
+- **Engine:** Vanilla JS + Canvas API, ~2,400 lines
+- **Audio:** 5 BGM tracks mapped to game states (menu, gameplay, slot spin, game over, run end)
+- **Persistence:** localStorage for run history, unlocked payloads, reputation, best floor
 
 ---
 
-## Project
+## Roadmap
 
-Built with a multi-agent AI coding team (BERT, ERNIE, GROVER, ELMO) running autonomously.
+### P2 — Polish (in progress)
+- [ ] Particle FX pass — brighter, longer-lived, more variety
+- [ ] Screen shake calibration — right intensity per peg type
+- [ ] Dynamic ball trail — length scales with combo/speed
+- [ ] Peg variety — more peg types, more board strategy
+- [ ] Slot machine upgrade — more symbols, bigger payouts, skill element
 
-`github.com/klampatech/rogue-pachinko`
+### P3 — Systems (backlog)
+- [ ] Achievement / unlock tracker
+- [ ] Leaderboard (global scores)
+- [ ] New Game+ mode
+- [ ] Multiple board themes
+- [ ] Steam workshop / community boards
+
+---
+
+## Why this exists
+
+I wanted a game that felt like the slot machines in a cyberpunk mall — bright, chaotic, slightly oppressive, and impossible to walk away from. Slot Protocol is that: a pachinko board that doesn't care about you, a slot machine that always owes you money, and five floors that get harder every time you try.
+
+Play it here: **[klampatech.github.io/rogue-pachinko](https://klampatech.github.io/rogue-pachinko)**

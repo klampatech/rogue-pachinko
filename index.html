@@ -584,6 +584,11 @@ body.contrast-mode #combo-display {
   100% { opacity: 1;   transform: scale(1.08); }
 }
 
+@keyframes streakPulse {
+  0%   { opacity: 0.6; text-shadow: 0 0 8px #ff8800; }
+  100% { opacity: 1;   text-shadow: 0 0 14px #ff8800, 0 0 24px #ff880066; }
+}
+
 @keyframes frenzyBorder {
   0%,100% { box-shadow: 0 0 20px rgba(255,0,170,0.4), inset 0 0 20px rgba(255,0,170,0.05); }
   50%      { box-shadow: 0 0 40px rgba(255,0,170,0.8), inset 0 0 40px rgba(255,0,170,0.2); }
@@ -3119,6 +3124,7 @@ function addExtraPegs(board) {
 
 // ─── OBJECTIVE SETUP ─────────────────────────────────────────
 function setupObjective(floor) {
+  GS._lastPegMilestone = 0; // reset per-floor milestone tracking
   switch (floor) {
     case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
     case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
@@ -3326,6 +3332,19 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   if (GS.multiplier >= 3) showAchievement('x3mult');
   if (GS.multiplier >= 5) showAchievement('x5mult');
   if (GS.multiplier >= 7) showAchievement('x7mult');
+
+  // Peg milestone toasts at 50/100/150 per floor
+  const milestones = [50, 100, 150, 200];
+  const cleared = GS.floorObjective.progress;
+  const prev = GS._lastPegMilestone || 0;
+  for (const m of milestones) {
+    if (cleared >= m && prev < m) {
+      GS._lastPegMilestone = m;
+      spawnFloatText(W / 2, H / 2 - 40, `${m} PEGS!`, '#ffcc00');
+      triggerFlash('#ffcc0033', 0.2);
+      break;
+    }
+  }
 
   // Payload effects on peg contact
   if (ball.payloads.length > 0) {
@@ -3923,6 +3942,17 @@ function updateHUD() {
   document.getElementById('score-value').textContent = GS.score.toLocaleString();
   document.getElementById('jackpot-display').textContent = (GS.jackpotPool || 500).toLocaleString();
 
+  // Jackpot spin counter
+  let jpEl = document.getElementById('jp-spin-counter');
+  if (!jpEl) {
+    jpEl = document.createElement('div');
+    jpEl.id = 'jp-spin-counter';
+    jpEl.style.cssText = 'font-size:8px;color:#888;letter-spacing:1px;margin-top:2px;text-align:center;';
+    document.getElementById('hud-center').appendChild(jpEl);
+  }
+  const spins = GS.totalJackpotSpins || 0;
+  jpEl.textContent = spins > 0 ? `SPINS: ${spins}` : '';
+
   // Balls display
   const ballsEl = document.getElementById('balls-display');
   ballsEl.innerHTML = '';
@@ -3947,6 +3977,23 @@ function updateHUD() {
   }
   const comboPct = GS.comboThreshold > 0 ? Math.min(100, (GS.comboCount / GS.comboThreshold) * 100) : 0;
   comboEl.innerHTML = `<span style="color:#ffffff;font-size:11px;">⬡</span> <span style="color:#ffffff;font-size:15px;font-weight:900;">${GS.comboCount}</span><span style="color:#666;font-size:11px;">/${GS.comboThreshold}</span>` + (GS.frenzyReady ? ` <span style="color:#ffd700;font-weight:900;animation:frenzyTextPulse 0.6s ease-in-out infinite alternate;">✦ FRENZY! ✦</span>` : '');
+
+  // Combo streak banner — appears when combo >= 3
+  let streakEl = document.getElementById('streak-banner');
+  if (GS.comboCount >= 3) {
+    if (!streakEl) {
+      streakEl = document.createElement('div');
+      streakEl.id = 'streak-banner';
+      streakEl.style.cssText = 'position:absolute;bottom:46px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:900;color:#ff8800;z-index:20;letter-spacing:3px;padding:3px 14px;border-radius:16px;background:#1a0800aa;border:1px solid #ff880066;text-shadow:0 0 8px #ff8800;animation:streakPulse 0.8s ease-in-out infinite alternate;';
+      document.getElementById('game-container').appendChild(streakEl);
+    }
+    const size = Math.min(16, 11 + GS.comboCount * 0.5);
+    streakEl.style.fontSize = size + 'px';
+    streakEl.textContent = `×${GS.comboCount} STREAK`;
+  } else if (streakEl) {
+    streakEl.remove();
+    streakEl = null;
+  }
 
   // Frenzy border pulse
   const gc = document.getElementById('game-container');
@@ -4171,6 +4218,7 @@ function initJackpotSlots() {
   function doSpin() {
     if (spinInProgress) return;
     spinInProgress = true;
+    GS.totalJackpotSpins = (GS.totalJackpotSpins || 0) + 1;
     if (jpBtn) jpBtn.style.display = 'none';
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';

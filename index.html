@@ -750,6 +750,17 @@ body.contrast-mode #combo-display {
     </div>
   </div>
 
+  <!-- Tutorial hint overlay (first-run only) -->
+  <div id="tutorial-overlay" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;background:#0a0a1aee;border:1px solid #00f0ff55;border-radius:12px;padding:20px 28px;text-align:center;max-width:280px;">
+    <div style="color:#00f0ff;font-size:13px;font-weight:bold;margin-bottom:10px;">HOW TO PLAY</div>
+    <div style="color:#aaa;font-size:11px;line-height:1.7;margin-bottom:14px;">
+      Move mouse to aim • Click to drop • Match color combos for multipliers<br>
+      Stack payloads from the shop • Clear all pegs to advance
+    </div>
+    <div style="color:#888;font-size:10px;margin-bottom:14px;">TIP: Preview arc shows your trajectory</div>
+    <button id="tutorial-dismiss" style="background:#00f0ff22;border:1px solid #00f0ff;color:#00f0ff;font-size:11px;padding:6px 18px;border-radius:8px;cursor:pointer;">GOT IT</button>
+  </div>
+
   <!-- Shop overlay -->
   <div id="shop-overlay">
     <div class="shop-header">
@@ -888,6 +899,7 @@ let PERSIST = {
   lifetimeBreach: 0,
   totalRuns: 0,
   bestFloor: 0,
+  hasSeenTutorial: false,
   unlockedPayloads: ['scrambler', 'trojan'],
   unlockedUpgrades: [],
   // Mastery Points — earned per run, reset each new run, spent on permanent upgrades
@@ -1182,6 +1194,7 @@ function loadPersist() {
     GS.bestFloor = PERSIST.bestFloor || 0;
     GS.bestScore = PERSIST.bestScore || 0;
     GS.lastScore = PERSIST.lastScore || 0;
+    GS.hasSeenTutorial = PERSIST.hasSeenTutorial || false;
   } catch(e) {
     PERSIST = {};
   }
@@ -1225,6 +1238,7 @@ function savePersist() {
   // Persist leaderboard and daily challenge
   if (!PERSIST.leaderboard) PERSIST.leaderboard = [];
   if (!PERSIST.dailyChallenge) PERSIST.dailyChallenge = { lastPlayed: null, bestDailyScore: 0, dailyAttempts: 0 };
+  PERSIST.hasSeenTutorial = GS.hasSeenTutorial || false;
   // Preserve meta object across saves
   if (!PERSIST.meta) PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
@@ -1628,6 +1642,18 @@ class Ball {
           : `rgba(${hexToRgb(mc.color)}, ${alpha})`;
         ctx.fill();
       }
+    }
+
+    // ── SLOWMO PAYLOAD: purple tint + clock-ring overlay ─────────────────
+    if (this.slowmoActive) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BALL_RADIUS + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(160, 80, 255, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#aa44ff';
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
     // ── MAIN BALL ────────────────────────────────────────
@@ -2964,13 +2990,21 @@ function assignEvolutionState(rng) {
   return null; // Normal peg (no evolution)
 }
 
+// Board seed tracking for shareability (#9)
+let _boardSeed = 0;
+const _rngState = {};
+
+// Simple 5-char hash from a number — base36 slice
+function _seedHash(n) {
+  if (!n) return 'XXXXX';
+  return Math.abs(Math.floor(n)).toString(36).toUpperCase().padStart(5, 'X').slice(0, 5);
+}
+
 function generateBoard(floor) {
   const board = [];
-  // Seeded RNG for reproducible runs
-  const rng = { random: Math.random, seed: floor * 1000 + Date.now() };
-  // Simple seeded random using mulberry32
   const seed = floor * 1000 + 42;
-  rng.random = (function(s) {
+  _boardSeed = seed;
+  const rng = (function(s) {
     return function() {
       s |= 0; s = s + 0x6D2B79F5 | 0;
       let t = Math.imul(s ^ s >>> 15, 1 | s);
@@ -5886,6 +5920,19 @@ document.getElementById('start-btn').onclick = () => {
   GS.dailyMode = false;
   GS.dailyDate = null;
   startNewRun();
+  // Show tutorial on first run
+  if (!PERSIST.hasSeenTutorial) {
+    const t = document.getElementById('tutorial-overlay');
+    if (t) {
+      t.style.display = 'block';
+      document.getElementById('tutorial-dismiss').onclick = () => {
+        t.style.display = 'none';
+        PERSIST.hasSeenTutorial = true;
+        GS.hasSeenTutorial = true;
+        savePersist();
+      };
+    }
+  }
 };
 
 document.getElementById('daily-btn').onclick = () => {

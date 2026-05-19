@@ -517,6 +517,59 @@ body.contrast-mode #combo-display {
   50% { transform: scale(1.15); filter: brightness(1.2); }
   100% { transform: scale(1); filter: brightness(1); }
 }
+
+/* Chain timer bar — depleting bar under multiplier shows time remaining */
+#chain-timer-bar {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  width: 80px;
+  height: 3px;
+  background: #1a1a2e;
+  border-radius: 2px;
+  z-index: 29;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#chain-timer-bar.active {
+  opacity: 1;
+}
+#chain-timer-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff, #00ffaa);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+  box-shadow: 0 0 6px #00f0ff88;
+}
+#chain-timer-bar.danger #chain-timer-bar-fill {
+  background: linear-gradient(90deg, #ff6600, #ffaa00);
+  box-shadow: 0 0 6px #ff660088;
+}
+
+/* Ghost mode indicator — top left, shows ice hits remaining */
+#ghost-indicator {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+  letter-spacing: 1px;
+  z-index: 28;
+  opacity: 0;
+  transition: opacity 0.3s, color 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#ghost-indicator.active {
+  opacity: 1;
+}
+#ghost-indicator.danger {
+  color: #ff6600;
+  text-shadow: 0 0 8px #ff660088;
+}
   transition: opacity 0.2s;
 }
 /* Multiplier display — styles above */
@@ -582,6 +635,11 @@ body.contrast-mode #combo-display {
 @keyframes frenzyTextPulse {
   0%   { opacity: 0.7; transform: scale(1); }
   100% { opacity: 1;   transform: scale(1.08); }
+}
+
+@keyframes streakPulse {
+  0%   { opacity: 0.6; text-shadow: 0 0 8px #ff8800; }
+  100% { opacity: 1;   text-shadow: 0 0 14px #ff8800, 0 0 24px #ff880066; }
 }
 
 @keyframes frenzyBorder {
@@ -695,6 +753,8 @@ body.contrast-mode #combo-display {
 
   <!-- Multiplier -->
   <div id="multiplier-display">x1</div>
+  <div id="chain-timer-bar"><div id="chain-timer-bar-fill"></div></div>
+  <div id="ghost-indicator"></div>
 
   <!-- Payload slots -->
   <div id="payload-display">
@@ -745,6 +805,17 @@ body.contrast-mode #combo-display {
     </div>
   </div>
 
+  <!-- Tutorial hint overlay (first-run only) -->
+  <div id="tutorial-overlay" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;background:#0a0a1aee;border:1px solid #00f0ff55;border-radius:12px;padding:20px 28px;text-align:center;max-width:280px;">
+    <div style="color:#00f0ff;font-size:13px;font-weight:bold;margin-bottom:10px;">HOW TO PLAY</div>
+    <div style="color:#aaa;font-size:11px;line-height:1.7;margin-bottom:14px;">
+      Move mouse to aim • Click to drop • Match color combos for multipliers<br>
+      Stack payloads from the shop • Clear all pegs to advance
+    </div>
+    <div style="color:#888;font-size:10px;margin-bottom:14px;">TIP: Preview arc shows your trajectory</div>
+    <button id="tutorial-dismiss" style="background:#00f0ff22;border:1px solid #00f0ff;color:#00f0ff;font-size:11px;padding:6px 18px;border-radius:8px;cursor:pointer;">GOT IT</button>
+  </div>
+
   <!-- Shop overlay -->
   <div id="shop-overlay">
     <div class="shop-header">
@@ -789,6 +860,16 @@ body.contrast-mode #combo-display {
   <div id="runend-overlay">
     <div class="runend-title" id="runend-title">RUN COMPLETE</div>
     <div class="runend-stats" id="runend-stats"></div>
+    <div id="runend-initials" style="display:none; text-align:center; margin: 12px 0 8px;">
+      <div style="color:#aaa; font-size:10px; margin-bottom:6px; letter-spacing:1px;">ENTER YOUR INITIALS</div>
+      <input id="initials-input" type="text" maxlength="3" placeholder="AAA"
+        style="background:#0a0a1a; border:1px solid #00f0ff55; color:#00f0ff; font-size:20px;
+          text-align:center; letter-spacing:6px; width:80px; padding:6px 10px; border-radius:6px;
+          text-transform:uppercase; outline:none;" />
+      <div style="margin-top:8px;">
+        <button id="initials-submit" class="game-btn" style="font-size:11px; padding:5px 16px;">SUBMIT</button>
+      </div>
+    </div>
     <button class="game-btn" id="runend-btn">RETURN TO MENU</button>
   </div>
 </div>
@@ -883,6 +964,7 @@ let PERSIST = {
   lifetimeBreach: 0,
   totalRuns: 0,
   bestFloor: 0,
+  hasSeenTutorial: false,
   unlockedPayloads: ['scrambler', 'trojan'],
   unlockedUpgrades: [],
   // Mastery Points — earned per run, reset each new run, spent on permanent upgrades
@@ -1177,6 +1259,7 @@ function loadPersist() {
     GS.bestFloor = PERSIST.bestFloor || 0;
     GS.bestScore = PERSIST.bestScore || 0;
     GS.lastScore = PERSIST.lastScore || 0;
+    GS.hasSeenTutorial = PERSIST.hasSeenTutorial || false;
   } catch(e) {
     PERSIST = {};
   }
@@ -1220,6 +1303,7 @@ function savePersist() {
   // Persist leaderboard and daily challenge
   if (!PERSIST.leaderboard) PERSIST.leaderboard = [];
   if (!PERSIST.dailyChallenge) PERSIST.dailyChallenge = { lastPlayed: null, bestDailyScore: 0, dailyAttempts: 0 };
+  PERSIST.hasSeenTutorial = GS.hasSeenTutorial || false;
   // Preserve meta object across saves
   if (!PERSIST.meta) PERSIST.meta = { unlocks: [], titles: [], activeTitle: null, prestigeLevel: 0, prestigeBonus: 0, unlockedBallColors: ['default'] };
   localStorage.setItem('slotprotocol', JSON.stringify(PERSIST));
@@ -1331,16 +1415,54 @@ const screenLayers = {
 };
 
 function setActiveScreen(name) {
+  console.log("setActiveScreen called:", name, "screenLayers[name]:", screenLayers[name]);
   const active = screenLayers[name] || [LAYER.BACKGROUND];
+  console.log("active layers:", active);
   for (const key in LAYER) {
     layerVisible[key] = active.includes(LAYER[key]);
   }
+  console.log("after setActiveScreen, layerVisible:", JSON.stringify(layerVisible));
 }
 
-function drawLayers(time) {
+function drawLayers(time) { console.log("drawLayers", "board:", GS.board.length, "BOARD visible:", layerVisible.BOARD);
   if (layerVisible.BACKGROUND) drawBackground();
   if (layerVisible.BOARD)      drawPegs();
   if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
+  // Preview arc — dashed cyan arc showing predicted ball trajectory
+  if (GS.screen === 'playing' && previewArc.length > 0) {
+    // Find landing slot from end of arc
+    let landSlot = -1;
+    for (let i = previewArc.length - 1; i >= 0; i--) {
+      if (previewArc[i].y >= SLOT_START_Y) {
+        landSlot = getSlotForX(previewArc[i].x);
+        break;
+      }
+    }
+    // Highlight predicted landing slot
+    if (landSlot !== -1) {
+      const lx = getSlotX(landSlot);
+      const lw = (landSlot === 3) ? SLOT_CENTER_WIDTH : SLOT_WIDTH;
+      ctx.save();
+      ctx.fillStyle = SLOT_TYPES[landSlot].color + '22';
+      ctx.fillRect(lx, SLOT_Y, lw, SLOT_HEIGHT);
+      ctx.strokeStyle = SLOT_TYPES[landSlot].color + '66';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lx, SLOT_Y, lw, SLOT_HEIGHT);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(previewArc[0].x, previewArc[0].y);
+    for (let i = 1; i < previewArc.length; i++) ctx.lineTo(previewArc[i].x, previewArc[i].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
   if (layerVisible.FX) {
     drawParticles();
     drawFragments();
@@ -1608,6 +1730,18 @@ class Ball {
           : `rgba(${hexToRgb(mc.color)}, ${alpha})`;
         ctx.fill();
       }
+    }
+
+    // ── SLOWMO PAYLOAD: purple tint + clock-ring overlay ─────────────────
+    if (this.slowmoActive) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BALL_RADIUS + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(160, 80, 255, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#aa44ff';
+      ctx.shadowBlur = 14;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
     // ── MAIN BALL ────────────────────────────────────────
@@ -2101,9 +2235,10 @@ function drawSlots() {
     ctx.fillStyle = '#0d0d1a';
     ctx.fillRect(pos + 4, SLOT_Y + SLOT_H - 8, w - 8, 8);
 
-    // Draw rim: 1px bright line at top edge
+    // Draw rim: 1px bright line at top edge, ambient pulse per slot (out of sync)
+    const rimAmbient = 0.25 + Math.sin(time * 1.5 + i * 0.4) * 0.1;
     ctx.strokeStyle = slot.color;
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = rimAmbient;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(pos + 1, SLOT_Y + 0.5);
@@ -2172,6 +2307,26 @@ function drawSlots() {
       }
     }
 
+    // ── P2-5: Slot entry tracking glow — nearest ball within 80px above slot zone ──
+    const nearestBall = GS.ballsInPlay.find(b =>
+      b.active && b.y > SLOT_START_Y - 80 && b.y < SLOT_START_Y
+    );
+    if (nearestBall && unlocked) {
+      const slotCenterX = pos + w / 2;
+      const distToSlotCenter = Math.abs(nearestBall.x - slotCenterX);
+      if (distToSlotCenter < w / 2 + 10) {
+        // This is the nearest slot — draw incoming tracking glow
+        ctx.shadowColor = slot.color;
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = slot.color;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // Active slot animations
     const anims = GS.slotAnimations.filter(a => a.slotIdx === i);
     if (anims.length > 0) {
@@ -2226,15 +2381,33 @@ function drawSlots() {
         } else if (t < 0.42) {
           // Phase 2 — The Flash (15–25): full-bucket white-gold flash + particles
           const t2 = (t - 0.25) / 0.17;
-          const flashAlpha = Math.sin(t2 * Math.PI) * 0.7;
+          const isMaxPool = GS.jackpotPool >= 1000;
+          const flashColor = isMaxPool ? '255,255,255' : '255,255,220';
+          const flashAlpha = Math.sin(t2 * Math.PI) * (isMaxPool ? 0.9 : 0.7);
           const flGrad = ctx.createRadialGradient(
             pos + w / 2, SLOT_Y + SLOT_H / 2, 0,
-            pos + w / 2, SLOT_Y + SLOT_H / 2, w * 0.8
+            pos + w / 2, SLOT_Y + SLOT_H / 2, w * (isMaxPool ? 1.5 : 0.8)
           );
-          flGrad.addColorStop(0, `rgba(255,255,220,${flashAlpha})`);
+          flGrad.addColorStop(0, `rgba(${flashColor},${flashAlpha})`);
           flGrad.addColorStop(1, 'transparent');
           ctx.fillStyle = flGrad;
           ctx.fillRect(pos, SLOT_Y, w, SLOT_H);
+
+          // Max-pool: screen-wide gold sweep + oscillating shake
+          if (isMaxPool) {
+            const sweepX = t2 * W;
+            const sweepGrad = ctx.createLinearGradient(sweepX - 40, 0, sweepX + 40, 0);
+            sweepGrad.addColorStop(0, 'transparent');
+            sweepGrad.addColorStop(0.5, `rgba(255,215,0,${0.3 * (1 - t2)})`);
+            sweepGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = sweepGrad;
+            ctx.fillRect(0, 0, W, H);
+            // Oscillating shake for 20 frames
+            if (anim.timer < 20) {
+              const oscShake = Math.sin(anim.timer * 0.5) * 8;
+              ctx.setTransform(1, 0, 0, 1, Math.cos(oscShake * 0.1) * oscShake, Math.sin(oscShake * 0.1) * oscShake);
+            }
+          }
           // Gold ripple expanding outward
           const rippleR = t2 * 80;
           ctx.beginPath();
@@ -2905,13 +3078,22 @@ function assignEvolutionState(rng) {
   return null; // Normal peg (no evolution)
 }
 
+// Board seed tracking for shareability (#9)
+let _boardSeed = 0;
+const _rngState = {};
+
+// Simple 5-char hash from a number — base36 slice
+function _seedHash(n) {
+  if (!n) return 'XXXXX';
+  return Math.abs(Math.floor(n)).toString(36).toUpperCase().padStart(5, 'X').slice(0, 5);
+}
+
 function generateBoard(floor) {
+  console.log("generateBoard called, floor:", floor);
   const board = [];
-  // Seeded RNG for reproducible runs
-  const rng = { random: Math.random, seed: floor * 1000 + Date.now() };
-  // Simple seeded random using mulberry32
   const seed = floor * 1000 + 42;
-  rng.random = (function(s) {
+  _boardSeed = seed;
+  const rng = (function(s) {
     return function() {
       s |= 0; s = s + 0x6D2B79F5 | 0;
       let t = Math.imul(s ^ s >>> 15, 1 | s);
@@ -3080,10 +3262,11 @@ function addExtraPegs(board) {
 
 // ─── OBJECTIVE SETUP ─────────────────────────────────────────
 function setupObjective(floor) {
+  GS._lastPegMilestone = 0; // reset per-floor milestone tracking
   switch (floor) {
     case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
     case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
-    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE - NO ICE HITS', timeLimit: 0 };
+    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: 2, timeLimit: 0 };
     case 4: return { type: 'timelock', target: 0, progress: 0, label: 'TIME LOCK - 45 SECONDS', timeLimit: 45 };
     case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   }
@@ -3260,17 +3443,24 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     ball.vy += ny * 2;
   }
 
-  // ── GHOST MODE: track ice peg hits separately (win=0, fail>0) ─
+  // ── GHOST MODE: track ice peg hits, allow up to maxIceHits (2) before failing ──
   if (GS.floorObjective.type === 'ghost') {
     if (peg.type === 'ice') {
       GS.ghostModeIceHits = (GS.ghostModeIceHits || 0) + 1;
       GS.floorObjective.progress = GS.ghostModeIceHits;
       // Visual penalty: red flash + float text
       triggerFlash('#ff224433', 0.2);
-      spawnFloatText(peg.x, peg.y - 10, '⚠ ICE!', '#ff4444');
-      spawnParticles(peg.x, peg.y, '#ff4444', 10, 3);
+      const remaining = (GS.floorObjective.maxIceHits || 2) - GS.ghostModeIceHits;
+      if (remaining > 0) {
+        spawnFloatText(peg.x, peg.y - 10, `⚠ ICE! (${remaining} left)`, '#ff4444');
+        spawnParticles(peg.x, peg.y, '#ff4444', 10, 3);
+      } else {
+        spawnFloatText(peg.x, peg.y - 10, '⚠ TOO MANY ICE!', '#ff2222');
+        spawnParticles(peg.x, peg.y, '#ff2222', 15, 5);
+        triggerShake(8);
+      }
+      updateGhostHUD();
     }
-    // Ghost mode: progress = ice hit count, win when balls exhausted and ice hits = 0
   }
 
   // Effects based on peg type
@@ -3287,6 +3477,19 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   if (GS.multiplier >= 3) showAchievement('x3mult');
   if (GS.multiplier >= 5) showAchievement('x5mult');
   if (GS.multiplier >= 7) showAchievement('x7mult');
+
+  // Peg milestone toasts at 50/100/150 per floor
+  const milestones = [50, 100, 150, 200];
+  const cleared = GS.floorObjective.progress;
+  const prev = GS._lastPegMilestone || 0;
+  for (const m of milestones) {
+    if (cleared >= m && prev < m) {
+      GS._lastPegMilestone = m;
+      spawnFloatText(W / 2, H / 2 - 40, `${m} PEGS!`, '#ffcc00');
+      triggerFlash('#ffcc0033', 0.2);
+      break;
+    }
+  }
 
   // Payload effects on peg contact
   if (ball.payloads.length > 0) {
@@ -3749,9 +3952,45 @@ function triggerFullBreach() {
 // ─── BALL DROP ───────────────────────────────────────────────
 let canDrop = true;
 let dropX = W / 2;
+let previewArc = []; // [{x,y}] — simulated drop arc for preview rendering
 let touchDragging = false;    // true while finger is moving on canvas
 let touchStartTime = 0;        // ms timestamp when touch began
 const TAP_DELAY_MS = 300;      // tap must last 300ms+ before drop fires
+
+// Simulate ball physics for preview arc — returns array of {x,y} points
+function simulatePreviewArc(startX) {
+  if (!GS.board || GS.board.length === 0) return [];
+  const pts = [];
+  let px = startX, py = 80;
+  let pvx = 0, pvy = 0;
+  const hitPegs = new Set();
+  for (let f = 0; f < 80; f++) { // simulate 80 frames (~1.3s)
+    pvy += GRAVITY;
+    px += pvx; py += pvy;
+    if (py > H) break; // off screen
+    // Peg collision
+    for (const peg of GS.board) {
+      if (peg.destroyed || hitPegs.has(peg.id)) continue;
+      const pegDef = PEG_TYPES[peg.type];
+      const pr = pegDef?.radius ?? 7;
+      const dx = px - peg.x, dy = py - peg.y;
+      if (dx*dx + dy*dy < (BALL_RADIUS + pr) * (BALL_RADIUS + pr)) {
+        hitPegs.add(peg.id);
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const nx = dx/dist, ny = dy/dist;
+        const dot = pvx*nx + pvy*ny;
+        const bounce = pegDef.bounce ?? 0.65;
+        pvx = (pvx - 2*dot*nx) * bounce;
+        pvy = (pvy - 2*dot*ny) * bounce;
+        pvx *= FRICTION; pvy *= FRICTION;
+        break;
+      }
+    }
+    pts.push({ x: px, y: py });
+    if (px < 0 || px > W) break;
+  }
+  return pts;
+}
 
 function dropBall() {
   if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;
@@ -3764,6 +4003,7 @@ function dropBall() {
 
   const ball = new Ball(dropX, 70, (Math.random() - 0.5) * 2, 1, [...GS.currentPayloads]);
   GS.ballsInPlay = [ball];
+  previewArc = []; // clear preview on drop
 
   // Initialize Slot Protocol 2.0 payload states
   GS.comboCount = 0;
@@ -3878,11 +4118,43 @@ function updateMultiplierDisplay() {
   }
 }
 
+function updateChainTimerBar() {
+  const bar = document.getElementById('chain-timer-bar');
+  const fill = document.getElementById('chain-timer-bar-fill');
+  if (!bar || !fill) return;
+
+  const hasActiveBall = GS.ballsInPlay.some(b => b.active);
+  const chainActive = GS.chainTimer > 0 && GS.multiplier > 1;
+
+  if (!hasActiveBall || GS.multiplier <= 1) {
+    bar.classList.remove('active');
+    return;
+  }
+
+  bar.classList.add('active');
+  const pct = Math.min(100, (GS.chainTimer / 30) * 100);
+  fill.style.width = pct + '%';
+
+  // Danger zone: last 25% of time
+  bar.classList.toggle('danger', GS.chainTimer <= 8);
+}
+
 // ─── HUD UPDATE ──────────────────────────────────────────────
 function updateHUD() {
   document.getElementById('floor-indicator').textContent = `${GS.floor}/5`;
   document.getElementById('score-value').textContent = GS.score.toLocaleString();
   document.getElementById('jackpot-display').textContent = (GS.jackpotPool || 500).toLocaleString();
+
+  // Jackpot spin counter
+  let jpEl = document.getElementById('jp-spin-counter');
+  if (!jpEl) {
+    jpEl = document.createElement('div');
+    jpEl.id = 'jp-spin-counter';
+    jpEl.style.cssText = 'font-size:8px;color:#888;letter-spacing:1px;margin-top:2px;text-align:center;';
+    document.getElementById('hud-center').appendChild(jpEl);
+  }
+  const spins = GS.totalJackpotSpins || 0;
+  jpEl.textContent = spins > 0 ? `SPINS: ${spins}` : '';
 
   // Balls display
   const ballsEl = document.getElementById('balls-display');
@@ -3908,6 +4180,23 @@ function updateHUD() {
   }
   const comboPct = GS.comboThreshold > 0 ? Math.min(100, (GS.comboCount / GS.comboThreshold) * 100) : 0;
   comboEl.innerHTML = `<span style="color:#ffffff;font-size:11px;">⬡</span> <span style="color:#ffffff;font-size:15px;font-weight:900;">${GS.comboCount}</span><span style="color:#666;font-size:11px;">/${GS.comboThreshold}</span>` + (GS.frenzyReady ? ` <span style="color:#ffd700;font-weight:900;animation:frenzyTextPulse 0.6s ease-in-out infinite alternate;">✦ FRENZY! ✦</span>` : '');
+
+  // Combo streak banner — appears when combo >= 3
+  let streakEl = document.getElementById('streak-banner');
+  if (GS.comboCount >= 3) {
+    if (!streakEl) {
+      streakEl = document.createElement('div');
+      streakEl.id = 'streak-banner';
+      streakEl.style.cssText = 'position:absolute;bottom:46px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:900;color:#ff8800;z-index:20;letter-spacing:3px;padding:3px 14px;border-radius:16px;background:#1a0800aa;border:1px solid #ff880066;text-shadow:0 0 8px #ff8800;animation:streakPulse 0.8s ease-in-out infinite alternate;';
+      document.getElementById('game-container').appendChild(streakEl);
+    }
+    const size = Math.min(16, 11 + GS.comboCount * 0.5);
+    streakEl.style.fontSize = size + 'px';
+    streakEl.textContent = `×${GS.comboCount} STREAK`;
+  } else if (streakEl) {
+    streakEl.remove();
+    streakEl = null;
+  }
 
   // Frenzy border pulse
   const gc = document.getElementById('game-container');
@@ -4132,6 +4421,7 @@ function initJackpotSlots() {
   function doSpin() {
     if (spinInProgress) return;
     spinInProgress = true;
+    GS.totalJackpotSpins = (GS.totalJackpotSpins || 0) + 1;
     if (jpBtn) jpBtn.style.display = 'none';
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
@@ -4744,7 +5034,7 @@ function startNextFloor() {
   startFloor();
 }
 
-function startFloor() {
+function startFloor() { console.log("startFloor called, floor:", GS.floor);
   GS.board = generateBoard(GS.floor);
   pairTeleportPegs(GS.board, GS.floor);
   GS.floorObjective = setupObjective(GS.floor);
@@ -4753,6 +5043,8 @@ function startFloor() {
   GS.multiplier = 1;
   GS.multiplierTimer = 0;
   GS.chainTimer = 0;
+  GS.ghostModeIceHits = 0;
+  updateGhostHUD(); // Show ghost indicator immediately on floor 3
   GS.timeScale = 1.0;
   GS.slowmoBall = null;
   GS.frenzyActive = false;
@@ -5058,11 +5350,11 @@ function startNewRun() {
 
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
+  startFloor();  // populate board BEFORE activating layers
   GS.screen = 'playing';
   setActiveScreen('playing');
   onScreenChange('playing');
   playSound('menuStart');
-  startFloor();
 }
 
 function returnToMenu() {
@@ -5114,6 +5406,7 @@ function drawBackground() {
 }
 
 function drawPegs() {
+  console.log("DBG pegs:", GS.board.length, "screen:", GS.screen, "layerVisible.BOARD:", layerVisible.BOARD);
   const time = Date.now() / 1000;
 
   for (const peg of GS.board) {
@@ -5584,6 +5877,7 @@ function update() {
     GS.multiplier = 1; // Snap to 1 when chain ends
     updateMultiplierDisplay();
   }
+  updateChainTimerBar(); // Update chain timer bar after timer logic
 
   // Frenzy timer countdown
   if (GS.frenzyActive && GS.frenzyTimer > 0) {
@@ -5614,11 +5908,12 @@ function update() {
         if (GS.screen !== 'playing') return; // already transitioned
         // Ghost mode: win if no ice hits were taken, fail otherwise
         if (GS.floorObjective.type === 'ghost') {
-          if ((GS.ghostModeIceHits || 0) === 0) {
+          const maxHits = GS.floorObjective.maxIceHits || 2;
+          if ((GS.ghostModeIceHits || 0) <= maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
-            spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
+            spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
             showGameOverInterstitial(() => endRun(false));
           }
         } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
@@ -5631,6 +5926,31 @@ function update() {
     }
     return;
   }
+
+// Ghost mode HUD: shows ice hits remaining vs max
+function updateGhostHUD() {
+  const el = document.getElementById('ghost-indicator');
+  if (!el) return;
+
+  if (GS.floorObjective.type !== 'ghost') {
+    el.classList.remove('active');
+    return;
+  }
+
+  const max = GS.floorObjective.maxIceHits || 2;
+  const hits = GS.ghostModeIceHits || 0;
+  const remaining = Math.max(0, max - hits);
+
+  el.classList.add('active');
+  el.classList.toggle('danger', remaining <= 1);
+
+  // Build ice pip display
+  let pips = '';
+  for (let i = 0; i < max; i++) {
+    pips += i < hits ? '💀' : '❄️';
+  }
+  el.innerHTML = `GHOST ${pips} ${remaining}/${max}`;
+}
 
 // Time Lock countdown
   if (GS.floorObjective.type === 'timelock' && GS.floorTimeRemaining > 0) {
@@ -5694,6 +6014,7 @@ canvas.addEventListener('mousemove', (e) => {
   if (GS.screen !== 'playing') return;
   const rect = canvas.getBoundingClientRect();
   dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
+  previewArc = simulatePreviewArc(dropX);
 });
 
 canvas.addEventListener('click', (e) => {
@@ -5719,6 +6040,7 @@ canvas.addEventListener('touchmove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
   dropX = Math.max(20, Math.min(W - 20, (touch.clientX - rect.left) * (W / rect.width)));
+  previewArc = simulatePreviewArc(dropX);
   touchDragging = true; // any movement = drag
 });
 
@@ -5745,6 +6067,19 @@ document.getElementById('start-btn').onclick = () => {
   GS.dailyMode = false;
   GS.dailyDate = null;
   startNewRun();
+  // Show tutorial on first run
+  if (!PERSIST.hasSeenTutorial) {
+    const t = document.getElementById('tutorial-overlay');
+    if (t) {
+      t.style.display = 'block';
+      document.getElementById('tutorial-dismiss').onclick = () => {
+        t.style.display = 'none';
+        PERSIST.hasSeenTutorial = true;
+        GS.hasSeenTutorial = true;
+        savePersist();
+      };
+    }
+  }
 };
 
 document.getElementById('daily-btn').onclick = () => {

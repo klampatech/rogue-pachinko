@@ -3819,6 +3819,7 @@ function initJackpotSlots() {
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
     playSound('jpSpin');
+    triggerSlotSpinMusic();
 
     // Spinning state — blur ramp + scale pulse on each reel
     reels.forEach(r => r && (r.style.filter = 'blur(6px)'));
@@ -4519,6 +4520,7 @@ function getRankProgress() {
 // ── Game Over Interstitial ──────────────────────────────────────────────
 function showGameOverInterstitial(callback) {
   playSound('gameOver');
+  playBgm('connection-lost'); // connection-lost BGM for the interstitial countdown
   let el = document.getElementById('gameover-interstitial');
   if (!el) {
     el = document.createElement('div');
@@ -4556,6 +4558,7 @@ function endRun(won) {
   GS.noBallsInterstitial = false;
 
   GS.screen = 'run_end';
+  setRunEndMusic(won);
 
   // Sync reputation to PERSIST for meta-progression
   PERSIST.reputation = GS.reputation;
@@ -4735,6 +4738,7 @@ function startNewRun() {
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
   GS.screen = 'playing';
+  onScreenChange('playing');
   playSound('menuStart');
   startFloor();
 }
@@ -4745,6 +4749,7 @@ function returnToMenu() {
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
+  onScreenChange('menu');
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen
   GS.timeScale = 1.0;
@@ -5413,6 +5418,8 @@ document.getElementById('contrast-btn').onclick = () => {
 // ─── INIT ────────────────────────────────────────────────────
 loadPersist();
 updateMenuStats();
+initBgmTracks();
+onScreenChange('menu');
 gameLoop();
 </script>
 </body>

@@ -1535,8 +1535,13 @@ class Ball {
         triggerSlotCollected(this, slotIdx);
         return;
       }
-      // Missed all slots → falls through gap (2px gaps at edges/sides)
-      // Ball continues to fall below H+20 for normal exit
+      // Missed all slots → ball is in the OVERFLOW zone
+    }
+    // OVERFLOW: ball passed through slot zone without capture → apply floor-scaled penalty
+    if (this.y > SLOT_START_Y + SLOT_HEIGHT) {
+      this.active = false;
+      triggerOverflow(this.x, this.y, GS.floor, GS.shieldActive);
+      return;
     }
     // Exit bottom (ball fell through gap or overshot)
     if (this.y > H + 20) {
@@ -1886,6 +1891,44 @@ function updateUnlockedSlots() {
   }
 }
 
+// ─── OVERFLOW SYSTEM ────────────────────────────────────────
+// Ball misses all slots → penalty scaled by floor
+function triggerOverflow(x, y, floor, shieldActive) {
+  if (shieldActive) {
+    // Shield absorbs the miss — no penalty, shield consumed
+    GS.shieldActive = false;
+    GS.shieldNextBall = false;
+    spawnFloatText(x, y - 20, 'SHIELD BLOCKED', '#00ff88');
+    spawnParticles(x, y, '#00ff88', 8, 4);
+    triggerFlash('#00ff8822', 0.2);
+    return;
+  }
+
+  let message, color, livesLost = 0;
+  if (floor === 1) {
+    message = 'OVERFLOW −1'; color = '#ff4444'; livesLost = 1;
+  } else if (floor === 2) {
+    message = 'OVERFLOW −1'; color = '#ff4444'; livesLost = 1;
+  } else if (floor === 3) {
+    message = 'BREACH −2'; color = '#ff6644'; livesLost = 2;
+  } else if (floor === 4) {
+    message = 'CRITICAL BREACH'; color = '#ff8844'; livesLost = 2;
+    GS.timeScale = 0.5; GS.slowmoBall = null;
+  } else {
+    message = 'SYSTEM FAIL'; color = '#ff2222'; livesLost = 3;
+    GS.multiplier = 1; GS.jackpotPool = Math.floor(GS.jackpotPool * 0.8);
+  }
+
+  // Visual feedback
+  triggerFlash('#ff000044', 0.15);
+  triggerShake(8);
+  spawnParticles(x, y + 20, '#ff4444', 8, 4);
+  spawnFloatText(x, y - 20, message, color);
+
+  // Apply lives penalty (floor ball count reduction)
+  GS.livesLost = (GS.livesLost || 0) + livesLost;
+}
+
 function triggerSlotCollected(ball, slotIdx) {
   const slot = SLOT_TYPES[slotIdx];
   const mult = GS.frenzyActive ? GS.multiplier * 2 : GS.multiplier;
@@ -1978,11 +2021,23 @@ function triggerSlotCollected(ball, slotIdx) {
       spawnFloatText(centerX, slotCenterY - 10, 'OVERCLOCK!', slot.color);
       break;
 
-    case 6: // JACKPOT: add to pool
+    case 6: // JACKPOT: add to pool — special capture animation
       GS.jackpotPool += 100 * mult;
       pts = 75 * mult;
-      triggerFlash('#ffd70044', 0.15);
-      triggerShake(8);
+      // Push JACKPOT capture animation (3 phases drawn by drawSlots)
+      GS.slotAnimations.push({
+        x: centerX,
+        y: slotCenterY,
+        slotIdx,
+        color: '#ffd700',
+        phase: 'jackpot',
+        timer: 0,
+        total: 60,  // 60 frames total
+        triggered: false,
+      });
+      triggerFlash('#ffd70055', 0.15);
+      triggerShake(12);
+      spawnParticles(centerX, slotCenterY, '#ffd700', 20, 8);
       spawnFloatText(centerX, slotCenterY - 10, `JP+${100 * mult}`, slot.color);
       break;
   }
@@ -2020,63 +2075,101 @@ function drawSlots() {
     const slot = SLOT_TYPES[i];
     const unlocked = isSlotUnlocked(i);
 
-    // Background
-    ctx.fillStyle = unlocked ? '#0d0d1a' : '#111116';
-    ctx.fillRect(pos, SLOT_Y, w, SLOT_H);
+    // ─── 3D BUCKET DEPTH ─────────────────────────────────────
+    // Draw back wall: gradient from slot.color at 8% → #0a0a14
+    const bwGrad = ctx.createLinearGradient(pos, SLOT_Y, pos, SLOT_Y + SLOT_H);
+    bwGrad.addColorStop(0, slot.color + '14');   // ~8% at top
+    bwGrad.addColorStop(1, '#0a0a14');            // dark floor
+    ctx.fillStyle = bwGrad;
+    ctx.fillRect(pos + 3, SLOT_Y, w - 6, SLOT_H - 4);
 
-    // Border
-    const baseAlpha = unlocked ? (i === 6 ? 0.5 + Math.sin(time * 3) * 0.15 : 0.35) : 0.12;
-    const borderColor = unlocked ? slot.color : '#444455';
-    ctx.strokeStyle = borderColor;
-    ctx.globalAlpha = baseAlpha;
+    // Draw side walls (left and right edges as gradient strips)
+    const swW = 4;
+    const swLeft = ctx.createLinearGradient(pos, SLOT_Y, pos + swW, SLOT_Y);
+    swLeft.addColorStop(0, slot.color + '10');
+    swLeft.addColorStop(1, 'transparent');
+    ctx.fillStyle = swLeft;
+    ctx.fillRect(pos, SLOT_Y, swW, SLOT_H - 4);
+
+    const swRight = ctx.createLinearGradient(pos + w - swW, SLOT_Y, pos + w, SLOT_Y);
+    swRight.addColorStop(0, 'transparent');
+    swRight.addColorStop(1, slot.color + '10');
+    ctx.fillStyle = swRight;
+    ctx.fillRect(pos + w - swW, SLOT_Y, swW, SLOT_H - 4);
+
+    // Draw slot floor: solid dark
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(pos + 4, SLOT_Y + SLOT_H - 8, w - 8, 8);
+
+    // Draw rim: 1px bright line at top edge
+    ctx.strokeStyle = slot.color;
+    ctx.globalAlpha = 0.45;
     ctx.lineWidth = 1;
-    ctx.strokeRect(pos + 0.5, SLOT_Y + 0.5, w - 1, SLOT_H - 1);
+    ctx.beginPath();
+    ctx.moveTo(pos + 1, SLOT_Y + 0.5);
+    ctx.lineTo(pos + w - 1, SLOT_Y + 0.5);
+    ctx.stroke();
     ctx.globalAlpha = 1;
 
+    // Back-lit glow: radial from center-bottom
+    const glGrad = ctx.createRadialGradient(
+      pos + w / 2, SLOT_Y + SLOT_H - 6, 2,
+      pos + w / 2, SLOT_Y + SLOT_H - 6, 28
+    );
+    glGrad.addColorStop(0, slot.color + '10');
+    glGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = glGrad;
+    ctx.fillRect(pos, SLOT_Y, w, SLOT_H - 4);
+
     // Slot label (top-left)
-    if (unlocked) {
-      ctx.font = '7px Courier New';
-      ctx.fillStyle = slot.color;
-      ctx.globalAlpha = 0.6;
-      ctx.fillText(slot.name, pos + 3, SLOT_Y + 9);
-      ctx.globalAlpha = 1;
+    ctx.font = '7px Courier New';
+    ctx.fillStyle = slot.color;
+    ctx.globalAlpha = 0.65;
+    ctx.fillText(slot.name, pos + 3, SLOT_Y + 9);
+    ctx.globalAlpha = 1;
 
-      // Icon in center
-      ctx.font = 'bold 12px Courier New';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = slot.color;
-      ctx.shadowColor = slot.color;
-      ctx.shadowBlur = 6;
-      ctx.fillText(slot.icon, pos + w / 2, SLOT_Y + SLOT_H / 2 + 4);
+    // Icon in center
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = slot.color;
+    ctx.shadowColor = slot.color;
+    ctx.shadowBlur = 8;
+    ctx.fillText(slot.icon, pos + w / 2, SLOT_Y + SLOT_H / 2 + 4);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+
+    // Shimmer sweep (2s loop, 3px wide, slightly brighter)
+    const shimmerY = ((time * (SLOT_H / 2)) % (SLOT_H + 10)) - 5;
+    ctx.fillStyle = slot.color;
+    ctx.globalAlpha = 0.1;
+    ctx.fillRect(pos + 1, SLOT_Y + shimmerY, w - 2, 3);
+    ctx.globalAlpha = 1;
+
+    // JACKPOT bucket: extra gold rim + shimmer particles + faster pulse
+    if (i === 6) {
+      const jpPulse = 0.6 + Math.sin(time * 4) * 0.25;
+      // Gold rim glow
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 16 * jpPulse;
+      ctx.strokeStyle = '#ffd700';
+      ctx.globalAlpha = jpPulse * 0.5;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+      // Second outer ring
+      ctx.globalAlpha = jpPulse * 0.2;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pos - 1, SLOT_Y, w + 2, SLOT_H + 1);
       ctx.shadowBlur = 0;
-      ctx.textAlign = 'left';
-
-      // Shimmer sweep (3s loop)
-      const shimmerY = ((time * (SLOT_H / 3)) % (SLOT_H + 10)) - 5;
-      ctx.fillStyle = slot.color;
-      ctx.globalAlpha = 0.07;
-      ctx.fillRect(pos + 1, SLOT_Y + shimmerY, w - 2, 2);
       ctx.globalAlpha = 1;
-
-      // JACKPOT pulsing glow
-      if (i === 6) {
-        const pulse = 0.5 + Math.sin(time * 4) * 0.3;
-        ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = 12 * pulse;
-        ctx.strokeStyle = '#ffd700';
-        ctx.globalAlpha = pulse * 0.4;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1;
+      // Coin shimmer particles inside bucket (rising gold flecks)
+      for (let p = 0; p < 3; p++) {
+        const px = pos + 8 + p * ((w - 16) / 2);
+        const py = SLOT_Y + SLOT_H - 6 - ((time * 12 + p * 17) % 20);
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 215, 0, ${0.5 + Math.sin(time * 6 + p) * 0.3})`;
+        ctx.fill();
       }
-    } else {
-      // Locked: show dash
-      ctx.font = '10px Courier New';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#444455';
-      ctx.fillText('--', pos + w / 2, SLOT_Y + SLOT_H / 2 + 4);
-      ctx.textAlign = 'left';
     }
 
     // Active slot animations
@@ -2103,6 +2196,76 @@ function drawSlots() {
           ctx.arc(anim.x, Math.min(anim.y + t * 10, SLOT_Y + SLOT_H - 8), BALL_RADIUS, 0, Math.PI * 2);
           ctx.fillStyle = anim.color;
           ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // ── JACKPOT special animation (3 phases over 60 frames) ──
+      if (anim.phase === 'jackpot') {
+        const t = anim.timer / anim.total;
+        if (t < 0.25) {
+          // Phase 1 — The Grab (0–15): gold glow intensifies, ball pulled down
+          const t1 = t / 0.25;
+          ctx.shadowColor = '#ffd700';
+          ctx.shadowBlur = 8 + 17 * t1;
+          ctx.strokeStyle = '#ffd700';
+          ctx.globalAlpha = t1 * 0.6;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1;
+          // Ball being pulled into center
+          ctx.globalAlpha = (1 - t1 * 0.8);
+          const bx = pos + w / 2;
+          const by = SLOT_Y + SLOT_H / 2 + t1 * 12;
+          ctx.beginPath();
+          ctx.arc(bx, by, BALL_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffd700';
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        } else if (t < 0.42) {
+          // Phase 2 — The Flash (15–25): full-bucket white-gold flash + particles
+          const t2 = (t - 0.25) / 0.17;
+          const flashAlpha = Math.sin(t2 * Math.PI) * 0.7;
+          const flGrad = ctx.createRadialGradient(
+            pos + w / 2, SLOT_Y + SLOT_H / 2, 0,
+            pos + w / 2, SLOT_Y + SLOT_H / 2, w * 0.8
+          );
+          flGrad.addColorStop(0, `rgba(255,255,220,${flashAlpha})`);
+          flGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = flGrad;
+          ctx.fillRect(pos, SLOT_Y, w, SLOT_H);
+          // Gold ripple expanding outward
+          const rippleR = t2 * 80;
+          ctx.beginPath();
+          ctx.arc(pos + w / 2, SLOT_Y + SLOT_H / 2, rippleR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255,215,0,${(1 - t2) * 0.35})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          // Extra particle burst from bucket
+          if (t2 < 0.5) {
+            for (let p = 0; p < 6; p++) {
+              const angle = (p / 6) * Math.PI * 2;
+              const dist = t2 * 60;
+              const px = pos + w / 2 + Math.cos(angle) * dist;
+              const py = SLOT_Y + SLOT_H / 2 + Math.sin(angle) * dist * 0.6;
+              ctx.beginPath();
+              ctx.arc(px, py, 2, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(255,215,0,${(1 - t2 * 2) * 0.8})`;
+              ctx.fill();
+            }
+          }
+        } else {
+          // Phase 3 — The Afterglow (25–60): bucket stays brighter, ripple fades
+          const t3 = (t - 0.42) / 0.58;
+          // Bucket at 10% brighter than normal
+          ctx.shadowColor = '#ffd700';
+          ctx.shadowBlur = 6 * (1 - t3 * 0.5);
+          ctx.strokeStyle = '#ffd700';
+          ctx.globalAlpha = 0.25 * (1 - t3);
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(pos + 1, SLOT_Y + 1, w - 2, SLOT_H - 2);
+          ctx.shadowBlur = 0;
           ctx.globalAlpha = 1;
         }
       }

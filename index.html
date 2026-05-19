@@ -2347,7 +2347,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       // Solidify
       ball.ghostPhasing = false;
       triggerFlash('#ffffff44', 0.2);
-      spawnFloatText(ball.x, ball.y - 15, 'SOLIDIFY', '#ffffff');
+      spawnFloatText(ball.x, ball.y - 15, 'GHOST END', '#cc88ff');
     }
     // Phase through — no bounce, just visual contact feedback
     GS.comboCount++;
@@ -2612,6 +2612,20 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
             playSound('overload');
             spawnFloatText(ball.x, ball.y - 15, 'SLOW-MO OVERLOAD!', '#ff00ff');
             triggerFlash('#4488ff33', 0.2);
+          }
+          break;
+        case 'trojan':
+          if (!ball.cloneSpawned) {
+            ball.cloneSpawned = true;
+            for (let i = 0; i < 2; i++) {
+              const clone = new Ball(ball.x, ball.y, (Math.random() - 0.5) * 4, ball.vy * 0.8, []);
+              clone.active = true;
+              clone.cloneBall = true;
+              clone.dropMultiplier = ball.dropMultiplier;
+              GS.ballsInPlay.push(clone);
+            }
+            spawnFloatText(ball.x, ball.y - 15, 'TROJAN!', '#ff00aa');
+            spawnParticles(ball.x, ball.y, '#ff00aa', 10, 3);
           }
           break;
       }

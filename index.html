@@ -1681,7 +1681,7 @@ function spawnParticles(x, y, color, count = 8, spread = 3) {
       vy: (Math.random() - 0.5) * spread,
       color,
       life: 1,
-      decay: 0.03 + Math.random() * 0.02,
+      decay: 0.015 + Math.random() * 0.02,
       size: 2 + Math.random() * 3
     });
   }
@@ -1703,8 +1703,8 @@ function spawnFragments(x, y, color) {
   }
 }
 
-function spawnShockwave(x, y) {
-  shockwaves.push({ x, y, radius: 10, maxRadius: 80, life: 1, decay: 0.04 });
+function spawnShockwave(x, y, color = '#00f0ff', maxRadius = 80) {
+  shockwaves.push({ x, y, color, radius: 10, maxRadius, life: 1, decay: 0.04 });
 }
 
 function updateFragments() {
@@ -1778,11 +1778,11 @@ function drawShockwaves() {
   shockwaves.forEach(s => {
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-    ctx.strokeStyle = '#ff00aa';
+    ctx.strokeStyle = s.color;
     ctx.lineWidth = 3 * s.life;
     ctx.globalAlpha = s.life * 0.7;
-    ctx.shadowColor = '#ff00aa';
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = 12;
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
@@ -2924,7 +2924,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       GS.multiplier = Math.min(7, GS.multiplier + 1);
       updateMultiplierDisplay();
       if (GS.multiplier > prevMult) playSound('multiplierUp');
-      spawnParticles(peg.x, peg.y, '#FFD700', 8, 3);
+      spawnParticles(peg.x, peg.y, '#FFD700', 12, 4);
       spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
     } else if (ev.state === PegEvo.GLOWING) {
       // → CHARGED: ×2 points + store 50% of hit value
@@ -3270,8 +3270,8 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   if (pegDef.seismic) {
     triggerShake(6);
     triggerFlash('#ff00aa22', 0.15);
-    spawnShockwave(peg.x, peg.y);
-    spawnParticles(peg.x, peg.y, '#ff00aa', 20, 5); // 2x spark burst
+    spawnShockwave(peg.x, peg.y, '#FF4500', 100);
+    spawnParticles(peg.x, peg.y, '#FF4500', 25, 6); // 2x spark burst
     GS.score += 100 * GS.multiplier; // flat +100 bonus
     spawnFloatText(peg.x, peg.y, '+100', '#ff00aa');
   }
@@ -3773,7 +3773,8 @@ function initJackpotSlots() {
       }
       GS.jackpotPool = GS.jackpotBase; // reset pool after win
       triggerFlash('#ffd70066', 0.5);
-      spawnParticles(W/2, H/2, '#ffd700', 30, 8);
+      spawnParticles(W/2, H/2, '#ffd700', 40, 10);
+      spawnShockwave(W/2, H/2, '#ffd700', 120);
       playSound('jpWin');
       showAchievement('firstJackpot');
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
@@ -3790,7 +3791,8 @@ function initJackpotSlots() {
       }
       GS.jackpotPool = GS.jackpotBase; // reset pool after win
       triggerFlash('#aaaaff66', 0.4);
-      spawnParticles(W/2, H/2, '#aaaaff', 15, 5);
+      spawnParticles(W/2, H/2, '#aaaaff', 20, 6);
+      spawnShockwave(W/2, H/2, '#aaaaff', 80);
       playSound('jpMinorWin');
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;

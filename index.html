@@ -3807,9 +3807,45 @@ function triggerFullBreach() {
 // ─── BALL DROP ───────────────────────────────────────────────
 let canDrop = true;
 let dropX = W / 2;
+let previewArc = []; // [{x,y}] — simulated drop arc for preview rendering
 let touchDragging = false;    // true while finger is moving on canvas
 let touchStartTime = 0;        // ms timestamp when touch began
 const TAP_DELAY_MS = 300;      // tap must last 300ms+ before drop fires
+
+// Simulate ball physics for preview arc — returns array of {x,y} points
+function simulatePreviewArc(startX) {
+  if (!GS.board || GS.board.length === 0) return [];
+  const pts = [];
+  let px = startX, py = 80;
+  let pvx = 0, pvy = 0;
+  const hitPegs = new Set();
+  for (let f = 0; f < 80; f++) { // simulate 80 frames (~1.3s)
+    pvy += GRAVITY;
+    px += pvx; py += pvy;
+    if (py > H) break; // off screen
+    // Peg collision
+    for (const peg of GS.board) {
+      if (peg.destroyed || hitPegs.has(peg.id)) continue;
+      const pegDef = PEG_TYPES[peg.type];
+      const pr = pegDef?.radius ?? 7;
+      const dx = px - peg.x, dy = py - peg.y;
+      if (dx*dx + dy*dy < (BALL_RADIUS + pr) * (BALL_RADIUS + pr)) {
+        hitPegs.add(peg.id);
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const nx = dx/dist, ny = dy/dist;
+        const dot = pvx*nx + pvy*ny;
+        const bounce = pegDef.bounce ?? 0.65;
+        pvx = (pvx - 2*dot*nx) * bounce;
+        pvy = (pvy - 2*dot*ny) * bounce;
+        pvx *= FRICTION; pvy *= FRICTION;
+        break;
+      }
+    }
+    pts.push({ x: px, y: py });
+    if (px < 0 || px > W) break;
+  }
+  return pts;
+}
 
 function dropBall() {
   if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;

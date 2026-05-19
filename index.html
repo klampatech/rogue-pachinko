@@ -3890,7 +3890,7 @@ function buyRepItem(id) {
   triggerFlash('#00ffaa44', 0.3);
   playSound('shopPurchase');
   openShop('rep'); // Refresh rep tab
-  saveGame(); // Reputation changes persist
+  savePersist(); // Reputation changes persist
 }
 
 // Apply permanent upgrade effect from rep shop

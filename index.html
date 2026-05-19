@@ -517,6 +517,59 @@ body.contrast-mode #combo-display {
   50% { transform: scale(1.15); filter: brightness(1.2); }
   100% { transform: scale(1); filter: brightness(1); }
 }
+
+/* Chain timer bar — depleting bar under multiplier shows time remaining */
+#chain-timer-bar {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  width: 80px;
+  height: 3px;
+  background: #1a1a2e;
+  border-radius: 2px;
+  z-index: 29;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#chain-timer-bar.active {
+  opacity: 1;
+}
+#chain-timer-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff, #00ffaa);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+  box-shadow: 0 0 6px #00f0ff88;
+}
+#chain-timer-bar.danger #chain-timer-bar-fill {
+  background: linear-gradient(90deg, #ff6600, #ffaa00);
+  box-shadow: 0 0 6px #ff660088;
+}
+
+/* Ghost mode indicator — top left, shows ice hits remaining */
+#ghost-indicator {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+  letter-spacing: 1px;
+  z-index: 28;
+  opacity: 0;
+  transition: opacity 0.3s, color 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#ghost-indicator.active {
+  opacity: 1;
+}
+#ghost-indicator.danger {
+  color: #ff6600;
+  text-shadow: 0 0 8px #ff660088;
+}
   transition: opacity 0.2s;
 }
 /* Multiplier display — styles above */
@@ -700,6 +753,8 @@ body.contrast-mode #combo-display {
 
   <!-- Multiplier -->
   <div id="multiplier-display">x1</div>
+  <div id="chain-timer-bar"><div id="chain-timer-bar-fill"></div></div>
+  <div id="ghost-indicator"></div>
 
   <!-- Payload slots -->
   <div id="payload-display">
@@ -805,6 +860,16 @@ body.contrast-mode #combo-display {
   <div id="runend-overlay">
     <div class="runend-title" id="runend-title">RUN COMPLETE</div>
     <div class="runend-stats" id="runend-stats"></div>
+    <div id="runend-initials" style="display:none; text-align:center; margin: 12px 0 8px;">
+      <div style="color:#aaa; font-size:10px; margin-bottom:6px; letter-spacing:1px;">ENTER YOUR INITIALS</div>
+      <input id="initials-input" type="text" maxlength="3" placeholder="AAA"
+        style="background:#0a0a1a; border:1px solid #00f0ff55; color:#00f0ff; font-size:20px;
+          text-align:center; letter-spacing:6px; width:80px; padding:6px 10px; border-radius:6px;
+          text-transform:uppercase; outline:none;" />
+      <div style="margin-top:8px;">
+        <button id="initials-submit" class="game-btn" style="font-size:11px; padding:5px 16px;">SUBMIT</button>
+      </div>
+    </div>
     <button class="game-btn" id="runend-btn">RETURN TO MENU</button>
   </div>
 </div>
@@ -1362,6 +1427,26 @@ function drawLayers(time) {
   if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
   // Preview arc — dashed cyan arc showing predicted ball trajectory
   if (GS.screen === 'playing' && previewArc.length > 0) {
+    // Find landing slot from end of arc
+    let landSlot = -1;
+    for (let i = previewArc.length - 1; i >= 0; i--) {
+      if (previewArc[i].y >= SLOT_START_Y) {
+        landSlot = getSlotForX(previewArc[i].x);
+        break;
+      }
+    }
+    // Highlight predicted landing slot
+    if (landSlot !== -1) {
+      const lx = getSlotX(landSlot);
+      const lw = (landSlot === 3) ? SLOT_CENTER_WIDTH : SLOT_WIDTH;
+      ctx.save();
+      ctx.fillStyle = SLOT_TYPES[landSlot].color + '22';
+      ctx.fillRect(lx, SLOT_Y, lw, SLOT_HEIGHT);
+      ctx.strokeStyle = SLOT_TYPES[landSlot].color + '66';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(lx, SLOT_Y, lw, SLOT_HEIGHT);
+      ctx.restore();
+    }
     ctx.save();
     ctx.setLineDash([4, 6]);
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
@@ -3177,7 +3262,7 @@ function setupObjective(floor) {
   switch (floor) {
     case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
     case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
-    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE - NO ICE HITS', timeLimit: 0 };
+    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: 2, timeLimit: 0 };
     case 4: return { type: 'timelock', target: 0, progress: 0, label: 'TIME LOCK - 45 SECONDS', timeLimit: 45 };
     case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   }
@@ -3354,17 +3439,24 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     ball.vy += ny * 2;
   }
 
-  // ── GHOST MODE: track ice peg hits separately (win=0, fail>0) ─
+  // ── GHOST MODE: track ice peg hits, allow up to maxIceHits (2) before failing ──
   if (GS.floorObjective.type === 'ghost') {
     if (peg.type === 'ice') {
       GS.ghostModeIceHits = (GS.ghostModeIceHits || 0) + 1;
       GS.floorObjective.progress = GS.ghostModeIceHits;
       // Visual penalty: red flash + float text
       triggerFlash('#ff224433', 0.2);
-      spawnFloatText(peg.x, peg.y - 10, '⚠ ICE!', '#ff4444');
-      spawnParticles(peg.x, peg.y, '#ff4444', 10, 3);
+      const remaining = (GS.floorObjective.maxIceHits || 2) - GS.ghostModeIceHits;
+      if (remaining > 0) {
+        spawnFloatText(peg.x, peg.y - 10, `⚠ ICE! (${remaining} left)`, '#ff4444');
+        spawnParticles(peg.x, peg.y, '#ff4444', 10, 3);
+      } else {
+        spawnFloatText(peg.x, peg.y - 10, '⚠ TOO MANY ICE!', '#ff2222');
+        spawnParticles(peg.x, peg.y, '#ff2222', 15, 5);
+        triggerShake(8);
+      }
+      updateGhostHUD();
     }
-    // Ghost mode: progress = ice hit count, win when balls exhausted and ice hits = 0
   }
 
   // Effects based on peg type
@@ -4020,6 +4112,27 @@ function updateMultiplierDisplay() {
     el.offsetHeight; // reflow to restart animation
     el.style.animation = '';
   }
+}
+
+function updateChainTimerBar() {
+  const bar = document.getElementById('chain-timer-bar');
+  const fill = document.getElementById('chain-timer-bar-fill');
+  if (!bar || !fill) return;
+
+  const hasActiveBall = GS.ballsInPlay.some(b => b.active);
+  const chainActive = GS.chainTimer > 0 && GS.multiplier > 1;
+
+  if (!hasActiveBall || GS.multiplier <= 1) {
+    bar.classList.remove('active');
+    return;
+  }
+
+  bar.classList.add('active');
+  const pct = Math.min(100, (GS.chainTimer / 30) * 100);
+  fill.style.width = pct + '%';
+
+  // Danger zone: last 25% of time
+  bar.classList.toggle('danger', GS.chainTimer <= 8);
 }
 
 // ─── HUD UPDATE ──────────────────────────────────────────────
@@ -4926,6 +5039,8 @@ function startFloor() {
   GS.multiplier = 1;
   GS.multiplierTimer = 0;
   GS.chainTimer = 0;
+  GS.ghostModeIceHits = 0;
+  updateGhostHUD(); // Show ghost indicator immediately on floor 3
   GS.timeScale = 1.0;
   GS.slowmoBall = null;
   GS.frenzyActive = false;
@@ -5231,11 +5346,11 @@ function startNewRun() {
 
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = '';
+  startFloor();  // populate board BEFORE activating layers
   GS.screen = 'playing';
   setActiveScreen('playing');
   onScreenChange('playing');
   playSound('menuStart');
-  startFloor();
 }
 
 function returnToMenu() {
@@ -5757,6 +5872,7 @@ function update() {
     GS.multiplier = 1; // Snap to 1 when chain ends
     updateMultiplierDisplay();
   }
+  updateChainTimerBar(); // Update chain timer bar after timer logic
 
   // Frenzy timer countdown
   if (GS.frenzyActive && GS.frenzyTimer > 0) {
@@ -5787,11 +5903,12 @@ function update() {
         if (GS.screen !== 'playing') return; // already transitioned
         // Ghost mode: win if no ice hits were taken, fail otherwise
         if (GS.floorObjective.type === 'ghost') {
-          if ((GS.ghostModeIceHits || 0) === 0) {
+          const maxHits = GS.floorObjective.maxIceHits || 2;
+          if ((GS.ghostModeIceHits || 0) <= maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
-            spawnFloatText(W/2, H/2, 'GHOST FAILED — ICE HIT!', '#ff4444');
+            spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
             showGameOverInterstitial(() => endRun(false));
           }
         } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
@@ -5804,6 +5921,31 @@ function update() {
     }
     return;
   }
+
+// Ghost mode HUD: shows ice hits remaining vs max
+function updateGhostHUD() {
+  const el = document.getElementById('ghost-indicator');
+  if (!el) return;
+
+  if (GS.floorObjective.type !== 'ghost') {
+    el.classList.remove('active');
+    return;
+  }
+
+  const max = GS.floorObjective.maxIceHits || 2;
+  const hits = GS.ghostModeIceHits || 0;
+  const remaining = Math.max(0, max - hits);
+
+  el.classList.add('active');
+  el.classList.toggle('danger', remaining <= 1);
+
+  // Build ice pip display
+  let pips = '';
+  for (let i = 0; i < max; i++) {
+    pips += i < hits ? '💀' : '❄️';
+  }
+  el.innerHTML = `GHOST ${pips} ${remaining}/${max}`;
+}
 
 // Time Lock countdown
   if (GS.floorObjective.type === 'timelock' && GS.floorTimeRemaining > 0) {

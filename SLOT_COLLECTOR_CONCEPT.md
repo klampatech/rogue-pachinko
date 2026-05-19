@@ -1,230 +1,157 @@
-# Slot Collector — Visual & Mechanical Concept
-**Game:** Rogue-Pachinko (`~/projects/rogue-pachinko/index.html`)
-**Author:** Grover (UI Pass + Creative Concept)
-**Date:** 2026-05-19
+# Slot Collector Visual & Mechanical Concept
+## rogue-pachinko — Task 2 of 3
 
 ---
 
-## 1. EXISTING SYSTEM AUDIT
+## 1. Existing Slot System
 
-### Canvas Architecture
-The game uses a **single canvas** (`#game-canvas`, 480×700) with HTML/CSS overlays stacked via z-index:
+The game already has 7 slots with working collector mechanics:
 
-| Layer | Element | z-index | Purpose |
-|---|---|---|---|
-| 0 | `#game-canvas` | default | All game rendering |
-| 1 | `#crt-overlay` | 10 | Scanline effect |
-| 2 | `#game-container::before` | 11 | Vignette |
-| 3 | HUD / objective / drop-zone | 20 | Game state display |
-| 4 | Menu / shop / floor-complete / run-end | 90–100 | Full-screen overlays |
-| 5 | Jackpot overlay | 9999 | Topmost |
+| Slot | Type | Effect | Visual |
+|------|------|--------|--------|
+| 0 | CREDITS | +50×mult credits | Amber `#ffaa00` |
+| 1 | AMPLIFY | +1 multiplier, +3s chain | Cyan `#00f0ff` |
+| 2 | PAYLOAD | +free-ball to inventory | Magenta `#ff00aa` |
+| 3 | CRUMBLE | destroy 3 random pegs | Green `#00ff88` |
+| 4 | SHIELD | next ball gets shield bubble | White `#ffffff` |
+| 5 | OVERCLOCK | 1.5× gravity, 5s | Purple `#aa44ff` |
+| 6 | JACKPOT | +100×mult to pool | Gold `#ffd700` |
 
-**Problem:** Overlays are CSS `position: absolute` divs toggled with `display: none/flex`. This works but lacks a unified render pipeline — adding new overlay effects requires manual CSS positioning and doesn't integrate with the canvas coordinate system. A screen-layer system would unify this.
+Layout: slots drawn along the bottom (y=560+), 7 slots with 2px gaps, slot 3 (CRUMBLE) is 2× wider (center slot). Each slot has 3D bucket depth drawn with gradients — back wall, side walls, floor, rim glow, shimmer sweep, label, and icon.
 
-### Peg Grid Analysis
-
-**Floor 1–2 board generation (8 rows):**
-```
-Row y positions: 120, 175, 230, 285, 340, 395, 450, 505
-Col spacing:     60px (7 cols even rows, 6 cols odd rows)
-Row offset:      0px (even), 30px (odd)
-Peg radii:       5–9px depending on type
-```
-**Gap between last peg row (y=505) and slot zone (y=560):** 55px — no pegs, no collision. This is intentional (breathing room) but creates a dead zone.
-
-**Floor 3–4 board generation (10 rows):**
-```
-Row y positions: 100, 148, 196, 244, 292, 340, 388, 436, 484, 532
-Col spacing:     50px (8 cols even, 7 cols odd)
-Row offset:       0px (even), 25px (odd)
-```
-**Gap between last peg row (y=532) and slot zone (y=560):** 28px — tighter, less dead space.
-
-**Collision radii:** BALL_RADIUS=7. Smallest peg (fiber, r=5) → minDist=12. Largest peg (honeypot/cache, r=8–9) → minDist=15–16. Reasonable coverage.
-
-**Ball speed:** GRAVITY=0.18/frame, MAX_VEL=14. Terminal velocity ~14 px/frame. At 60fps that's ~840 px/sec — ball crosses 480px width in ~0.57 sec. Reasonable.
-
-### Slot Zone Layout
-
-```
-Total slots: 7
-SLOT_WIDTH=64 (×6 outer) + SLOT_CENTER_WIDTH=68 (×1 center) = 450px base
-SLOT_GAP=2px (×7 gaps) = 14px
-Total: 464px, centered in 480px → 8px margin on each side.
-```
-
-**Slot positions (x ranges):**
-- Slot 0: [0, 64] — CREDITS (amber, +50 credits)
-- Slot 1: [66, 130] — AMPLIFY (cyan, +1 mult)
-- Slot 2: [132, 196] — PAYLOAD (magenta, +payload)
-- Slot 3: [198, 266] — CRUMBLE (red, clear 3 pegs) **[WIDER: 68px]**
-- Slot 4: [268, 332] — SHIELD (green, shield next ball)
-- Slot 5: [334, 398] — OVERCLOCK (purple, +grav)
-- Slot 6: [400, 464] — JACKPOT (gold, +100 JP pool)
-
-**Gap after slot 6:** x=464 to 480 → **16px unguarded edge.** Balls traveling fast can overshoot all slots entirely and fall through the side.
+The slot zone is already visually rich. The problem isn't missing graphics — it's that the slots feel like passive containers rather than an active scoring system. The fix is mechanical, not cosmetic.
 
 ---
 
-## 2. RECOMMENDED CHANGES
+## 2. Visual Design: Slot Zone
 
-### A. Canvas Rendering System
+### Current State
+3D bucket depth illusion with gradient back walls, side wall strips, rim glow, shimmer sweep, slot labels and icons.
 
-Replace the current flat stacking with a **layer-based render system**:
+### Proposed Enhancements (additive, no breaking changes)
 
-```javascript
-// ─── LAYER SYSTEM ──────────────────────────────────────────
-const LAYERS = {
-  BACKGROUND: 0,   // static grid, static decor
-  BOARD:      1,   // pegs, static elements
-  BALLS:     2,   // ball rendering
-  FX:        3,   // particles, shockwaves, float texts
-  SLOTS:     4,   // slot collector visual
-  HUD:       5,   // overlay HUD elements (optional — may stay DOM)
-  OVERLAY:   6,   // menu, shop, floor-complete, run-end
-};
-```
+**A. Slot Landing Flash**
+When a ball enters a slot, the slot's rim brightens to full opacity for 0.3s, then decays back to ambient. Color matches slot type. This makes slot captures feel reactive and satisfying.
 
-Each layer is a function `drawLayer(context, time)` called each frame. This lets the game:
-- Toggle entire layers on/off instantly (no CSS display toggling)
-- Apply layer-wide effects (shake, blur, flash) without DOM manipulation
-- Add screen transitions (fade between menu and game)
-- Render multiple "views" by swapping layer visibility
+**B. Slot Animation: Ball Settle**
+On capture, a brief particle burst rises from the slot floor (slot color, 8 particles, 0.4s). The captured ball shrinks and fades at the slot center. Already partially implemented via `GS.slotAnimations` but can be enhanced.
 
-**Implementation:** Add a `layers` object with visibility flags, an `activeScreen` string, and a `draw()` function that iterates `LAYERS` in order. All current `drawX()` calls route through this.
+**C. Slot Type Color Accent on HUD**
+When a slot is highlighted by the drop-preview (see §4), the `#multiplier-display` gains a subtle ring in that slot's color, hinting at the pending reward.
 
-### B. Peg Density Fix (Ball Bouncing)
-
-**Problem:** Floor 1–2 has 55px row spacing, creating large vertical gaps. Balls can pass through without hitting anything.
-
-**Fix:** Increase peg count by adding a mid-gap row between existing rows in floor 1-2:
-
-```
-OLD: row at y=120, next at y=175 (spacing 55)
-NEW: rows at y=120 and y=147 (spacing 27), then at y=175
-```
-
-This doubles peg density in the vertical without changing horizontal layout. Equivalent change for all rows. Keep floor 3-4 unchanged (they're already denser at 48px).
-
-**Alternatively:** Add "pin field" — many tiny 3px pegs in the gap zone that deflect but don't score. Cheap visual and mechanical density.
-
-### C. Slot Gap Fix
-
-**Problem:** 16px unguarded zone on the right edge (x=464–480).
-
-**Fix:** Extend slot 6 to fill the remaining width:
-```javascript
-// In getSlotForX():
-if (x >= pos && x < pos + w + extraMargin) return i;
-// Or: make slot 6 be 80px wide instead of 64
-```
-
-Or add invisible "wall" pegs at x=464 and x=16 that redirect balls back into the slot zone without scoring.
-
-### D. Visual Tightening
-
-**CRT overlay:** Already present at z-index 10 with scanlines + vignette. Works fine.
-
-**Peg glows:** Currently `shadowBlur = 8 * pulse` — quite bright. Tone down to 4-5px to prevent "glow blobs" that bleed into each other at close proximity.
-
-**Ball trails:** Excellent (ghost phasing, chromatic aberration, cluster balls). Keep.
+**D. Overflow Zone Warning**
+The overflow zone (below slots, y=620+) currently has no visual. Add a subtle diagonal stripe pattern (#1a1a2e) that pulses red when a ball is in danger of missing all slots (last 20% of arc prediction). Low priority.
 
 ---
 
-## 3. SLOT COLLECTOR — DETAILED CONCEPT
+## 3. Mechanical Design: How Slots Should Feel
 
-### Visual Design
+### Core Philosophy
+Slots are not random rewards — they are the strategic payoff layer. The player aims to land in specific slots based on their current state (multiplier, payloads, floor objective). The slot system should reward aim and punish blind drops.
 
-**Slot zone position:** y=560 to y=610 (50px deep)
-**7 slots across 480px** with 2px gaps and 8px side margins.
+### Slot Tiers
 
-Each slot rendered as a **neon pocket**:
-- Background: `#0d0d1a` (dark indigo)
-- Border: 1px solid slot color at 35% opacity (unlocked), `#444455` at 12% (locked)
-- Label: slot name in 7px Courier New top-left corner
-- Icon: single character centered (C, A, P, X, S, O, J)
-- Shimmer: 2px sweep light traveling down the slot every 3 seconds
-- JACKPOT slot: pulsing gold glow animation (sin wave, 4Hz)
+**Tier 1 — Common (slots 0, 2, 4, 5)**
+Basic bonuses: credits, free-ball, shield, overclock. Good for sustaining a run but not game-changing.
 
-**Slot animations on capture:**
-1. Ball "settles" — ball position animates toward slot center over 15 frames
-2. Border flashes bright (slot color, full opacity) for 15 frames
-3. Ball fades out while rising slightly
-4. Particles burst upward (10 particles, slot color)
-5. Float text appears above slot (e.g. "+50 CR", "x2", "SHIELD READY")
+**Tier 2 — Strategic (slot 1 — AMPLIFY)**
+This is the most important slot. Landing AMPLIFY at x6 multiplier vs x2 multiplier is dramatically different. The current AMPLIFY mechanic (`+1 mult, +3s chain`) undervalues high-multiplier situations because the chain extension is small relative to the risk. **Proposed fix:** AMPLIFY at x5 or higher also triggers a brief "AMPLIFY READY" screen flash with a cascade animation, and adds a `+25 * mult` point bonus. This makes high-multiplier AMPLIFY landings feel huge.
 
-**Locked slots:** Display "--" centered, border dim at 12% opacity. On ball capture: spawnFloatText "LOCKED" in `#666666`.
+**Tier 3 — jackpot (slot 6 — JACKPOT)**
+The tension builder. Current: +100×mult to pool. **Proposed:** On JACKPOT capture, the slot flashes with a radial burst, the pool amount grows visibly, and a "+JP" float text appears. The pool carries across floors, creating a persistent tension reward.
 
-### Slot Effects (Existing, Documented)
+**Tier 4 — boss (slot 3 — CRUMBLE)**
+2× wider center slot. Destroys 3 pegs and advances floor objective progress. Already the most visually distinct. No change needed.
 
-| Slot | Name | Color | Effect | Points |
-|---|---|---|---|---|
-| 0 | CREDITS | `#ffaa00` | +50 × multiplier breach credits | 50 × mult |
-| 1 | AMPLIFY | `#00f0ff` | +1 to current multiplier, extend chain 3s | 25 × mult |
-| 2 | PAYLOAD | `#ff00aa` | Add "free-ball" to payload inventory (max 2) | 50 × mult or +payload |
-| 3 | CRUMBLE | `#ff4444` | Destroy 3 random pegs with particles + screen shake | 30 × mult |
-| 4 | SHIELD | `#00ff88` | Queue shield — next ball gets protective bubble | 40 × mult |
-| 5 | OVERCLOCK | `#aa44ff` | 1.5× gravity for 5 seconds | 60 × mult |
-| 6 | JACKPOT | `#ffd700` | Add 100 × multiplier to JP pool, big shake | 75 × mult |
+### Slot Interactions with Existing Systems
 
-**Frenzy interaction:** When `GS.frenzyActive` is true, multiplier is doubled for slot scoring (e.g. AMPLIFY x3 becomes x6 effective).
+**Peg Clearing → Slot Targeting**
+The `simulatePreviewArc()` function already exists and computes the ball's predicted path. The landing slot highlight (now implemented in this pass) means the player can SEE which slot their drop will hit before committing. This closes the "blind drop" UX gap.
 
-### Floor Unlock Progression
+**Multiplier → Slot Value**
+Slot payouts already use `GS.frenzyActive ? GS.multiplier * 2 : GS.multiplier`. At x7 multiplier with frenzy, slot values scale to 21× base. The AMPLIFY boost (proposed above) adds further incentive to maintain high multipliers.
 
-| Floor | Slots Unlocked |
-|---|---|
-| 1 | CREDITS (0), AMPLIFY (1), JACKPOT (6) |
-| 2 | +PAYLOAD (2) |
-| 3 | +SHIELD (4) |
-| 4 | +CRUMBLE (3) |
-| 5 | +OVERCLOCK (5) + Boss vault board |
+**Payload Slots → Slot Strategy**
+The 2 payload slots in the HUD (`payload-slot-0`, `payload-slot-1`) display current payloads. Players with a `cluster` payload might want to aim for CRUMBLE (slot 3) to trigger chain reactions. This is already implicit but could be made more visible with a subtle tooltip on hover/touch-hold.
 
-This creates progressive complexity — early floors simple, later floors full 7-slot strategic depth.
-
-### Interaction with Existing Mechanics
-
-- **Peg clearing:** CRUMBLE slot can clear pegs that contribute to floor objective progress (already implemented)
-- **Payload slots:** PAYLOAD slot adds to `GS.payloadInventory`, displayed in `#payload-display` at bottom (already implemented)
-- **Jackpot:** JACKPOT slot adds to `GS.jackpotPool`, shown in HUD `#jackpot-display`
-- **Jackpot spin:** Triggered via `doSpin()` in jackpot overlay — separate from slot collector
-- **Multiplier:** AMPLIFY slot and multiplier system already connected
-- **Chain timer:** AMPLIFY extends `GS.chainTimer` by 180 frames (3 sec) — already connected
+**Frenzy Mode → Slot Urgency**
+During frenzy (×3 all scoring), slot captures are triple-weighted. The `updateMultiplierDisplay()` shows `xhigh` (×4+) and `xmax` (×6+) classes — during frenzy, add a pulsing "FRENZY" badge to the HUD to reinforce the value of continued play.
 
 ---
 
-## 4. IMPLEMENTATION CHECKLIST
+## 4. Slot Aim Guidance (FIX APPLIED)
 
-### Phase 1: Canvas Layer System (Foundation)
-- [ ] Add `layers` object with visibility flags per screen
-- [ ] Add `drawLayers()` that iterates `LAYERS` in order
-- [ ] Route all existing `drawX()` calls through layer system
-- [ ] Add `setActiveScreen(name)` that toggles layer visibility
-- [ ] Migrate HUD to canvas or keep DOM — decision: keep DOM for simplicity, migrate if more complex effects needed
+**Problem:** Balls fall into slots with no feedback on where they'll land until they land.
 
-### Phase 2: Peg Density Pass
-- [ ] Analyze floor 1–2 row spacing (55px → reduce to 40px with mid-rows)
-- [ ] Verify no overlap at peg edges (collision radius + spacing must leave gap)
-- [ ] Test: launch 10 balls, count how many hit at least 3 pegs — target 90%+ hit rate
+**Fix (implemented):** When the drop-preview arc is visible (player hovering/dragging before drop), the predicted landing slot is highlighted with a semi-transparent fill (`slot.color + '22'`) and a border (`slot.color + '66'`). This shows at a glance: "your drop will land in the AMPLIFY slot" or "you'll hit JACKPOT". Low cognitive load, high information density.
 
-### Phase 3: Slot Gap Fix
-- [ ] Extend slot 6 width to fill x=464–480
-- [ ] Add deflector pegs at side edges (x=0 and x=480) to redirect stray balls
+The highlight draws only when:
+- `GS.screen === 'playing'`
+- `previewArc.length > 0` (arc actively simulating)
+- Ball predicted to reach `SLOT_START_Y`
 
-### Phase 4: Slot Visual Polish
-- [ ] Verify shimmer animation in `drawSlots()` (already present, check timing)
-- [ ] Add JACKPOT pulse glow if not already rendering (line 2019–2028 already has this)
-- [ ] Tune shadowBlur on pegs: 8 → 5 for tighter look
+The highlight uses `getSlotForX()` which is already correct and has the slot-6 edge fix (slot 6 extends to canvas edge, no unguarded margin).
 
 ---
 
-## 5. UNRESOLVED QUESTIONS
+## 5. Ghost Mode Slot Behavior
 
-1. **Slot hit detection:** When ball x is between slots (gap zones), it falls through. Should we add a "catch" behavior that snaps to nearest slot? Current behavior is intentional but may feel unfair when a ball trickles down a gap at the edge.
+Ghost floor (floor 3) has no peg objective — the goal is "don't hit ice pegs." Slots still function during ghost mode. This is consistent: slots provide sustain bonuses that help the player finish the floor. No change needed.
 
-2. **Jackpot interaction:** JACKPOT slot adds to JP pool, but the JP spin is a separate overlay. Should landing in JACKPOT slot also have a chance to trigger an instant mini-spin?
-
-3. **Overlay vs. canvas:** Menu, shop, and overlays are DOM-based. Migrating to canvas would give full control over transitions but requires significant refactor. Recommend keeping DOM for these — they're not performance-critical.
+The ghost indicator (new in this pass: `#ghost-indicator` top-left, shows ❄️❄️💀 pip display with remaining/total) makes the ghost objective visible at all times.
 
 ---
 
-*End of concept document. Ready for implementation.*
+## 6. Overflow (Missed Slot) Behavior
+
+When a ball's predicted arc ends below the slot zone without hitting a slot (`getSlotForX()` returns -1), the ball falls through the overflow zone. Currently: nothing visual happens. **Proposed:** A brief red flash on the overflow strip and a "-1 BALL" float text at the overflow center. Not a penalty to ball count (overflow is not a ball loss), just visual confirmation that the ball was wasted.
+
+---
+
+## 7. Implementation Summary
+
+### Changes Applied (this pass)
+
+1. **Chain Timer Bar** (`#chain-timer-bar`)
+   - New div under multiplier display, top-right
+   - 80px × 3px depleting bar, cyan → orange when ≤8 frames
+   - Shows when ball is active and multiplier > ×1
+   - Updated every frame in game loop
+
+2. **Ghost Indicator** (`#ghost-indicator`)
+   - New div top-left, shows on floor 3 only
+   - Displays `GHOST ❄️❄️ 2/2` format with 💀 for hits taken
+   - Turns orange when 1 hit remaining (danger state)
+
+3. **Ghost Mode Recovery**
+   - Changed from "0 ice hits = pass" to "≤2 ice hits = pass, 3 = fail"
+   - Max hits configurable via `maxIceHits` in objective setup
+   - Visual feedback: first two ice hits show "⚠ ICE! (1 left)" / "⚠ ICE! (0 left)"; third hit shows "⚠ TOO MANY ICE!" with stronger effects
+
+4. **Slot Aim Guidance** (preview arc slot highlight)
+   - Dashed arc now highlights the predicted landing slot
+   - Semi-transparent fill + border in slot's color
+   - Shows only while arc is actively simulating
+
+### Remaining Design Work (outside scope of this pass)
+- AMPLIFY point bonus at high multiplier (design decision)
+- Overflow zone visual feedback
+- Frenzy badge on HUD during frenzy
+- Payload tooltip on slot hover/touch-hold
+
+---
+
+## 8. File Modifications
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| Chain timer bar CSS | line ~545 | New `#chain-timer-bar` and `#chain-timer-bar-fill` styles |
+| Ghost indicator CSS | line ~568 | New `#ghost-indicator` styles |
+| Chain timer HTML | line ~730 | New `<div id="chain-timer-bar"><div id="chain-timer-bar-fill"></div></div>` |
+| Ghost indicator HTML | line ~732 | New `<div id="ghost-indicator"></div>` |
+| `updateChainTimerBar()` | line ~4066 | New function: updates bar fill and danger state |
+| `updateGhostHUD()` | line ~5903 | New function: builds ❄️💀 pip display |
+| Ghost ice hit fix | line ~3397 | Allow ≤2 ice hits instead of 0; show remaining count |
+| Ghost fail fix | line ~5858 | Check `<= maxHits` instead of `=== 0` |
+| Ghost reset | line ~5021 | Reset `GS.ghostModeIceHits` and call `updateGhostHUD()` in `startFloor()` |
+| Slot aim guidance | line ~1429 | Preview arc now highlights predicted landing slot with color fill+border |

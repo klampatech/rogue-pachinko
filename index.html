@@ -3767,12 +3767,12 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   // Boss peg
   if (peg.boss) {
     peg.hits = (peg.hits || 0) + 1;
-    GS.floorObjective.progress = peg.hits;
+    // Accumulate progress based on hit count rather than overwriting with direct assignment
+    GS.floorObjective.progress = Math.min(peg.hits, peg.maxHits);
     triggerFlash('#ffcc0033', 0.15);
     spawnFloatText(peg.x, peg.y, `VAULT ${peg.hits}/${peg.maxHits}`, '#ffcc00');
     if (peg.hits >= peg.maxHits) {
       peg.destroyed = true;
-      GS.floorObjective.progress = peg.maxHits;
       triggerFullBreach();
     }
   }
@@ -4285,8 +4285,8 @@ function updateObjectiveBar() {
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
-  // Check completion — ghost mode has no target, completion handled by peg-clear events
-  if (obj.progress >= obj.target && obj.type !== 'ghost' && GS.screen === 'playing') {
+  // Check completion — ghost/timelock modes have no target or use separate end conditions
+  if (obj.progress >= obj.target && obj.type !== 'ghost' && obj.type !== 'timelock' && GS.screen === 'playing') {
     completeFloor();
   }
 }
@@ -6078,14 +6078,14 @@ function update() {
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, 'GHOST FAILED — NO BALLS FIRED', '#ff4444');
             showGameOverInterstitial(() => endRun(false));
-          } else if ((GS.ghostModeIceHits || 0) <= maxHits) {
+          } else if ((GS.ghostModeIceHits || 0) < maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
             showGameOverInterstitial(() => endRun(false));
           }
-        } else if (GS.floorObjective.progress >= GS.floorObjective.target && GS.floorObjective.target > 0) {
+        } else if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target && GS.floorObjective.target > 0) {
           showGameOverInterstitial(() => completeFloor());
         } else {
           showGameOverInterstitial(() => endRun(false));
@@ -6129,7 +6129,7 @@ function updateGhostHUD() {
       triggerFlash('#ff224433', 0.3);
       spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
       spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
-      endRun(false);
+      showGameOverInterstitial(() => endRun(false));
     }
   }
 

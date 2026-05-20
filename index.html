@@ -3335,7 +3335,7 @@ function setupObjective(floor) {
     return { type: 'boss', target: 12 + tier * 5, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   } else if (subTier === 1 && tier >= 1) {
     // Timelock: 45 seconds, scales slightly
-    return { type: 'timelock', target: 0, progress: 0, label: f'TIME LOCK - {45 + tier * 5} SECONDS', timeLimit: 45 + tier * 5 };
+    return { type: 'timelock', target: 0, progress: 0, label: `TIME LOCK - ${45 + tier * 5} SECONDS`, timeLimit: 45 + tier * 5 };
   } else if (subTier === 0 && tier >= 2) {
     // Ghost mode: starts appearing at floor 7 (tier=2, subTier=0)
     return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: Math.max(2, 3 - Math.floor(tier / 2)), timeLimit: 0 };

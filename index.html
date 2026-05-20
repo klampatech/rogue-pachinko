@@ -1252,7 +1252,7 @@ function loadPersist() {
   try {
     const d = localStorage.getItem('slotprotocol');
     PERSIST = d ? JSON.parse(d) : {};
-    GS.unlockedPayloads = PERSIST.unlockedPayloads || [];
+    GS.unlockedPayloads = PERSIST.unlockedPayloads ?? ['scrambler', 'trojan'];
     GS.unlockedUpgrades = PERSIST.unlockedUpgrades || [];
     GS.reputation = PERSIST.reputation || 0;
     GS.lifetimeBreach = PERSIST.lifetimeBreach || 0;
@@ -3349,29 +3349,33 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // ── GHOST PAYLOAD: phase through pegs without bounce ─────
   if (ball.ghostPhasing && ball.ghostPhaseRemaining > 0) {
-    ball.ghostPhaseRemaining--;
-    spawnParticles(peg.x, peg.y, '#ff88ff', 6, 2);
-    spawnFloatText(peg.x, peg.y - 8, `PHASE ${ball.ghostPhaseRemaining}`, '#cc88ff');
-    if (ball.ghostPhaseRemaining === 0) {
-      // Solidify
-      ball.ghostPhasing = false;
-      triggerFlash('#ffffff44', 0.2);
-      spawnFloatText(ball.x, ball.y - 15, 'GHOST END', '#cc88ff');
+    if (!ball.hitPegs.has(peg.id)) {
+      // First contact with this peg during ghost phase — add to hit set
+      ball.hitPegs.add(peg.id);
+      ball.ghostPhaseRemaining--;
+      spawnParticles(peg.x, peg.y, '#ff88ff', 6, 2);
+      spawnFloatText(peg.x, peg.y - 8, `PHASE ${ball.ghostPhaseRemaining}`, '#cc88ff');
+      if (ball.ghostPhaseRemaining === 0) {
+        // Solidify
+        ball.ghostPhasing = false;
+        triggerFlash('#ffffff44', 0.2);
+        spawnFloatText(ball.x, ball.y - 15, 'GHOST END', '#cc88ff');
+      }
+      // Phase through — no bounce, just visual contact feedback
+      GS.comboCount++;
+      checkFrenzy();
+      // Still increment score/progress for peg contact
+      GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+      GS.floorObjective.progress++;
+      GS.totalPegsCleared++;
+      GS.chainTimer = TIMING.CHAIN_EXTEND;
+      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
+      updateMultiplierDisplay();
+      peg.hitCount++;
+      updateHUD();
+      updateObjectiveBar();
+      return; // skip normal bounce
     }
-    // Phase through — no bounce, just visual contact feedback
-    GS.comboCount++;
-    checkFrenzy();
-    // Still increment score/progress for peg contact
-    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
-    GS.floorObjective.progress++;
-    GS.totalPegsCleared++;
-    GS.chainTimer = TIMING.CHAIN_EXTEND;
-    GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
-    updateMultiplierDisplay();
-    peg.hitCount++;
-    updateHUD();
-    updateObjectiveBar();
-    return; // skip normal bounce
   }
 
   // ── WORM PAYLOAD: pierce through pegs, no bounce ─────────────
@@ -3657,7 +3661,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
           if (!ball.cloneSpawned) {
             ball.cloneSpawned = true;
             for (let i = 0; i < 2; i++) {
-              const clone = new Ball(ball.x, ball.y, (Math.random() - 0.5) * 4, ball.vy * 0.8, []);
+              const clone = new Ball(ball.x, ball.y, (Math.random() - 0.5) * 4, Math.abs(ball.vy) * 0.8, []);
               clone.active = true;
               clone.cloneBall = true;
               clone.dropMultiplier = ball.dropMultiplier;
@@ -4029,9 +4033,9 @@ function simulatePreviewArc(startX) {
 
 function dropBall() {
   if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;
+  canDrop = false; // lock immediately — before any second event from same gesture
   if (GS.ballsInPlay.length > 0 && GS.ballsInPlay.some(b => b.active)) return;
 
-  canDrop = false;
   GS.balls--;
   GS.totalBallsUsed++;
   playSound('drop');

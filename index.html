@@ -5340,9 +5340,7 @@ function endRun(won) {
 
   // Check if score qualifies for leaderboard (top 10 or empty slots)
   const lb = PERSIST.leaderboard || [];
-const livesLostPenalty = (GS.livesLost || 0) * 50;
   const effectiveScore = Math.max(0, GS.score - livesLostPenalty);
-  const qualifies = lb.length < 10 || effectiveScore > (lb[lb.length - 1]?.score || 0);
   const isNewHighScore = !lb.length || effectiveScore > (lb[0]?.score || 0);
 
   const prestigeInfo = canPrestige

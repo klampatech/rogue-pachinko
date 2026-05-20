@@ -2209,6 +2209,7 @@ function triggerSlotCollected(ball, slotIdx) {
         }
       }
       spawnFloatText(centerX, slotCenterY - 10, `CRUMBLE x${cleared}`, slot.color);
+      updateObjectiveBar();
       break;
     }
 
@@ -3569,6 +3570,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   const baseScore = pegDef.bonus ? 200 : 50;
   GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
   GS.floorObjective.progress++;
+  updateObjectiveBar();
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
   if (GS.multiplier >= 3) showAchievement('x3mult');
@@ -3747,6 +3749,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
   GS.runMaxCombo = Math.max(GS.runMaxCombo || 0, GS.comboCount);
   updateMultiplierDisplay();
+  updateObjectiveBar();
   if (GS.multiplier > prevMult) playSound('multiplierUp');
 
   // Frenzy combo counter
@@ -4009,6 +4012,11 @@ function detonateExplosivePeg(ball, peg, board) {
   }
 
   return totalPoints;
+}
+
+// Called after any peg destruction that may have updated floorObjective.progress
+function syncObjectiveBar() {
+  updateObjectiveBar();
 }
 
 // ─── PEG EVOLUTION: Dormant Activation Check ────────────────

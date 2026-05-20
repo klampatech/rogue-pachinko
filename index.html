@@ -946,6 +946,8 @@ const GS = {
   // Mastery upgrades
   masteryPoints: 0,
   pegRadar: false,
+  pegBonusMultiplier: 1.0,
+  comboThreshold: 3,
   shopDiscount: 1.0,
   // Daily challenge mode
   dailyMode: false,
@@ -1144,6 +1146,22 @@ const MASTERY_UPGRADES = {
     desc: 'Normal pegs illuminated for first 3 seconds',
     tiers: [
       { cost: 50, effect: { pegRadar: true } },
+    ]
+  },
+  pegBonus: {
+    name: 'Peg Bonus',
+    desc: '+10% score per peg hit per tier',
+    tiers: [
+      { cost: 100, effect: { pegBonusMultiplier: 1.10 } },
+      { cost: 200, effect: { pegBonusMultiplier: 1.20 } },
+    ]
+  },
+  comboThreshold: {
+    name: 'Frenzy Trigger',
+    desc: 'Frenzy triggers at combo ≥ 2 / 1 instead of 3',
+    tiers: [
+      { cost: 200, effect: { comboThreshold: 2 } },
+      { cost: 400, effect: { comboThreshold: 1 } },
     ]
   },
 };
@@ -3364,7 +3382,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       GS.comboCount++;
       checkFrenzy();
       // Still increment score/progress for peg contact
-      GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+      GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
       GS.floorObjective.progress++;
       GS.totalPegsCleared++;
       GS.chainTimer = TIMING.CHAIN_EXTEND;
@@ -3390,7 +3408,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     }
     GS.comboCount++;
     checkFrenzy();
-    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
     GS.floorObjective.progress++;
     GS.totalPegsCleared++;
     GS.chainTimer = TIMING.CHAIN_EXTEND;
@@ -3409,7 +3427,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     if (ev.state === PegEvo.NORMAL) {
       // → GLOWING: ×2 points
       ev.state = PegEvo.GLOWING;
-      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier * GS.pegBonusMultiplier;
       const prevMult = GS.multiplier;
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
@@ -3420,7 +3438,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       // → CHARGED: ×2 points + store 50% of hit value
       ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
       ev.state = PegEvo.CHARGED;
-      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier * GS.pegBonusMultiplier;
       const prevMult2 = GS.multiplier;
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
@@ -3508,7 +3526,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
-  GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+  GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
   GS.floorObjective.progress++;
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
@@ -4747,6 +4765,8 @@ function applyMasteryUpgrades() {
   GS.shopDiscount = 1.0;
   GS.startingPayloadCount = 0;
   GS.pegRadar = false;
+  GS.pegBonusMultiplier = 1.0;
+  GS.comboThreshold = 3;
 
   for (const [id, tier] of Object.entries(purchased)) {
     const def = MASTERY_UPGRADES[id];
@@ -4758,6 +4778,8 @@ function applyMasteryUpgrades() {
     if (effect.shopDiscount !== undefined) GS.shopDiscount = effect.shopDiscount;
     if (effect.startingPayloadCount !== undefined) GS.startingPayloadCount = effect.startingPayloadCount;
     if (effect.pegRadar !== undefined) GS.pegRadar = effect.pegRadar;
+    if (effect.pegBonusMultiplier !== undefined) GS.pegBonusMultiplier = effect.pegBonusMultiplier;
+    if (effect.comboThreshold !== undefined) GS.comboThreshold = effect.comboThreshold;
   }
 }
 

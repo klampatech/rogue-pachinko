@@ -4265,8 +4265,8 @@ function updateObjectiveBar() {
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
-  // Check completion
-  if (obj.progress >= obj.target && GS.screen === 'playing') {
+  // Check completion — ghost mode has no target, completion handled by peg-clear events
+  if (obj.progress >= obj.target && obj.type !== 'ghost' && GS.screen === 'playing') {
     completeFloor();
   }
 }
@@ -6145,8 +6145,8 @@ function updateGhostHUD() {
     ghostEl.style.display = 'none';
   }
 
-  // Check objective periodically (standard/boss modes only — ghost has its own end condition)
-  if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.progress >= GS.floorObjective.target) {
+  // Check objective periodically (standard/boss modes only — ghost/timelock have their own end conditions)
+  if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target) {
     completeFloor();
   }
 }
@@ -6160,6 +6160,15 @@ function gameLoop() {
 }
 
 // ─── INPUT HANDLING ──────────────────────────────────────────
+// One-time unlock: first mouse move on title screen starts music (AudioContext requires user gesture)
+canvas.addEventListener('mousemove', () => {
+  if (GS.screen === 'menu' && !canvas._bgmUnlocked) {
+    canvas._bgmUnlocked = true;
+    playBgm('title');
+    canvas.removeEventListener('mousemove', arguments.callee);
+  }
+}, { once: true });
+
 canvas.addEventListener('mousemove', (e) => {
   if (GS.screen !== 'playing') return;
   const rect = canvas.getBoundingClientRect();

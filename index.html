@@ -180,8 +180,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 30px;
+  justify-content: flex-start;
+  padding: 40px 20px;
+  gap: 24px;
+  overflow-y: auto;
 }
 
 #menu-overlay.hidden { display: none; }
@@ -219,12 +221,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.menu-section.primary-section { gap: 14px; }
-.menu-section.secondary-section { gap: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-.menu-section.tertiary-section { gap: 6px; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 320px; }
+.menu-section.primary-section { gap: 20px; }
+.menu-section.secondary-section { gap: 10px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.menu-section.tertiary-section { gap: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 400px; }
 
 .stat-value { color: #00f0ff; }
 .stat-rank { color: #ff00aa; }

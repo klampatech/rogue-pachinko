@@ -215,6 +215,17 @@ body {
   line-height: 1.8;
 }
 
+.menu-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.menu-section.primary-section { gap: 14px; }
+.menu-section.secondary-section { gap: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.menu-section.tertiary-section { gap: 6px; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 320px; }
+
 .stat-value { color: #00f0ff; }
 .stat-rank { color: #ff00aa; }
 
@@ -239,8 +250,9 @@ body {
 .game-btn.secondary {
   border-color: #ff00aa;
   color: #ff00aa;
-  font-size: 10px;
+  font-size: 11px;
   padding: 8px 20px;
+  text-shadow: 0 0 8px #ff00aa88;
 }
 .game-btn.secondary:hover {
   background: #ff00aa;
@@ -248,11 +260,26 @@ body {
   box-shadow: 0 0 20px #ff00aa;
 }
 
+#daily-btn { color: #ffcc00; border-color: #ffcc00; text-shadow: 0 0 8px #ffcc0044; }
+#daily-btn:hover { background: #ffcc00; color: #0a0a0f; box-shadow: 0 0 20px #ffcc00; }
+
+#mastery-btn { border-color: #ffd700; color: #ffd700; text-shadow: 0 0 8px #ffd70044; }
+#mastery-btn:hover { background: #ffd700; color: #0a0a0f; box-shadow: 0 0 20px #ffd700; }
+
+#skins-btn { border-color: #ff44ff; color: #ff44ff; text-shadow: 0 0 8px #ff44ff44; }
+#skins-btn:hover { background: #ff44ff; color: #0a0a0f; box-shadow: 0 0 20px #ff44ff; }
+
+#achievements-btn { border-color: #ffd700; color: #ffd700; text-shadow: 0 0 8px #ffd70044; }
+#achievements-btn:hover { background: #ffd700; color: #0a0a0f; box-shadow: 0 0 20px #ffd700; }
+
+#leaderboard-btn { border-color: #00ffaa; color: #00ffaa; text-shadow: 0 0 8px #00ffaa44; }
+#leaderboard-btn:hover { background: #00ffaa; color: #0a0a0f; box-shadow: 0 0 20px #00ffaa; }
+
 .game-btn.tertiary {
   border-color: #555;
   color: #888;
   font-size: 10px;
-  padding: 8px 20px;
+  padding: 6px 14px;
 }
 .game-btn.tertiary:hover {
   border-color: #aaa;
@@ -793,14 +820,24 @@ body.contrast-mode #combo-display {
       <div>MASTERY POINTS: <span class="stat-value" id="menu-mastery" style="color:#ffd700;">0</span></div>
       <div id="daily-challenge-info" style="margin-top:8px;font-size:9px;color:#ffcc00;"></div>
     </div>
-    <button class="game-btn" id="start-btn">INITIATE BREACH</button>
-    <button class="game-btn secondary" id="daily-btn" style="color:#ffcc00;border-color:#ffcc00;font-size:11px;padding:8px 20px;">DAILY CHALLENGE</button>
-    <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
-    <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
-    <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
-    <button class="game-btn tertiary" id="skins-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ff44ff;color:#ff44ff;">SKINS</button>
-    <button class="game-btn tertiary" id="achievements-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">ACHIEVEMENTS</button>
-    <button class="game-btn tertiary" id="leaderboard-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#00ffaa;color:#00ffaa;">LEADERBOARD</button>
+
+    <div class="menu-section primary-section">
+      <button class="game-btn" id="start-btn">INITIATE BREACH</button>
+    </div>
+
+    <div class="menu-section secondary-section">
+      <button class="game-btn secondary" id="daily-btn">DAILY CHALLENGE</button>
+      <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
+    </div>
+
+    <div class="menu-section tertiary-section">
+      <button class="game-btn tertiary" id="contrast-btn">CONTRAST MODE</button>
+      <button class="game-btn tertiary" id="mastery-btn">MASTERY</button>
+      <button class="game-btn tertiary" id="skins-btn">SKINS</button>
+      <button class="game-btn tertiary" id="achievements-btn">ACHIEVEMENTS</button>
+      <button class="game-btn tertiary" id="leaderboard-btn">LEADERBOARD</button>
+    </div>
+
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
     </div>

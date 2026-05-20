@@ -942,7 +942,6 @@ const GS = {
   breachBonusMultiplier: 1.0,
   startingPayloadCount: 0,
   jackpotGrowthBonus: 1.0,
-  startingCreditsBonus: 0,
   multiballEnabled: false,
   // Mastery upgrades
   masteryPoints: 0,
@@ -4723,9 +4722,6 @@ function applyUpgrade(id) {
     case 'rep_jackpot_hunter':
       GS.jackpotGrowthBonus = (GS.jackpotGrowthBonus || 1.0) + 0.05;
       break;
-    case 'rep_starting_credits':
-      GS.startingCreditsBonus = (GS.startingCreditsBonus || 0) + 100;
-      break;
     // Credits shop upgrades
     case 'extralife':
       GS.bonusStartingBalls = (GS.bonusStartingBalls || 0) + 1;
@@ -4766,7 +4762,7 @@ function applyMasteryUpgrades() {
 }
 
 // Calculate mastery points earned at end of run
-function getMasteryPointsEarned(floor, score) {
+function getMasteryPointsEarned(floor) {
   const floorBonus = floor * 10;
   const vaultClearBonus = floor >= 5 ? 50 : 0;
   return floorBonus + vaultClearBonus;
@@ -5321,7 +5317,7 @@ function endRun(won) {
   const newlyUnlocked = evaluateUnlocks();
 
   // Mastery points earned this run
-  const mpEarned = getMasteryPointsEarned(GS.floor, GS.score);
+  const mpEarned = getMasteryPointsEarned(GS.floor);
 
   const title = document.getElementById('runend-title');
   const stats = document.getElementById('runend-stats');
@@ -5469,7 +5465,6 @@ function startNewRun() {
 
   // Apply permanent upgrades
   if (GS.bonusStartingBalls > 0) GS.balls += GS.bonusStartingBalls;
-  if (GS.startingCreditsBonus > 0) GS.breachCredits += GS.startingCreditsBonus;
   if (GS.startingPayloadCount > 0) {
     const available = GS.unlockedPayloads.filter(p => !['extralife','multiball','creditbonus'].includes(p));
     for (let i = 0; i < GS.startingPayloadCount && available.length > 0; i++) {
@@ -5482,7 +5477,6 @@ function startNewRun() {
   if (GS.dailyMode) {
     GS.balls = 3;
     GS.bonusStartingBalls = 0;
-    GS.startingCreditsBonus = 0;
     GS.startingPayloadCount = 0;
     GS.currentPayloads = [];
     GS.floor = 3;  // fixed floor 3 for daily

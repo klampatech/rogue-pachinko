@@ -1244,7 +1244,6 @@ function executePrestige() {
     return u && (u.cat === 'COSMETIC' || u.cat === 'TITLE');
   });
   meta.unlocks = cosmetics;
-  meta.prestigeLevel;
   // Reputation resets to 0 on prestige
   PERSIST.reputation = 0;
 
@@ -1693,12 +1692,14 @@ class Ball {
     // OVERFLOW: ball passed through slot zone without capture → apply floor-scaled penalty
     if (this.y > SLOT_START_Y + SLOT_HEIGHT) {
       this.active = false;
+      this.scramblerActive = false;
       triggerOverflow(this.x, this.y, GS.floor, GS.shieldActive);
       return;
     }
     // Exit bottom (ball fell through gap or overshot)
     if (this.y > H + 20) {
       this.active = false;
+      this.scramblerActive = false;
       resolveBallExit(this);
     }
   }

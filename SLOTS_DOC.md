@@ -154,7 +154,7 @@ case 3: { // CRUMBLE: clear 3 random pegs (line 2190)
 **Effect Chain:** Shield flag set for next ball
 
 ```javascript
-case 4: // SHIELD: next ball gets shield bubble (line 2210)
+case 4: // SHIELD: next ball gets shield bubble (line 2173)
   GS.shieldNextBall = true;              // Enable shield for next ball
   pts = 40 * mult;
   triggerFlash('#00ff8844', 0.12);      // Green-tinted flash

@@ -2209,7 +2209,7 @@ function triggerSlotCollected(ball, slotIdx) {
       break;
     }
 
-    case 4: // SHIELD: next ball gets shield bubble
+    case 4: // SHIELD: next ball gets shield bubble + overflow protection
       GS.shieldNextBall = true;
       pts = 40 * mult;
       triggerFlash('#00ff8844', 0.12);

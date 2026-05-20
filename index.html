@@ -4324,6 +4324,9 @@ function checkFrenzy() {
 function updateObjectiveBar() {
   const obj = GS.floorObjective;
   const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
+  console.log('[DEBUG] updateObjectiveBar: progress=' + obj.progress + ', target=' + obj.target + ', pct=' + pct);
+  const fill = document.getElementById('objective-fill');
+  console.log('[DEBUG] fill element:', fill);
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 

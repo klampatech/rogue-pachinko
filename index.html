@@ -3216,13 +3216,20 @@ function generateBoard(floor) {
   })(seed);
 
   // ── Floor 1-2: Dense grid with mid-row pegs for tight, even coverage ──
+  // Canvas is 480px wide; peg area spans x=20 to x=460 (440px usable)
+  // Staggered rows: even rows get 7 pegs, odd rows get 6 pegs
+  // colSpacing tuned so the grid fills x=20 to x=460:
+  //   even row (7 pegs):   20 + 0*colSpacing ... 20 + 6*colSpacing = 460  → colSpacing = 73.3
+  //   odd row (6 pegs):    70 + 0*colSpacing ... 70 + 5*colSpacing = 440  → colSpacing = 74
+  // Use 70px spacing for both rows — gives even row end=440, odd row end=440+offset (with offset=50)
+  const floorColSpacing = 70;  // was 55 (too narrow, left-cramped)
   if (floor <= 2) {
     for (let row = 0; row < 8; row++) {
       const cols = 7 - (row % 2);
-      const y = 120 + row * 40;  // 40px row spacing — was 55px (too sparse)
-      const offset = (row % 2) === 0 ? 0 : 30;
+      const y = 120 + row * 40;  // 40px row spacing
+      const offset = (row % 2) === 0 ? 0 : 50;  // was 30 — now properly interleaved
       for (let col = 0; col < cols; col++) {
-        const x = 40 + offset + col * 55;  // 55px x spacing fills W=480 well (ends at ~430)
+        const x = 20 + offset + col * floorColSpacing;  // starts at x=20, fills to x=460
         const r = rng.random();
         let type = 'node';
         if (r < 0.12) type = 'ice';
@@ -3233,18 +3240,15 @@ function generateBoard(floor) {
           evolution: assignEvolutionState(rng)
         });
       }
-      // Extra mid-row pegs — eliminates large vertical gaps between main rows
-      // Includes mid-row after the last main row (row 7) to fill the gap before the drop zone.
-      // midCols = 5 on even rows (more coverage on the wider row), 4 on odd rows.
-      // midOffset aligns with the main row offset so mid-pegs sit in the same columns:
-      //   even row: main offset=0, midOffset=0  → mid-pegs in same x columns
-      //   odd row:  main offset=30, midOffset=20 → offset by 10px relative to main, good interleaving
+      // Extra mid-row pegs — fills vertical gaps between main rows
+      // midCols = 5 on even rows, 4 on odd rows
+      // midOffset aligns with the main row offset for proper interleaving
       if (row < 8) {
         const midY = y + 20;  // halfway between this row and next
         const midCols = 5 - (row % 2);
-        const midOffset = (row % 2) === 0 ? 0 : 20;
+        const midOffset = (row % 2) === 0 ? 0 : 50;  // was 20 — now consistent with main row offset
         for (let col = 0; col < midCols; col++) {
-          const x = midOffset + col * 55 + (rng.random() - 0.5) * 8;  // slight x jitter
+          const x = 20 + midOffset + col * floorColSpacing + (rng.random() - 0.5) * 8;  // slight x jitter
           const r2 = rng.random();
           let type = 'node';
           if (r2 < 0.08) type = 'ice';
@@ -5270,7 +5274,12 @@ function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
   setActiveScreen('playing');
-  // Return to current floor — do NOT advance to next floor
+  // Advance to next floor after shop closes — but ONLY if the run is still active.
+  // If endRun() was called (e.g. player ran out of balls), screen would be 'run_end'
+  // and we must not advance to a non-existent floor.
+  if (GS.screen !== 'run_end') {
+    startNextFloor();
+  }
 }
 
 // ─── GAME FLOW ────────────────────────────────────────────────
@@ -5694,6 +5703,7 @@ function drawPegs() {
     if (peg.destroyed) continue;
 
     const def = PEG_TYPES[peg.type];
+    if (!def) continue;  // Safety: skip pegs with unknown types
     const pegColor = peg.crumblingColor || def.color;
     const pulse = 0.8 + Math.sin(time * 2 + peg.x * 0.1) * 0.2;
 

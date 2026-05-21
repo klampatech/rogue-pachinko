@@ -752,7 +752,7 @@ body.contrast-mode #combo-display {
     <div id="hud-left">
       <div>
         <div class="hud-label">FLOOR</div>
-        <div id="floor-indicator" class="hud-value">1/5</div>
+        <div id="floor-indicator" class="hud-value">1</div>
       </div>
       <div>
         <div class="hud-label">BREACH</div>
@@ -1438,7 +1438,13 @@ const SLOT_TYPES = [
 
 // Slot unlock floors: which floor each slot unlocks on (0-indexed)
 // CREDITS(0), AMPLIFY(1), PAYLOAD(2), CRUMBLE(3), SHIELD(4), OVERCLOCK(5), JACKPOT(6)
-const SLOT_UNLOCK_FLOOR = [1, 1, 2, 4, 3, 5, 1];
+// Slots unlock every N floors, cycling through slot types
+const SLOT_UNLOCK_INTERVAL = 5;
+const SLOT_UNLOCK_FLOOR = [1, 2, 3, 4, 5, 6, 7].map(i => ((i - 1) % SLOT_UNLOCK_INTERVAL) + 1);
+// Dynamic unlock check based on floor
+function isSlotUnlocked(slotIndex) {
+  return GS.floor >= ((slotIndex % SLOT_UNLOCK_INTERVAL) + 1) * Math.floor(GS.floor / SLOT_UNLOCK_INTERVAL + 1);
+}
 
 // Multiplier tier colors — x1 dim cyan → x7 blazing white
 const MULT_COLORS = {
@@ -2088,10 +2094,15 @@ function isSlotUnlocked(slotIdx) {
 }
 
 function updateUnlockedSlots() {
-  // Unlock slots based on current floor progression
+  // Unlock slots dynamically based on floor and slot index
+  // Slots unlock on a cycle: every SLOT_UNLOCK_INTERVAL floors, one new slot type unlocks
+  // A slot is unlocked if floor >= (slot_index % SLOT_UNLOCK_INTERVAL) + 1 AND floor reaches the tier threshold
   GS.unlockedSlots = [];
   for (let i = 0; i < SLOT_COUNT; i++) {
-    if (GS.floor >= SLOT_UNLOCK_FLOOR[i]) {
+    const unlockFloor = (i % SLOT_UNLOCK_INTERVAL) + 1;
+    const tier = Math.floor(i / SLOT_UNLOCK_INTERVAL);
+    const requiredFloor = unlockFloor + tier * SLOT_UNLOCK_INTERVAL;
+    if (GS.floor >= requiredFloor) {
       GS.unlockedSlots.push(i);
     }
   }
@@ -2153,6 +2164,12 @@ function triggerSlotCollected(ball, slotIdx) {
     triggered: false,
   });
 
+  // Deactivate ball — it went into the slot
+  ball.active = false;
+
+  // Re-enable drop — ball is gone, player can drop next ball
+  canDrop = true;
+
   // Check if slot is unlocked
   if (!isSlotUnlocked(slotIdx)) {
     spawnFloatText(centerX, slotCenterY - 10, 'LOCKED', '#666666');
@@ -2204,6 +2221,7 @@ function triggerSlotCollected(ball, slotIdx) {
         if (!peg.destroyed) {
           peg.destroyed = true;
           GS.floorObjective.progress++;
+          updateObjectiveBar();
           spawnParticles(peg.x, peg.y, peg.color || slot.color, 6, 3);
           cleared++;
         }
@@ -2689,6 +2707,7 @@ function onScreenChange(screen) {
       playBgm('gameplay');
       break;
     case 'floor_complete':
+      stopBgm(true); // stop slot-spin music (from jackpot spin) before floor-complete silence or title fallback
       // Slot machine spin music handled separately via triggerSlotSpinMusic()
       break;
     case 'run_end':
@@ -3196,15 +3215,14 @@ function generateBoard(floor) {
     };
   })(seed);
 
+  // ── Floor 1-2: Dense grid with mid-row pegs for tight, even coverage ──
   if (floor <= 2) {
-    // Dense grid — increased from 55px to 40px row spacing for better ball coverage
-    // Extra mid-rows every other row add additional collision opportunities
     for (let row = 0; row < 8; row++) {
       const cols = 7 - (row % 2);
-      const y = 120 + row * 40;  // was 55, compressed for tighter peg density
+      const y = 120 + row * 40;  // 40px row spacing — was 55px (too sparse)
       const offset = (row % 2) === 0 ? 0 : 30;
       for (let col = 0; col < cols; col++) {
-        const x = 50 + offset + col * 60;
+        const x = 40 + offset + col * 55;  // 55px x spacing fills W=480 well (ends at ~430)
         const r = rng.random();
         let type = 'node';
         if (r < 0.12) type = 'ice';
@@ -3215,97 +3233,111 @@ function generateBoard(floor) {
           evolution: assignEvolutionState(rng)
         });
       }
-      // Extra mid-row pegs between main rows for floor 1-2 to eliminate large vertical gaps
-      // Adds ~50% more pegs without changing horizontal structure
-      if (row < 7) {
+      // Extra mid-row pegs — eliminates large vertical gaps between main rows
+      // Includes mid-row after the last main row (row 7) to fill the gap before the drop zone.
+      // midCols = 5 on even rows (more coverage on the wider row), 4 on odd rows.
+      // midOffset aligns with the main row offset so mid-pegs sit in the same columns:
+      //   even row: main offset=0, midOffset=0  → mid-pegs in same x columns
+      //   odd row:  main offset=30, midOffset=20 → offset by 10px relative to main, good interleaving
+      if (row < 8) {
         const midY = y + 20;  // halfway between this row and next
-        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
+        const midCols = 5 - (row % 2);
+        const midOffset = (row % 2) === 0 ? 0 : 20;
         for (let col = 0; col < midCols; col++) {
-          const x = 80 + offset + col * 60 + (rng.random() - 0.5) * 15;  // slight x jitter
-          // Skip if too close to existing pegs (check against last row's pegs)
+          const x = midOffset + col * 55 + (rng.random() - 0.5) * 8;  // slight x jitter
           const r2 = rng.random();
           let type = 'node';
           if (r2 < 0.08) type = 'ice';
-          board.push({ x, y: midY, type, hitCount: 0, id: board.length,
+          board.push({ x: Math.max(20, Math.min(W - 20, x)), y: midY, type, hitCount: 0, id: board.length,
             hitsRemaining: 0, crumblingColor: null,
             evolution: assignEvolutionState(rng)
           });
         }
       }
     }
-    // Cache pegs
+    // Cache pegs — compact placement within the dense grid
     for (let i = 0; i < 4; i++) {
       board.push({
-        x: 80 + rng.random() * 320,
+        x: 60 + rng.random() * 360,
         y: 150 + rng.random() * 280,
         type: 'cache',
-        hitCount: 0, id: board.length
-      });
-    }
-  } else if (floor <= 4) {
-    // Tighter, hazards
-    for (let row = 0; row < 10; row++) {
-      const cols = 8 - (row % 2);
-      const y = 100 + row * 48;
-      const offset = (row % 2) === 0 ? 0 : 25;
-      for (let col = 0; col < cols; col++) {
-        const x = 40 + offset + col * 50;
-        const r = Math.random();
-        let type = 'node';
-        if (r < 0.10) type = 'ice';
-        else if (r < 0.16) type = 'fiber';
-        else if (r < 0.20) type = 'mirror';
-        else if (r < 0.23) type = 'honeypot';
-        else if (r < 0.26) type = 'overload';
-        else if (r < 0.20 + (floor === 4 ? 0.08 : 0.04)) type = 'crumbling';
-        else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
-        else if (floor >= 3 && r < 0.34) type = 'directional';
-        else if (floor >= 3 && r < 0.36) type = 'teleport';
-        else if (floor >= 3 && r < 0.38) type = 'speedboost';
-        board.push({ x, y, type, hitCount: 0, id: board.length,
-          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
-          evolution: assignEvolutionState(rng)
-        });
-      }
-    }
-    for (let i = 0; i < 5; i++) {
-      board.push({
-        x: 60 + Math.random() * 360,
-        y: 130 + Math.random() * 320,
-        type: 'cache',
         hitCount: 0, id: board.length,
-        evolution: null  // Cache pegs don't evolve
+        evolution: null
       });
     }
-  } else {
-    // Floor 5: Boss vault
-    // Vault target at bottom
-    board.push({ x: W/2, y: H - 120, type: 'cache', boss: true, hits: 0, maxHits: 15, hitCount: 0, id: board.length, evolution: null });
-    // Obstacle pegs
-    for (let row = 0; row < 8; row++) {
-      const cols = 6 - (row % 2);
-      const y = 100 + row * 50;
-      const offset = (row % 2) === 0 ? 0 : 30;
-      for (let col = 0; col < cols; col++) {
-        const x = 50 + offset + col * 65;
-        const r = Math.random();
-        let type = 'node';
-        if (r < 0.12) type = 'ice';
-        else if (r < 0.18) type = 'overload';
-        else if (r < 0.22) type = 'honeypot';
-        else if (r < 0.27) type = 'crumbling';
-        else if (r < 0.32) type = 'seismic';
-        else if (r < 0.36) type = 'directional';
-        else if (r < 0.38) type = 'teleport';
-        else if (r < 0.40) type = 'speedboost';
-        board.push({ x, y, type, hitCount: 0, id: board.length,
-          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
-          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
-          evolution: assignEvolutionState(rng)
-        });
-      }
+    return board;
+  }
+
+  // ── Infinite floor generation — algorithmic approach ──
+  // Tier system: floors 3-5=tier0, 6-8=tier1, 9-11=tier2, etc.
+  // Sub-tier: 0,1,2 within each tier (determines special mode: boss/timelock/ghost)
+  const tier = Math.floor((floor - 1) / 3);
+  const subTier = (floor - 1) % 3;
+  const isBossFloor = subTier === 2;  // every 3rd floor is a boss floor
+  const bossInterval = 5;  // boss pegs every 5 floors
+
+  // Base configuration — scale to fill the full peg area (y: 110 → ~480)
+  const pegAreaHeight = 480 - 110;  // 370px of vertical peg space
+  const baseRows = 7 + tier;
+  const baseYStep = Math.max(35, Math.floor(pegAreaHeight / baseRows));  // was: 50 - tier*3 (too sparse)
+  const baseCols = 6 + Math.min(tier, 3);
+  // xStep tuned so x spans W-40 margin on both sides (full canvas width coverage)
+  const xSpan = W - 80;  // 400px usable width (480 - 80 margin)
+  const baseXStep = Math.floor(xSpan / (baseCols - 1));  // was: 55 - tier*3 (too narrow)
+
+  // Hazard probabilities scale with tier
+  const iceChance = 0.08 + tier * 0.03;
+  const hazardChance = 0.10 + tier * 0.06;
+  const specialChance = 0.04 + tier * 0.03;
+  const cacheCount = 3 + Math.floor(tier * 0.8);
+
+  // Boss peg: every `bossInterval` floors, or every tier-3 floor
+  const isBossPegFloor = floor % bossInterval === 0 || (tier >= 3 && isBossFloor);
+  const bossMaxHits = 10 + floor * 2;
+
+  for (let row = 0; row < baseRows; row++) {
+    const cols = baseCols - (row % 2);
+    const y = 110 + row * baseYStep;
+    const offset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
+    for (let col = 0; col < cols; col++) {
+      const x = 40 + offset + col * baseXStep;
+      const r = rng.random();
+      let type = 'node';
+
+      // Progressive hazard introduction based on tier
+      if (r < iceChance) type = 'ice';
+      else if (r < iceChance + hazardChance * 0.3) type = 'crumbling';
+      else if (r < iceChance + hazardChance * 0.5) type = 'fiber';
+      else if (r < iceChance + hazardChance * 0.7) type = 'mirror';
+      else if (tier >= 1 && r < iceChance + hazardChance * 0.85) type = 'honeypot';
+      else if (tier >= 1 && r < iceChance + hazardChance) type = 'overload';
+      else if (tier >= 2 && r < iceChance + hazardChance + specialChance * 0.3) type = 'seismic';
+      else if (tier >= 2 && r < iceChance + hazardChance + specialChance * 0.6) type = 'directional';
+      else if (tier >= 2 && r < iceChance + hazardChance + specialChance) type = 'teleport';
+      else if (tier >= 3 && r < iceChance + hazardChance + specialChance + 0.03) type = 'speedboost';
+
+      board.push({ x, y, type, hitCount: 0, id: board.length,
+        hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * (2 + tier)) : 0,
+        crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00','#ff6644','#44ffaa'][Math.floor(rng.random() * 4)] : null,
+        evolution: assignEvolutionState(rng)
+      });
     }
+  }
+
+  // Cache pegs
+  for (let i = 0; i < cacheCount; i++) {
+    board.push({
+      x: 60 + rng.random() * 360,
+      y: 140 + rng.random() * 280,
+      type: 'cache',
+      hitCount: 0, id: board.length,
+      evolution: null
+    });
+  }
+
+  // Boss peg (not a cache): every bossInterval floors
+  if (isBossPegFloor) {
+    board.push({ x: W/2, y: H - 130, type: 'node', boss: true, hits: 0, maxHits: bossMaxHits, hitCount: 0, id: board.length, evolution: null });
   }
 
   return board;
@@ -3357,13 +3389,24 @@ function addExtraPegs(board) {
 // ─── OBJECTIVE SETUP ─────────────────────────────────────────
 function setupObjective(floor) {
   GS._lastPegMilestone = 0; // reset per-floor milestone tracking
-  switch (floor) {
-    case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
-    case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
-    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: 2, timeLimit: 0 };
-    case 4: return { type: 'timelock', target: 0, progress: 0, label: 'TIME LOCK - 45 SECONDS', timeLimit: 45 };
-    case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
+  const subTier = (floor - 1) % 3;
+  const tier = Math.floor((floor - 1) / 3);
+
+  // Every 3rd floor is a special mode (ghost, timelock, or boss)
+  if (subTier === 2) {
+    // Boss floor: crack a vault with target scaling by tier
+    return { type: 'boss', target: 12 + tier * 5, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
+  } else if (subTier === 1 && tier >= 1) {
+    // Timelock: 45 seconds, scales slightly
+    return { type: 'timelock', target: 0, progress: 0, label: `TIME LOCK - ${45 + tier * 5} SECONDS`, timeLimit: 45 + tier * 5 };
+  } else if (subTier === 0 && tier >= 2) {
+    // Ghost mode: starts appearing at floor 7 (tier=2, subTier=0)
+    return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: Math.max(2, 3 - Math.floor(tier / 2)), timeLimit: 0 };
   }
+  // Standard floors: clear pegs, target scales with tier
+  const basePegs = 18 + subTier * 4;  // 18, 22, 26 for subTiers 0,1,2 at tier 0
+  const target = basePegs + tier * 8;
+  return { type: 'standard', target: Math.min(target, 200), progress: 0, label: `CLEAR ${target} PEGS` };
 }
 
 // ─── COLLISION DETECTION ─────────────────────────────────────
@@ -3666,6 +3709,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               if (eDist < radius) {
                 other.destroyed = true;
                 GS.floorObjective.progress++;
+                updateObjectiveBar();
                 spawnParticles(other.x, other.y, other.color || PEG_TYPES[other.type]?.color || '#ff4400', 8, 3);
                 GS.score += 50;
               }
@@ -3680,6 +3724,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               nearby.forEach(({ peg: targetPeg }) => {
                 targetPeg.destroyed = true;
                 GS.floorObjective.progress++;
+                updateObjectiveBar();
                 spawnParticles(targetPeg.x, targetPeg.y, '#ff00ff', 10, 4);
                 GS.score += 75;
                 // Lightning arc
@@ -3816,6 +3861,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.floorObjective.progress = Math.min(peg.hits, peg.maxHits);
     triggerFlash('#ffcc0033', 0.15);
     spawnFloatText(peg.x, peg.y, `VAULT ${peg.hits}/${peg.maxHits}`, '#ffcc00');
+    updateObjectiveBar();
     if (peg.hits >= peg.maxHits) {
       peg.destroyed = true;
       triggerFullBreach();
@@ -3977,6 +4023,7 @@ function detonateExplosivePeg(ball, peg, board) {
     GS.score += 50 * mult * GS.multiplier;
     other.hitCount++;
     GS.floorObjective.progress++;
+    updateObjectiveBar();
     spawnParticles(other.x, other.y, '#FF4500', 6, 3);
   }
 
@@ -4246,7 +4293,7 @@ function updateChainTimerBar() {
 
 // ─── HUD UPDATE ──────────────────────────────────────────────
 function updateHUD() {
-  document.getElementById('floor-indicator').textContent = `${GS.floor}/5`;
+  document.getElementById('floor-indicator').textContent = `${GS.floor}`;
   document.getElementById('score-value').textContent = GS.score.toLocaleString();
   document.getElementById('jackpot-display').textContent = (GS.jackpotPool || 500).toLocaleString();
 
@@ -4395,17 +4442,25 @@ function completeFloor() {
   playSound('floorClear');
   if (GS.floor === 1) showAchievement('firstFloor');
   if (GS.floor === 3) showAchievement('floor3');
-  if (GS.floor === 5) showAchievement('fullBreach');
-  if (GS.floor === 5) showAchievement('floor5');
+  // Tier breach — every 5 floors trigger a major bonus
+  const isTierBreach = GS.floor % 5 === 0;
+  const tier = Math.floor(GS.floor / 5);
+  if (isTierBreach) {
+    showAchievement('fullBreach');
+    showAchievement('floor' + GS.floor);
+    triggerFlash('#00ffaa44', 0.6);
+  }
+  if (GS.floor === 1) showAchievement('firstFloor');
+  if (GS.floor === 3) showAchievement('floor3');
 
-  const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
+  const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10) + (isTierBreach ? tier * 200 : 0);
   GS.breachCredits += creditGain;
 
   const title = document.getElementById('floor-complete-title');
   const stats = document.getElementById('floor-stats');
 
-  if (GS.floor === 5) {
-    title.textContent = '◆ FULL BREACH ◆';
+  if (isTierBreach) {
+    title.textContent = `◆ TIER ${tier + 1} BREACH ◆`;
     title.style.color = '#00ffaa';
     triggerFlash('#00ffaa44', 0.6);
   } else {
@@ -5096,7 +5151,7 @@ function submitHighScore() {
   lb.push({
     name,
     score: GS.score,
-    floor: Math.min(GS.floor, 5),
+    floor: GS.floor,
     pegs: GS.totalPegsCleared,
     date: new Date().toISOString().slice(0, 10),
     daily: !!GS.dailyMode
@@ -5215,15 +5270,23 @@ function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
   setActiveScreen('playing');
-  startNextFloor();
+  // Return to current floor — do NOT advance to next floor
 }
 
 // ─── GAME FLOW ────────────────────────────────────────────────
 function startNextFloor() {
+  // Infinite floors — no cap. Every 5 floors is a tier breach.
   GS.floor++;
-  if (GS.floor > 5) {
-    endRun(true);
-    return;
+  const tier = Math.floor((GS.floor - 1) / 5);
+  const isTierBreach = GS.floor % 5 === 0;
+  if (isTierBreach) {
+    // Tier breach: award bonus credits, show interstitial, then continue
+    const bonus = 500 + tier * 200;
+    GS.breachCredits = (GS.breachCredits || 0) + bonus;
+    triggerFullBreach();
+    triggerFlash('#00ffaa44', 0.5);
+    spawnFloatText(W/2, H/2 - 60, `TIER ${tier + 1} BREACH!`, '#00ffaa');
+    spawnFloatText(W/2, H/2 - 20, `+${bonus} BREACH CREDITS`, '#ffcc00');
   }
 
   startFloor();
@@ -5427,7 +5490,7 @@ function endRun(won) {
   const scoreHighlight = isNewHighScore ? '<span style="color:#ffd700;font-size:10px;"> ★ NEW HIGH SCORE ★</span>' : '';
 
   stats.innerHTML = `
-    <div>FLOOR REACHED: <span class="runend-stat-value">${Math.min(GS.floor, 5)}/5</span></div>
+    <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
     ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} BREACH PENALTY (${GS.livesLost} overflow${GS.livesLost > 1 ? 's' : ''})</div>` : ''}
@@ -5582,6 +5645,7 @@ function returnToMenu() {
   if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
   setActiveScreen('menu');
+  stopBgm(true); // stop any slot-spin or gameplay music before title music starts
   onScreenChange('menu');
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen

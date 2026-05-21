@@ -3287,7 +3287,9 @@ function generateBoard(floor) {
   const pegAreaHeight = 480 - 110;  // 370px of vertical peg space
   const baseRows = 7 + tier;
   const baseYStep = Math.max(35, Math.floor(pegAreaHeight / baseRows));  // was: 50 - tier*3 (too sparse)
-  const baseCols = 6 + Math.min(tier, 3);
+  // baseCols: tier 0 needs 9 cols (xStep=50) to close vertical gaps that allowed straight shots.
+  // Higher tiers get proportionally more columns (7→8→9) to keep xStep in a safe range.
+  const baseCols = (tier === 0) ? 9 : 6 + Math.min(tier, 3);
   // xStep tuned so x spans W-40 margin on both sides (full canvas width coverage)
   const xSpan = W - 80;  // 400px usable width (480 - 80 margin)
   const baseXStep = Math.floor(xSpan / (baseCols - 1));  // was: 55 - tier*3 (too narrow)
@@ -3948,6 +3950,9 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 }
 
 function resolveBallExit(ball) {
+  // Re-enable drop — ball is gone, player can drop next ball
+  canDrop = true;
+
   // Logic bomb: explode all nearby pegs
   if (ball.payloads.includes('logicbomb')) {
     triggerFlash('#ffaa0033', 0.2);

@@ -3275,8 +3275,11 @@ function generateBoard(floor) {
   // ── Infinite floor generation — algorithmic approach ──
   // Tier system: floors 3-5=tier0, 6-8=tier1, 9-11=tier2, etc.
   // Sub-tier: 0,1,2 within each tier (determines special mode: boss/timelock/ghost)
-  const tier = Math.floor((floor - 1) / 3);
-  const subTier = (floor - 1) % 3;
+  // NOTE: In daily challenge, `floor` may be a date string (GS.dailyDate), NOT a number.
+  // Use GS.floor for tier/subTier calculations to avoid NaN from string arithmetic.
+  const actualFloor = (typeof floor === 'number') ? floor : GS.floor;
+  const tier = Math.floor((actualFloor - 1) / 3);
+  const subTier = (actualFloor - 1) % 3;
   const isBossFloor = subTier === 2;  // every 3rd floor is a boss floor
   const bossInterval = 5;  // boss pegs every 5 floors
 

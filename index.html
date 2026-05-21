@@ -3215,19 +3215,71 @@ function generateBoard(floor) {
     };
   })(seed);
 
-  // Infinite floor generation — algorithmic approach
-  // Tier system: floors 1-3=0, 4-6=1, 7-9=2, 10-12=3, etc.
-  // Sub-tier: 0,1,2 within each tier (determines density and hazard mix)
+  // ── Floor 1-2: Dense grid with mid-row pegs for tight, even coverage ──
+  if (floor <= 2) {
+    for (let row = 0; row < 8; row++) {
+      const cols = 7 - (row % 2);
+      const y = 120 + row * 40;  // 40px row spacing — was 55px (too sparse)
+      const offset = (row % 2) === 0 ? 0 : 30;
+      for (let col = 0; col < cols; col++) {
+        const x = 40 + offset + col * 55;  // 55px x spacing fills W=480 well (ends at ~430)
+        const r = rng.random();
+        let type = 'node';
+        if (r < 0.12) type = 'ice';
+        if (floor >= 2 && r < 0.08) type = 'crumbling';
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
+          evolution: assignEvolutionState(rng)
+        });
+      }
+      // Extra mid-row pegs — eliminates large vertical gaps between main rows
+      // ~50% more pegs without changing the horizontal structure
+      if (row < 7) {
+        const midY = y + 20;  // halfway between this row and next
+        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
+        const midOffset = (row % 2) === 0 ? 20 : 10;
+        for (let col = 0; col < midCols; col++) {
+          const x = midOffset + col * 55 + (rng.random() - 0.5) * 10;  // slight x jitter
+          const r2 = rng.random();
+          let type = 'node';
+          if (r2 < 0.08) type = 'ice';
+          board.push({ x: Math.max(20, Math.min(W - 20, x)), y: midY, type, hitCount: 0, id: board.length,
+            hitsRemaining: 0, crumblingColor: null,
+            evolution: assignEvolutionState(rng)
+          });
+        }
+      }
+    }
+    // Cache pegs — compact placement within the dense grid
+    for (let i = 0; i < 4; i++) {
+      board.push({
+        x: 60 + rng.random() * 360,
+        y: 150 + rng.random() * 280,
+        type: 'cache',
+        hitCount: 0, id: board.length,
+        evolution: null
+      });
+    }
+    return board;
+  }
+
+  // ── Infinite floor generation — algorithmic approach ──
+  // Tier system: floors 3-5=tier0, 6-8=tier1, 9-11=tier2, etc.
+  // Sub-tier: 0,1,2 within each tier (determines special mode: boss/timelock/ghost)
   const tier = Math.floor((floor - 1) / 3);
   const subTier = (floor - 1) % 3;
   const isBossFloor = subTier === 2;  // every 3rd floor is a boss floor
   const bossInterval = 5;  // boss pegs every 5 floors
 
-  // Base configuration scales with tier
+  // Base configuration — scale to fill the full peg area (y: 110 → ~480)
+  const pegAreaHeight = 480 - 110;  // 370px of vertical peg space
   const baseRows = 7 + tier;
+  const baseYStep = Math.max(35, Math.floor(pegAreaHeight / baseRows));  // was: 50 - tier*3 (too sparse)
   const baseCols = 6 + Math.min(tier, 3);
-  const baseYStep = 50 - Math.min(tier * 3, 15);
-  const baseXStep = 55 - Math.min(tier * 3, 12);
+  // xStep tuned so x spans W-40 margin on both sides (full canvas width coverage)
+  const xSpan = W - 80;  // 400px usable width (480 - 80 margin)
+  const baseXStep = Math.floor(xSpan / (baseCols - 1));  // was: 55 - tier*3 (too narrow)
 
   // Hazard probabilities scale with tier
   const iceChance = 0.08 + tier * 0.03;
@@ -3242,7 +3294,7 @@ function generateBoard(floor) {
   for (let row = 0; row < baseRows; row++) {
     const cols = baseCols - (row % 2);
     const y = 110 + row * baseYStep;
-    const offset = (row % 2) === 0 ? 0 : (baseXStep / 2);
+    const offset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
     for (let col = 0; col < cols; col++) {
       const x = 40 + offset + col * baseXStep;
       const r = rng.random();

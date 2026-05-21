@@ -5467,7 +5467,7 @@ function getRankProgress() {
 }
 
 // ── Game Over Interstitial ──────────────────────────────────────────────
-function showGameOverInterstitial(callback) {
+function showGameOverInterstitial(callback, reason) {
   playSound('gameOver');
   playBgm('connection-lost'); // connection-lost BGM for the interstitial countdown
   let el = document.getElementById('gameover-interstitial');
@@ -5481,7 +5481,7 @@ function showGameOverInterstitial(callback) {
   let countdown = 3;
   el.innerHTML = `
     <div style="font-size:42px;font-weight:900;color:#ff2244;text-shadow:0 0 24px #ff2244, 0 0 48px #ff224488;letter-spacing:4px;">CONNECTION LOST</div>
-    <div style="font-size:13px;color:#aa8866;margin-top:10px;">No balls remaining</div>
+    <div style="font-size:13px;color:#aa8866;margin-top:10px;">${reason || 'No balls remaining'}</div>
     <div id="goi-countdown" style="font-size:56px;font-weight:700;color:#ff6644;margin-top:24px;text-shadow:0 0 20px #ff664488;">${countdown}</div>
     <div style="font-size:11px;color:#555;margin-top:6px;">seconds until run end</div>
   `;
@@ -5563,7 +5563,7 @@ function endRun(won) {
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
     ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} BREACH PENALTY (${GS.livesLost} overflow${GS.livesLost > 1 ? 's' : ''})</div>` : ''}
-    ${qualifies && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
+    ${isNewHighScore && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
     <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>

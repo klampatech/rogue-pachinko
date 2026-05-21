@@ -3240,6 +3240,22 @@ function generateBoard(floor) {
           evolution: assignEvolutionState(rng)
         });
       }
+      // Force center-column peg on even rows (offset=0) to block straight-shot paths
+      // Even rows: 7 pegs at x=20,90,160,230,300,370,440; dropX=240 falls in 70px gap [230,300]
+      // Adding node peg at x=240 ensures ball can't fall straight through without bouncing
+      if (row % 2 === 0) {
+        board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
+          hitsRemaining: 0, crumblingColor: null,
+          evolution: assignEvolutionState(rng)
+        });
+      } else {
+        // Odd rows: offset=50, pegs at x=70,140,210,280,350,420; dropX=240 is in 54px gap [210,280]
+        // Force a center peg at x=240 to block straight shots on odd rows too
+        board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
+          hitsRemaining: 0, crumblingColor: null,
+          evolution: assignEvolutionState(rng)
+        });
+      }
       // Extra mid-row pegs — fills vertical gaps between main rows
       // midCols = 5 on even rows, 4 on odd rows
       // midOffset aligns with the main row offset for proper interleaving
@@ -3328,6 +3344,42 @@ function generateBoard(floor) {
       board.push({ x, y, type, hitCount: 0, id: board.length,
         hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * (2 + tier)) : 0,
         crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00','#ff6644','#44ffaa'][Math.floor(rng.random() * 4)] : null,
+        evolution: assignEvolutionState(rng)
+      });
+    }
+    // Force center-column peg on every row to block straight-shot paths at dropX=240
+    // Even rows: offset=0, col spacing creates large gaps where dropX=240 is clear
+    // Odd rows: offset=baseXStep/2, dropX=240 may also sit in a gap
+    // Adding node peg at x=240 on ALL rows ensures ball always hits at least one peg
+    board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
+      hitsRemaining: 0, crumblingColor: null, evolution: null });
+  }
+
+  // ── Mid-row pegs: fill vertical gaps between main rows (floors 3+) ──
+  // Without these, xStep=80 creates 68px gaps between peg edges — ball (14px dia) slips through.
+  // Mid-rows use y offset = baseYStep/2, interleaved x offsets, and slightly fewer columns.
+  // Even main row → mid row offset=20 → sits between main peg columns
+  // Odd main row  → mid row offset=0  → aligns with main column centers
+  for (let row = 0; row < baseRows - 1; row++) {
+    const y = 110 + row * baseYStep;
+    const midY = y + baseYStep / 2;
+    const midCols = (row % 2) === 0 ? 5 : 4;
+    const midOffset = (row % 2) === 0 ? 20 : 0;
+    for (let col = 0; col < midCols; col++) {
+      const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;
+      const rx = rng.random();
+      let midType = 'node';
+      if (rx < iceChance * 0.5) midType = 'ice';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.2) midType = 'crumbling';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.35) midType = 'mirror';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.5) midType = 'fiber';
+      board.push({
+        x: Math.max(20, Math.min(W - 20, x)),
+        y: midY,
+        type: midType,
+        hitCount: 0, id: board.length,
+        hitsRemaining: midType === 'crumbling' ? 1 + Math.floor(rng.random() * 2) : 0,
+        crumblingColor: midType === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
         evolution: assignEvolutionState(rng)
       });
     }

@@ -3234,13 +3234,17 @@ function generateBoard(floor) {
         });
       }
       // Extra mid-row pegs — eliminates large vertical gaps between main rows
-      // ~50% more pegs without changing the horizontal structure
-      if (row < 7) {
+      // Includes mid-row after the last main row (row 7) to fill the gap before the drop zone.
+      // midCols = 5 on even rows (more coverage on the wider row), 4 on odd rows.
+      // midOffset aligns with the main row offset so mid-pegs sit in the same columns:
+      //   even row: main offset=0, midOffset=0  → mid-pegs in same x columns
+      //   odd row:  main offset=30, midOffset=20 → offset by 10px relative to main, good interleaving
+      if (row < 8) {
         const midY = y + 20;  // halfway between this row and next
-        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
-        const midOffset = (row % 2) === 0 ? 20 : 10;
+        const midCols = 5 - (row % 2);
+        const midOffset = (row % 2) === 0 ? 0 : 20;
         for (let col = 0; col < midCols; col++) {
-          const x = midOffset + col * 55 + (rng.random() - 0.5) * 10;  // slight x jitter
+          const x = midOffset + col * 55 + (rng.random() - 0.5) * 8;  // slight x jitter
           const r2 = rng.random();
           let type = 'node';
           if (r2 < 0.08) type = 'ice';

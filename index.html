@@ -3233,14 +3233,27 @@ function generateBoard(floor) {
           evolution: assignEvolutionState(rng)
         });
       }
+      // Force center-column peg on even rows to block straight-shot paths
+      // Even rows (offset=0): x = 40+0+3*55=205 is the 4th peg; x=240 sits in the 55px gap
+      // Adding a peg at x=240 ensures every even row has a center-column blocker
+      if (row % 2 === 0) {
+        board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
+          hitsRemaining: 0, crumblingColor: null,
+          evolution: assignEvolutionState(rng)
+        });
+      }
       // Extra mid-row pegs — eliminates large vertical gaps between main rows
-      // ~50% more pegs without changing the horizontal structure
-      if (row < 7) {
+      // Includes mid-row after the last main row (row 7) to fill the gap before the drop zone.
+      // midCols = 5 on even rows (more coverage on the wider row), 4 on odd rows.
+      // midOffset aligns with the main row offset so mid-pegs sit in the same columns:
+      //   even row: main offset=0, midOffset=0  → mid-pegs in same x columns
+      //   odd row:  main offset=30, midOffset=20 → offset by 10px relative to main, good interleaving
+      if (row < 8) {
         const midY = y + 20;  // halfway between this row and next
-        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
-        const midOffset = (row % 2) === 0 ? 20 : 10;
+        const midCols = 5 - (row % 2);
+        const midOffset = (row % 2) === 0 ? 0 : 20;
         for (let col = 0; col < midCols; col++) {
-          const x = midOffset + col * 55 + (rng.random() - 0.5) * 10;  // slight x jitter
+          const x = midOffset + col * 55 + (rng.random() - 0.5) * 8;  // slight x jitter
           const r2 = rng.random();
           let type = 'node';
           if (r2 < 0.08) type = 'ice';
@@ -3315,6 +3328,45 @@ function generateBoard(floor) {
       board.push({ x, y, type, hitCount: 0, id: board.length,
         hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * (2 + tier)) : 0,
         crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00','#ff6644','#44ffaa'][Math.floor(rng.random() * 4)] : null,
+        evolution: assignEvolutionState(rng)
+      });
+    }
+    // Force center-column peg to block straight-shot paths at dropX=240
+    // Even rows: offset=0, col 3 peg at x=40+0+3*80=205; dropX=240 is in 80px gap before col 4
+    // Odd rows: offset=40, col 3 peg at x=40+40+3*80=320; dropX=240 is in gap, col 2 is at 160
+    // Adding a node peg at x=240 ensures ball can't fall straight through any row without bouncing
+    if (row % 2 === 0) {
+      board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
+        hitsRemaining: 0, crumblingColor: null, evolution: null });
+    }
+  }
+
+  // ── Mid-row pegs: fill the vertical gaps between main rows ──
+  // Pre-compute mid-row x offsets aligned with main grid for interleaving.
+  // Even main row: offset=0 → mid row offset=20 → sits 10px right of main column center
+  // Odd main row:  offset=40 → mid row offset=0 → aligns with main column center
+  // This is identical to the floor 1-2 mid-row strategy.
+  for (let row = 0; row < baseRows - 1; row++) {
+    const y = 110 + row * baseYStep;
+    const midY = y + baseYStep / 2;  // halfway between this row and next
+    const midCols = (row % 2) === 0 ? 5 : 4;
+    const midOffset = (row % 2) === 0 ? 20 : 0;
+    for (let col = 0; col < midCols; col++) {
+      const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;  // slight x jitter
+      const rx = rng.random();
+      // Mid-row hazard chance is roughly half the main-row hazard chance
+      let midType = 'node';
+      if (rx < iceChance * 0.5) midType = 'ice';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.2) midType = 'crumbling';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.35) midType = 'mirror';
+      else if (rx < iceChance * 0.5 + hazardChance * 0.5) midType = 'fiber';
+      board.push({
+        x: Math.max(20, Math.min(W - 20, x)),
+        y: midY,
+        type: midType,
+        hitCount: 0, id: board.length,
+        hitsRemaining: midType === 'crumbling' ? 1 + Math.floor(rng.random() * 2) : 0,
+        crumblingColor: midType === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
         evolution: assignEvolutionState(rng)
       });
     }
@@ -3937,6 +3989,9 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 }
 
 function resolveBallExit(ball) {
+  // Re-enable drop — ball is gone, player can drop next ball
+  canDrop = true;
+
   // Logic bomb: explode all nearby pegs
   if (ball.payloads.includes('logicbomb')) {
     triggerFlash('#ffaa0033', 0.2);

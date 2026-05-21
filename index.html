@@ -4517,6 +4517,12 @@ function completeFloor() {
   if (GS.floor === 1) showAchievement('firstFloor');
   if (GS.floor === 3) showAchievement('floor3');
 
+  // Win condition: clear floor 10 = win
+  if (GS.floor >= 10) {
+    showGameOverInterstitial(() => endRun(true));
+    return;
+  }
+
   const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10) + (isTierBreach ? tier * 200 : 0);
   GS.breachCredits += creditGain;
 
@@ -6264,18 +6270,18 @@ function update() {
             // 0 balls fired — can't win ghost floor this way, must fail
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, 'GHOST FAILED — NO BALLS FIRED', '#ff4444');
-            showGameOverInterstitial(() => endRun(false));
+            showGameOverInterstitial(() => endRun(false), 'GHOST FAILED — no balls fired');
           } else if ((GS.ghostModeIceHits || 0) < maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
-            showGameOverInterstitial(() => endRun(false));
+            showGameOverInterstitial(() => endRun(false), 'GHOST FAILED — ' + GS.ghostModeIceHits + ' ice hits');
           }
         } else if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target && GS.floorObjective.target > 0) {
           showGameOverInterstitial(() => completeFloor());
         } else {
-          showGameOverInterstitial(() => endRun(false));
+          showGameOverInterstitial(() => endRun(false), 'Objective not met — balls depleted');
         }
       }, 1500);
       return;
@@ -6316,7 +6322,7 @@ function updateGhostHUD() {
       triggerFlash('#ff224433', 0.3);
       spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
       spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
-      showGameOverInterstitial(() => endRun(false));
+      showGameOverInterstitial(() => endRun(false), 'Time expired — TIME LOCK');
     }
   }
 

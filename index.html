@@ -2164,6 +2164,12 @@ function triggerSlotCollected(ball, slotIdx) {
     triggered: false,
   });
 
+  // Deactivate ball — it went into the slot
+  ball.active = false;
+
+  // Re-enable drop — ball is gone, player can drop next ball
+  canDrop = true;
+
   // Check if slot is unlocked
   if (!isSlotUnlocked(slotIdx)) {
     spawnFloatText(centerX, slotCenterY - 10, 'LOCKED', '#666666');
@@ -3798,6 +3804,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.floorObjective.progress = Math.min(peg.hits, peg.maxHits);
     triggerFlash('#ffcc0033', 0.15);
     spawnFloatText(peg.x, peg.y, `VAULT ${peg.hits}/${peg.maxHits}`, '#ffcc00');
+    updateObjectiveBar();
     if (peg.hits >= peg.maxHits) {
       peg.destroyed = true;
       triggerFullBreach();
@@ -5206,7 +5213,7 @@ function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
   setActiveScreen('playing');
-  startNextFloor();
+  // Return to current floor — do NOT advance to next floor
 }
 
 // ─── GAME FLOW ────────────────────────────────────────────────

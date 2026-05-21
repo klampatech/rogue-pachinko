@@ -2707,6 +2707,7 @@ function onScreenChange(screen) {
       playBgm('gameplay');
       break;
     case 'floor_complete':
+      stopBgm(true); // stop slot-spin music (from jackpot spin) before floor-complete silence or title fallback
       // Slot machine spin music handled separately via triggerSlotSpinMusic()
       break;
     case 'run_end':
@@ -5588,6 +5589,7 @@ function returnToMenu() {
   if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
   setActiveScreen('menu');
+  stopBgm(true); // stop any slot-spin or gameplay music before title music starts
   onScreenChange('menu');
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen

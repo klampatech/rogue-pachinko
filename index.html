@@ -5302,7 +5302,7 @@ function createLeaderboardOverlay() {
       <button id="lb-filter-daily" onclick="setLbFilter('daily')" style="background:#1a1a2e;border:1px solid #ffcc0044;color:#ffcc00;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DAILY ONLY</button>
     </div>
     <div id="lb-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
-    <button onclick="closeLeaderboard()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+    <button onclick="closeLeaderboard(); event.stopPropagation();" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
   `;
   document.body.appendChild(overlay);
   return overlay;

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slot Protocol</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0a0f'/><circle cx='16' cy='16' r='10' fill='none' stroke='%2300f0ff' stroke-width='2'/><circle cx='16' cy='16' r='4' fill='%2300f0ff'/></svg>">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -364,9 +365,13 @@ body.contrast-mode #combo-display {
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
+  pointer-events: none; /* prevent capturing clicks when not visible */
 }
 
-#shop-overlay.active { display: flex; }
+#shop-overlay.active {
+  display: flex;
+  pointer-events: auto; /* re-enable clicks only when active/open */
+}
 
 .shop-header {
   text-align: center;
@@ -598,8 +603,6 @@ body.contrast-mode #combo-display {
 #ghost-indicator.danger {
   color: #ff6600;
   text-shadow: 0 0 8px #ff660088;
-}
-  transition: opacity 0.2s;
 }
 /* Multiplier display — styles above */
 
@@ -1484,7 +1487,7 @@ const layerVisible = {};
 const screenLayers = {
   menu:          [LAYER.BACKGROUND],
   playing:       [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS, LAYER.FX, LAYER.SLOTS],
-  shop:          [LAYER.BACKGROUND],
+  shop:          [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS],
   floor_complete:[LAYER.BACKGROUND],
   run_end:       [LAYER.BACKGROUND],
 };
@@ -3363,7 +3366,9 @@ function generateBoard(floor) {
   for (let row = 0; row < baseRows - 1; row++) {
     const y = 110 + row * baseYStep;
     const midY = y + baseYStep / 2;
-    const midCols = (row % 2) === 0 ? 5 : 4;
+    // Scale midCols proportionally to baseCols — mirrors main row alternating cols pattern
+    // Main rows use cols = baseCols - (row % 2), so midRows mirror this for consistent coverage
+    const midCols = Math.max(5, baseCols - ((row + 1) % 2));
     const midOffset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
     for (let col = 0; col < midCols; col++) {
       const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;
@@ -4473,10 +4478,18 @@ function checkFrenzy() {
 
 function updateObjectiveBar() {
   const obj = GS.floorObjective;
-  const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
-  console.log('[DEBUG] updateObjectiveBar: progress=' + obj.progress + ', target=' + obj.target + ', pct=' + pct);
-  const fill = document.getElementById('objective-fill');
-  console.log('[DEBUG] fill element:', fill);
+
+  // Time lock floors: show countdown instead of 0/0
+  if (obj.type === 'timelock') {
+    const remaining = Math.max(0, Math.ceil(GS.floorTimeRemaining || 0));
+    document.getElementById('objective-label').textContent = `TIME LOCK — ${remaining}s`;
+    document.getElementById('objective-fill').style.width = '0%';
+    return;
+  }
+
+  // Clamp progress to [0, target] so bar never exceeds 100% visually
+  const clamped = Math.min(obj.progress, obj.target);
+  const pct = obj.target > 0 ? (clamped / obj.target) * 100 : 0;
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
@@ -4790,6 +4803,9 @@ const REP_SHOP_ITEMS = [
 ];
 
 function openShop(tab = 'credits') {
+  _shopContinueBusy = false; // reset debounce flag so CONTINUE works fresh
+  const btn = document.getElementById('shop-continue-btn');
+  if (btn) btn.disabled = false;
   GS.screen = 'shop';
   setActiveScreen('shop');
   document.getElementById('shop-credits').textContent = GS.breachCredits;
@@ -6423,7 +6439,10 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
-  if (GS.screen !== 'playing') return;
+  if (GS.screen !== 'playing') {
+    if (GS.screen === 'shop') spawnFloatText(W / 2, H / 2 + 80, 'CLICK CONTINUE TO RESUME', '#ff00aa');
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
   dropBall();
@@ -6533,7 +6552,13 @@ document.getElementById('achievements-btn').onclick = () => {
   openAchievements();
 };
 
-document.getElementById('shop-continue-btn').onclick = closeShop;
+let _shopContinueBusy = false;
+document.getElementById('shop-continue-btn').onclick = () => {
+  if (_shopContinueBusy) return;
+  _shopContinueBusy = true;
+  document.getElementById('shop-continue-btn').disabled = true;
+  closeShop();
+};
 
 document.getElementById('floor-continue-btn').onclick = () => {
   document.getElementById('floor-overlay').classList.remove('active');

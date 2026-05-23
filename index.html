@@ -4628,6 +4628,7 @@ function initJackpotSlots() {
   // Bind CONTINUE button to close overlay and open shop
   if (jpContinueBtn) jpContinueBtn.onclick = () => {
     document.getElementById('floor-overlay').classList.remove('active');
+    _shopOpenedAfterFloorComplete = true;
     openShop();
   };
 
@@ -5388,17 +5389,30 @@ function createAchievementsOverlay() {
   return overlay;
 }
 
-function closeShop() {
+function closeShop(skipFloorAdvance = false) {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
   setActiveScreen('playing');
-  // Advance to next floor after shop closes — but ONLY if the run is still active.
-  // If endRun() was called (e.g. player ran out of balls), screen would be 'run_end'
-  // and we must not advance to a non-existent floor.
-  if (GS.screen !== 'run_end') {
+  // Only advance to the next floor when closing the shop after a floor clear.
+  // When the shop was opened mid-floor (e.g. via HUD SHOP button), the player
+  // should return to the current floor with their ball count intact — so we skip
+  // startNextFloor() in that case.
+  if (!skipFloorAdvance && GS.screen !== 'run_end') {
     startNextFloor();
   }
 }
+
+let _shopOpenedAfterFloorComplete = false;
+
+document.getElementById('shop-continue-btn').onclick = () => {
+  // _shopOpenedAfterFloorComplete = true means shop was opened via floor-continue-btn
+  // or jp-continue-btn — meaning the player cleared the floor and is done shopping.
+  // In that case we DO want to advance to the next floor.
+  // If the shop was opened mid-floor (HUD SHOP button), _shopOpenedAfterFloorComplete
+  // is false and we stay on the current floor.
+  closeShop(!_shopOpenedAfterFloorComplete);
+  _shopOpenedAfterFloorComplete = false;
+};
 
 // ─── GAME FLOW ────────────────────────────────────────────────
 function startNextFloor() {
@@ -5481,6 +5495,18 @@ function startFloor() {
   GS.floorTimeRemaining = GS.floorObjective.timeLimit || 0;
   // Ghost Mode — reset ice hit tracker
   GS.ghostModeIceHits = 0;
+  // Floor 5 timelock tutorial — show once per run before the floor starts
+  if (GS.floor === 5 && GS.floorObjective.type === 'timelock') {
+    const timeLimit = GS.floorObjective.timeLimit || 45;
+    showTutorialModal(
+      'FLOOR 5 — TIME LOCK',
+      `Survive the countdown! Clear all ICE PEGS before time runs out to complete this floor.<br><br>` +
+      `⏱ Time Limit: <span style="color:#ffd700;">${timeLimit} seconds</span><br>` +
+      `❄ Ice Pegs freeze the ball briefly — plan your drop zone!<br>` +
+      `✅ Goal: Clear all ice pegs before the timer hits zero.`,
+      'floor5_timelock'
+    );
+  }
   // Slot Collector: update which slots are unlocked for this floor
   updateUnlockedSlots();
   // Reset slot state
@@ -5522,6 +5548,35 @@ function getRankProgress() {
   const rep = GS.reputation || 0;
   if (rep >= next) return 100;
   return Math.min(100, Math.round(((rep - prev) / (next - prev)) * 100));
+}
+
+// ── Tutorial Modal ────────────────────────────────────────────────
+function showTutorialModal(title, body, persistKey) {
+  // Skip if already shown this run (per-key flag in GS session)
+  if (GS._seenTutorials && GS._seenTutorials[persistKey]) return;
+  if (!GS._seenTutorials) GS._seenTutorials = {};
+  GS._seenTutorials[persistKey] = true;
+
+  let el = document.getElementById('tutorial-modal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'tutorial-modal';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9997;font-family:inherit;padding:20px;';
+    document.body.appendChild(el);
+  }
+
+  el.innerHTML = `
+    <div style="border:2px solid #00f0ff;background:#0a0a1a;padding:28px 24px;max-width:340px;width:100%;text-align:center;">
+      <div style="font-size:14px;font-weight:700;color:#00f0ff;letter-spacing:3px;margin-bottom:16px;text-shadow:0 0 12px #00f0ff;">${title}</div>
+      <div style="font-size:11px;color:#aaa;line-height:1.7;margin-bottom:22px;">${body}</div>
+      <button id="tutorial-modal-close" style="background:transparent;border:2px solid #00f0ff;color:#00f0ff;padding:8px 28px;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:3px;transition:all 0.2s;text-shadow:0 0 8px #00f0ff88;">GOT IT</button>
+    </div>
+  `;
+  el.style.display = 'flex';
+
+  document.getElementById('tutorial-modal-close').addEventListener('click', () => {
+    el.style.display = 'none';
+  });
 }
 
 // ── Game Over Interstitial ──────────────────────────────────────────────
@@ -6557,16 +6612,9 @@ document.getElementById('achievements-btn').onclick = () => {
   openAchievements();
 };
 
-let _shopContinueBusy = false;
-document.getElementById('shop-continue-btn').onclick = () => {
-  if (_shopContinueBusy) return;
-  _shopContinueBusy = true;
-  document.getElementById('shop-continue-btn').disabled = true;
-  closeShop();
-};
-
 document.getElementById('floor-continue-btn').onclick = () => {
   document.getElementById('floor-overlay').classList.remove('active');
+  _shopOpenedAfterFloorComplete = true;
   openShop();
 };
 

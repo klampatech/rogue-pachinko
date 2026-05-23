@@ -6426,10 +6426,20 @@ function updateGhostHUD() {
     GS.floorTimeRemaining -= 1/60;
     if (GS.floorTimeRemaining <= 0) {
       GS.floorTimeRemaining = 0;
-      triggerFlash('#ff224433', 0.3);
-      spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
-      spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
-      showGameOverInterstitial(() => endRun(false), 'Time expired — TIME LOCK');
+      // Check if all ice pegs were cleared (win) or time ran out (lose)
+      const icePegs = GS.board.filter(p => p.type === 'ice');
+      const allIceCleared = icePegs.length > 0 && icePegs.every(p => p.destroyed);
+      if (allIceCleared) {
+        // WIN: all ice pegs cleared before time expired
+        spawnFloatText(W/2, H/2 - 50, '✓ FLOOR COMPLETE', '#00ffaa');
+        showGameOverInterstitial(() => completeFloor());
+      } else {
+        // FAIL: time expired without clearing all ice pegs
+        triggerFlash('#ff224433', 0.3);
+        spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
+        spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
+        showGameOverInterstitial(() => endRun(false), 'Time expired — TIME LOCK');
+      }
     }
   }
 

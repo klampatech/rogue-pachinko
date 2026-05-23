@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slot Protocol</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0a0f'/><circle cx='16' cy='16' r='10' fill='none' stroke='%2300f0ff' stroke-width='2'/><circle cx='16' cy='16' r='4' fill='%2300f0ff'/></svg>">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -598,8 +599,6 @@ body.contrast-mode #combo-display {
 #ghost-indicator.danger {
   color: #ff6600;
   text-shadow: 0 0 8px #ff660088;
-}
-  transition: opacity 0.2s;
 }
 /* Multiplier display — styles above */
 
@@ -3535,6 +3534,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
       peg.hitCount++;
+      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
       updateHUD();
       updateObjectiveBar();
       return; // skip normal bounce
@@ -3561,6 +3561,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
     updateMultiplierDisplay();
     peg.hitCount++;
+    if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     updateHUD();
     updateObjectiveBar();
     return; // skip normal bounce
@@ -3580,6 +3581,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       if (GS.multiplier > prevMult) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFD700', 12, 4);
       spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
+      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     } else if (ev.state === PegEvo.GLOWING) {
       // → CHARGED: ×2 points + store 50% of hit value
       ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
@@ -3667,6 +3669,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Effects based on peg type
   peg.hitCount++;
+  if (peg.id !== undefined) GS.pegsHit.add(peg.id);
   spawnParticles(peg.x, peg.y, peg.crumblingColor || pegDef.color, 10, 4);
   playSound('pegHit');
 
@@ -4442,10 +4445,16 @@ function checkFrenzy() {
 
 function updateObjectiveBar() {
   const obj = GS.floorObjective;
+
+  // Time lock floors: show countdown in label instead of 0/0 progress
+  if (obj.type === 'timelock') {
+    const remaining = Math.max(0, Math.ceil(GS.floorTimeRemaining || 0));
+    document.getElementById('objective-label').textContent = `TIME LOCK — ${remaining}s`;
+    document.getElementById('objective-fill').style.width = '0%';
+    return;
+  }
+
   const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
-  console.log('[DEBUG] updateObjectiveBar: progress=' + obj.progress + ', target=' + obj.target + ', pct=' + pct);
-  const fill = document.getElementById('objective-fill');
-  console.log('[DEBUG] fill element:', fill);
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
@@ -6357,6 +6366,9 @@ function updateGhostHUD() {
     ghostEl.style.display = 'none';
   }
 
+  // ── FIX HUD LAG: ensure HUD reflects current GS.score/GS.balls after physics ──
+  updateHUD();
+
   // Check objective periodically (standard/boss modes only — ghost/timelock have their own end conditions)
   if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target) {
     completeFloor();
@@ -6389,7 +6401,13 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
-  if (GS.screen !== 'playing') return;
+  if (GS.screen !== 'playing') {
+    // Shop open: show dismiss hint
+    if (GS.screen === 'shop') {
+      spawnFloatText(W / 2, H / 2 + 80, 'CLICK CONTINUE TO RESUME', '#ff00aa');
+    }
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
   dropBall();

@@ -3535,6 +3535,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
       updateMultiplierDisplay();
       peg.hitCount++;
+      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
       updateHUD();
       updateObjectiveBar();
       return; // skip normal bounce
@@ -3561,6 +3562,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
     updateMultiplierDisplay();
     peg.hitCount++;
+    if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     updateHUD();
     updateObjectiveBar();
     return; // skip normal bounce
@@ -3580,6 +3582,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       if (GS.multiplier > prevMult) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFD700', 12, 4);
       spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
+      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     } else if (ev.state === PegEvo.GLOWING) {
       // → CHARGED: ×2 points + store 50% of hit value
       ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
@@ -3667,6 +3670,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Effects based on peg type
   peg.hitCount++;
+  if (peg.id !== undefined) GS.pegsHit.add(peg.id);
   spawnParticles(peg.x, peg.y, peg.crumblingColor || pegDef.color, 10, 4);
   playSound('pegHit');
 
@@ -6356,6 +6360,9 @@ function updateGhostHUD() {
   } else if (ghostEl) {
     ghostEl.style.display = 'none';
   }
+
+  // ── FIX HUD LAG: ensure HUD reads current GS.score/GS.balls after physics/tick ──
+  updateHUD();
 
   // Check objective periodically (standard/boss modes only — ghost/timelock have their own end conditions)
   if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target) {

@@ -365,9 +365,13 @@ body.contrast-mode #combo-display {
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
+  pointer-events: none; /* prevent capturing clicks when not visible */
 }
 
-#shop-overlay.active { display: flex; }
+#shop-overlay.active {
+  display: flex;
+  pointer-events: auto; /* re-enable clicks only when active/open */
+}
 
 .shop-header {
   text-align: center;
@@ -599,8 +603,6 @@ body.contrast-mode #combo-display {
 #ghost-indicator.danger {
   color: #ff6600;
   text-shadow: 0 0 8px #ff660088;
-}
-  transition: opacity 0.2s;
 }
 /* Multiplier display — styles above */
 
@@ -1485,7 +1487,7 @@ const layerVisible = {};
 const screenLayers = {
   menu:          [LAYER.BACKGROUND],
   playing:       [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS, LAYER.FX, LAYER.SLOTS],
-  shop:          [LAYER.BACKGROUND],
+  shop:          [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS],
   floor_complete:[LAYER.BACKGROUND],
   run_end:       [LAYER.BACKGROUND],
 };
@@ -3359,13 +3361,15 @@ function generateBoard(floor) {
   // ── Mid-row pegs: fill vertical gaps between main rows (floors 3+) ──
   // Without these, xStep=80 creates 68px gaps between peg edges — ball (14px dia) slips through.
   // Mid-rows use y offset = baseYStep/2, interleaved x offsets, and slightly fewer columns.
-  // Even main row → mid row offset=20 → sits between main peg columns
-  // Odd main row  → mid row offset=0  → aligns with main column centers
+  // Even main row → mid row offset=0  → aligns with main peg column centers
+  // Odd main row  → mid row offset=baseXStep/2 → sits between main peg columns
   for (let row = 0; row < baseRows - 1; row++) {
     const y = 110 + row * baseYStep;
     const midY = y + baseYStep / 2;
-    const midCols = (row % 2) === 0 ? 5 : 4;
-    const midOffset = (row % 2) === 0 ? 20 : 0;
+    // Scale midCols proportionally to baseCols — mirrors main row alternating cols pattern
+    // Main rows use cols = baseCols - (row % 2), so midRows mirror this for consistent coverage
+    const midCols = Math.max(5, baseCols - ((row + 1) % 2));
+    const midOffset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
     for (let col = 0; col < midCols; col++) {
       const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;
       const rx = rng.random();
@@ -4456,7 +4460,9 @@ function updateObjectiveBar() {
     return;
   }
 
-  const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
+  // Clamp progress to [0, target] so bar never exceeds 100% visually
+  const clamped = Math.min(obj.progress, obj.target);
+  const pct = obj.target > 0 ? (clamped / obj.target) * 100 : 0;
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
@@ -4770,6 +4776,9 @@ const REP_SHOP_ITEMS = [
 ];
 
 function openShop(tab = 'credits') {
+  _shopContinueBusy = false; // reset debounce flag so CONTINUE works fresh
+  const btn = document.getElementById('shop-continue-btn');
+  if (btn) btn.disabled = false;
   GS.screen = 'shop';
   setActiveScreen('shop');
   document.getElementById('shop-credits').textContent = GS.breachCredits;
@@ -6516,7 +6525,13 @@ document.getElementById('achievements-btn').onclick = () => {
   openAchievements();
 };
 
-document.getElementById('shop-continue-btn').onclick = closeShop;
+let _shopContinueBusy = false;
+document.getElementById('shop-continue-btn').onclick = () => {
+  if (_shopContinueBusy) return;
+  _shopContinueBusy = true;
+  document.getElementById('shop-continue-btn').disabled = true;
+  closeShop();
+};
 
 document.getElementById('floor-continue-btn').onclick = () => {
   document.getElementById('floor-overlay').classList.remove('active');

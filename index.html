@@ -3358,13 +3358,13 @@ function generateBoard(floor) {
   // ── Mid-row pegs: fill vertical gaps between main rows (floors 3+) ──
   // Without these, xStep=80 creates 68px gaps between peg edges — ball (14px dia) slips through.
   // Mid-rows use y offset = baseYStep/2, interleaved x offsets, and slightly fewer columns.
-  // Even main row → mid row offset=20 → sits between main peg columns
-  // Odd main row  → mid row offset=0  → aligns with main column centers
+  // Even main row → mid row offset=0  → aligns with main peg column centers
+  // Odd main row  → mid row offset=baseXStep/2 → sits between main peg columns
   for (let row = 0; row < baseRows - 1; row++) {
     const y = 110 + row * baseYStep;
     const midY = y + baseYStep / 2;
     const midCols = (row % 2) === 0 ? 5 : 4;
-    const midOffset = (row % 2) === 0 ? 20 : 0;
+    const midOffset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
     for (let col = 0; col < midCols; col++) {
       const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;
       const rx = rng.random();
@@ -3382,6 +3382,33 @@ function generateBoard(floor) {
         crumblingColor: midType === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
         evolution: assignEvolutionState(rng)
       });
+    }
+  }
+
+  // ── Extra y=320 mid-row: closes the ~23px gap that appears on floors 3-12
+  // where baseYStep (46-52) creates a gap around y=320 between midY rows.
+  // Insert a supplementary row of pegs at y=320 whenever no main-row or mid-row
+  // peg exists exactly at y=320. This row uses sparse columns (4 pegs) to avoid
+  // duplicating coverage already provided by adjacent main/mid rows.
+  {
+    const existingYs = board.map(p => Math.round(p.y));
+    const has320 = existingYs.includes(320);
+    if (!has320) {
+      // Sparse 4-peg row at y=320, centered with x offset
+      const xStep = baseXStep;
+      const xOffset = Math.floor(xStep / 2);
+      for (let col = 0; col < 4; col++) {
+        const x = 40 + xOffset + col * xStep + (rng.random() - 0.5) * 8;
+        board.push({
+          x: Math.max(20, Math.min(W - 20, x)),
+          y: 320,
+          type: 'node',
+          hitCount: 0, id: board.length,
+          hitsRemaining: 0,
+          crumblingColor: null,
+          evolution: assignEvolutionState(rng)
+        });
+      }
     }
   }
 

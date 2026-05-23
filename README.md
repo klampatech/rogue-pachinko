@@ -83,6 +83,16 @@ Earned from Cache pegs. Spent in the shop. Persist across runs. Reputation score
 ### Objectives
 Each floor has a peg-clear objective (e.g., hit 20 pegs on floor 1). Completing it grants ball inventory back. Failing it (running out of balls before objective) ends the run.
 
+### Special Floor Modes
+
+**Standard Floors** — clear pegs to meet the target count. Nothing special.
+
+**Timelock Mode (floors 4, 7, 10, ...)** — A countdown timer runs down from 45–60s. The HUD shows `⏱ Ns` at the top center. You win by **surviving until the timer hits zero without running out of balls**. If the timer reaches zero, the floor fails. Tip: play carefully and conserve balls — you don't need to clear all pegs, just last long enough.
+
+**Ghost Mode (floors 7, 10, 13, ...)** — The ball phases through normal pegs but freezes on contact with **ice pegs**. You have a small ice-hit budget (2–3 hits depending on floor). Win by **depleting your ball supply without exceeding your ice-hit budget**. If you exceed the budget, the floor fails. Tip: ghost payload is excellent here — it lets you phase through pegs entirely.
+
+**Boss Floors (every 5th floor: 5, 10, 15, ...)** — A large vault peg appears at the bottom of the board, requiring 22–60+ hits to crack. The objective bar tracks hits against it. Win by **hitting the vault enough times before running out of balls**. Tier breaches every 5 floors award bonus credits.
+
 ---
 
 ## Design

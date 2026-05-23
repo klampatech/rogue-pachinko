@@ -5556,7 +5556,7 @@ function endRun(won) {
   const prevRank = GS.rank;
   GS.rank = getPlayerRank(PERSIST.reputation);
 
-  title.textContent = won ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
+  title.textContent = (won || isNewHighScore) ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
   title.className = 'runend-title ' + (won ? 'win' : 'lose');
 
   // Build meta-progress display

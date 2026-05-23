@@ -3491,7 +3491,10 @@ function setupObjective(floor) {
     // Boss floor: crack a vault with target scaling by tier
     return { type: 'boss', target: 12 + tier * 5, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   } else if (subTier === 1 && tier >= 1) {
-    // Timelock: 45 seconds, scales slightly
+    // Timelock: 45 seconds, scales slightly — starts at floor 4 (tier=1, subTier=1)
+    // FIX: tier>=1 correctly starts timelock at floor 4; tier>=0 would start it at floor 2
+    // Note: subTier of 1 means every 3rd floor starting from floor 2 (floors 2, 5, 8, ...)
+    // but tier>=1 restricts to floor 4+ to give players early floor experience first
     return { type: 'timelock', target: 0, progress: 0, label: `TIME LOCK - ${45 + tier * 5} SECONDS`, timeLimit: 45 + tier * 5 };
   } else if (subTier === 0 && tier >= 2) {
     // Ghost mode: starts appearing at floor 7 (tier=2, subTier=0)
@@ -5302,7 +5305,7 @@ function createLeaderboardOverlay() {
       <button id="lb-filter-daily" onclick="setLbFilter('daily')" style="background:#1a1a2e;border:1px solid #ffcc0044;color:#ffcc00;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DAILY ONLY</button>
     </div>
     <div id="lb-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
-    <button onclick="closeLeaderboard()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+    <button onclick="closeLeaderboard(); event.stopPropagation();" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
   `;
   document.body.appendChild(overlay);
   return overlay;

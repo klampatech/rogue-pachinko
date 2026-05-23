@@ -2147,6 +2147,7 @@ function triggerOverflow(x, y, floor, shieldActive) {
 
   // Apply lives penalty (floor ball count reduction)
   GS.livesLost = (GS.livesLost || 0) + livesLost;
+  canDrop = true;
 }
 
 function triggerSlotCollected(ball, slotIdx) {
@@ -4334,6 +4335,7 @@ function spawnReplacementBall() {
   GS.runMaxCombo = 0;
   updatePayloadSlots();
   updateHUD();
+  canDrop = true;
 }
 
 // ─── MULTIPLIER ──────────────────────────────────────────────

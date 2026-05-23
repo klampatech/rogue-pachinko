@@ -1730,6 +1730,7 @@ class Ball {
         // Locked slots: show message but keep ball alive — it falls through to overflow
         if (!isSlotUnlocked(slotIdx)) {
           spawnFloatText(getSlotX(slotIdx) + SLOT_WIDTH/2, SLOT_START_Y + SLOT_HEIGHT/2 - 10, 'LOCKED', '#666666');
+          return; // only show once — don't spam every frame while ball passes through
         } else {
           this.active = false;
           triggerSlotCollected(this, slotIdx);

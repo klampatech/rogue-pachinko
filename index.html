@@ -4549,6 +4549,8 @@ function updateMenuStats() {
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
 function completeFloor() {
+  // Close leaderboard if open — prevent it from leaking over floor_complete screen
+  closeLeaderboard();
   GS.screen = 'floor_complete';
   setActiveScreen('floor_complete');
   playSound('floorClear');
@@ -5612,6 +5614,8 @@ function showGameOverInterstitial(callback, reason) {
 }
 
 function endRun(won) {
+  // Declare isNewHighScore early to avoid TDZ when referenced in title ternary
+  let isNewHighScore;
   // Hide game canvas so overlays render on clean background
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = 'none';

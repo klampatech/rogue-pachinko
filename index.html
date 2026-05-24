@@ -365,12 +365,14 @@ body.contrast-mode #combo-display {
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
-  pointer-events: none; /* prevent capturing clicks when not visible */
+  pointer-events: none;
+  visibility: hidden;
 }
 
 #shop-overlay.active {
   display: flex;
-  pointer-events: auto; /* re-enable clicks only when active/open */
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .shop-header {
@@ -408,7 +410,7 @@ body.contrast-mode #combo-display {
 .shop-item.rep-item { border-color: #00ffaa33; }
 
 .item-icon { font-size: 18px; margin-bottom: 5px; }
-.item-name { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
+.item-title { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
 .item-desc { font-size: 8px; color: #666; line-height: 1.4; margin-bottom: 8px; }
 .item-cost { font-size: 10px; color: #ffaa00; }
 .item-owned-badge { font-size: 8px; color: #ff00aa; margin-top: 5px; }
@@ -4846,7 +4848,7 @@ function openShop(tab = 'credits') {
       el.style.borderColor = rarityColor + '55';
       el.innerHTML =
         '<div class="item-icon" style="color:' + rarityColor + ';">' + item.icon + '</div>' +
-        '<div class="item-name">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
+        '<div class="item-title">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         rarityBadge +
         (owned ? ownedBadge : lockedMsg);
@@ -4864,7 +4866,7 @@ function openShop(tab = 'credits') {
       const ownedBadge = '<div class="item-owned-badge" style="color:#00ffaa;">✓ OWNED</div>';
       el.innerHTML =
         '<div class="item-icon" style="color:#00ffaa;">' + item.icon + '</div>' +
-        '<div class="item-name" style="color:#00ffaa;">' + item.name + '</div>' +
+        '<div class="item-title" style="color:#00ffaa;">' + item.name + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         (owned ? ownedBadge : costDiv + buyBtn);
 
@@ -5402,6 +5404,9 @@ function closeShop(skipFloorAdvance = false) {
 let _shopOpenedAfterFloorComplete = false;
 
 document.getElementById('shop-continue-btn').onclick = () => {
+  const btn = document.getElementById('shop-continue-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
   // _shopOpenedAfterFloorComplete = true means shop was opened via floor-continue-btn
   // or jp-continue-btn — meaning the player cleared the floor and is done shopping.
   // In that case we DO want to advance to the next floor.
@@ -5494,13 +5499,13 @@ function startFloor() {
   GS.ghostModeIceHits = 0;
   // Floor 5 timelock tutorial — show once per run before the floor starts
   if (GS.floor === 5 && GS.floorObjective.type === 'timelock') {
-    const timeLimit = GS.floorObjective.timeLimit || 45;
+    const timeLimit = GS.floorObjective.timeLimit || 39;
     showTutorialModal(
       'FLOOR 5 — TIME LOCK',
-      `Survive the countdown! Clear all ICE PEGS before time runs out to complete this floor.<br><br>` +
-      `⏱ Time Limit: <span style="color:#ffd700;">${timeLimit} seconds</span><br>` +
-      `❄ Ice Pegs freeze the ball briefly — plan your drop zone!<br>` +
-      `✅ Goal: Clear all ice pegs before the timer hits zero.`,
+      `Clear all <span style="color:#88ccff;">ICE PEGS</span> before time runs out!<br><br>` +
+      `⏱ You have <span style="color:#ffd700;">${timeLimit} seconds</span>.<br>` +
+      `Timer counts down to <span style="color:#ff4466;">0</span> — floor fails at zero!<br><br>` +
+      `❄ Ice Pegs briefly freeze the ball — plan your drop zone carefully.`,
       'floor5_timelock'
     );
   }
@@ -5531,21 +5536,15 @@ function grantStartingPayload() {
   updatePayloadSlots();
 }
 
+// getNextRank — uses canonical RANKS array (line ~1211) and GS.rank
 function getNextRank() {
-  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
-  const idx = ranks.indexOf(GS.rank);
-  return idx >= 0 && idx < ranks.length - 1 ? ranks[idx + 1] : 'MAX';
+  const idx = RANKS.findIndex(r => r.name === GS.rank);
+  return idx >= 0 && idx < RANKS.length - 1 ? RANKS[idx + 1].name : 'MAX';
 }
-function getRankProgress() {
-  const thresholds = [0, 500, 1500, 4000, 10000, 25000, 60000];
-  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
-  const idx = ranks.indexOf(GS.rank);
-  const next = idx >= 0 ? (thresholds[idx + 1] || 999999) : 999999;
-  const prev = idx > 0 ? (thresholds[idx] || 0) : 0;
-  const rep = GS.reputation || 0;
-  if (rep >= next) return 100;
-  return Math.min(100, Math.round(((rep - prev) / (next - prev)) * 100));
-}
+
+// getRankProgress is defined at line ~1297 (canonical,
+// uses PERSIST.reputation + RANKS array). The run-end overlay calls it
+// directly via template literals.
 
 // ── Tutorial Modal ────────────────────────────────────────────────
 function showTutorialModal(title, body, persistKey) {

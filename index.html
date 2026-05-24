@@ -4599,6 +4599,10 @@ function completeFloor() {
   initJackpotSlots();
 }
 
+// Module-level timer registry for jackpot slot sessions
+// Cancelled on each new initJackpotSlots() call to prevent orphan timer pile-up
+let _jpTimers = [];
+
 function initJackpotSlots() {
   const reels = [
     document.getElementById('reel-0'),
@@ -4620,6 +4624,12 @@ function initJackpotSlots() {
   const symbols = ['☠','☢','✦','◈','✧'];
   let spinInProgress = false;
   let canReroll = false;
+
+  // ── Cancel orphaned timers from a previous floor's jackpot session ──
+  // Without this, multiple completeFloor() calls pile up setInterval+setTimeout
+  // closures → showResult() fires multiple times, corrupting button state
+  _jpTimers.forEach(id => { clearInterval(id); clearTimeout(id); });
+  _jpTimers = [];
 
   reels.forEach(r => r && (r.textContent = symbols[Math.floor(Math.random() * symbols.length)]));
   if (jpBanner) { jpBanner.style.display = 'none'; jpBanner.textContent = ''; }
@@ -4712,7 +4722,7 @@ function initJackpotSlots() {
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
     playSound('jpSpin');
-    triggerSlotSpinMusic();
+    // No triggerSlotSpinMusic() — let background gameplay music continue uninterrupted
 
     // Spinning state — blur ramp + scale pulse on each reel
     reels.forEach(r => r && (r.style.filter = 'blur(6px)'));
@@ -4746,10 +4756,11 @@ function initJackpotSlots() {
           reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         }
       }, 50 + i * 20);
+      _jpTimers.push(spin);
 
       // Staggered landing: each reel lands 400ms after the previous
       const reelIndex = i;
-      setTimeout(() => {
+      const landTimer = setTimeout(() => {
         clearInterval(spin);
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         reel.style.filter = 'blur(0px)';
@@ -4762,14 +4773,16 @@ function initJackpotSlots() {
           setTimeout(() => { reel.style.transition = ''; }, 80);
         }, 80);
       }, stopTimes[reelIndex]);
+      _jpTimers.push(landTimer);
     });
 
     // After all reels landed + settle time, show result
-    setTimeout(() => {
+    const resultTimer = setTimeout(() => {
       spinInProgress = false;
       if (spinEl) spinEl.style.display = 'none';
       showResult();
     }, spinDurations[2] + 500);
+    _jpTimers.push(resultTimer);
   }
 
   if (jpBtn) {

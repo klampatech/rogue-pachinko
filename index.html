@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slot Protocol</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0a0f'/><circle cx='16' cy='16' r='10' fill='none' stroke='%2300f0ff' stroke-width='2'/><circle cx='16' cy='16' r='4' fill='%2300f0ff'/></svg>">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -36,22 +35,19 @@ body {
   height: 100%;
 }
 
-/* CRT scanline overlay — tiles a 2px strip (avoids rendering a full-DPR gradient every frame) */
+/* CRT scanline overlay */
 #crt-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-image: repeating-linear-gradient(
+  background: repeating-linear-gradient(
     0deg,
-    transparent 0px,
-    transparent 1px,
+    rgba(0, 0, 0, 0.15) 0px,
     rgba(0, 0, 0, 0.15) 1px,
-    rgba(0, 0, 0, 0.15) 2px
+    transparent 1px,
+    transparent 2px
   );
-  background-repeat: repeat;
-  background-size: 100% 2px;
   pointer-events: none;
   z-index: 10;
-  will-change: transform;
 }
 
 /* CRT flicker */
@@ -184,10 +180,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 40px 20px;
-  gap: 24px;
-  overflow-y: auto;
+  justify-content: center;
+  gap: 30px;
 }
 
 #menu-overlay.hidden { display: none; }
@@ -221,17 +215,6 @@ body {
   line-height: 1.8;
 }
 
-.menu-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.menu-section.primary-section { gap: 20px; }
-.menu-section.secondary-section { gap: 10px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-.menu-section.tertiary-section { gap: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 400px; }
-
 .stat-value { color: #00f0ff; }
 .stat-rank { color: #ff00aa; }
 
@@ -256,9 +239,8 @@ body {
 .game-btn.secondary {
   border-color: #ff00aa;
   color: #ff00aa;
-  font-size: 11px;
+  font-size: 10px;
   padding: 8px 20px;
-  text-shadow: 0 0 8px #ff00aa88;
 }
 .game-btn.secondary:hover {
   background: #ff00aa;
@@ -266,26 +248,11 @@ body {
   box-shadow: 0 0 20px #ff00aa;
 }
 
-#daily-btn { color: #ffcc00; border-color: #ffcc00; text-shadow: 0 0 8px #ffcc0044; }
-#daily-btn:hover { background: #ffcc00; color: #0a0a0f; box-shadow: 0 0 20px #ffcc00; }
-
-#mastery-btn { border-color: #ffd700; color: #ffd700; text-shadow: 0 0 8px #ffd70044; }
-#mastery-btn:hover { background: #ffd700; color: #0a0a0f; box-shadow: 0 0 20px #ffd700; }
-
-#skins-btn { border-color: #ff44ff; color: #ff44ff; text-shadow: 0 0 8px #ff44ff44; }
-#skins-btn:hover { background: #ff44ff; color: #0a0a0f; box-shadow: 0 0 20px #ff44ff; }
-
-#achievements-btn { border-color: #ffd700; color: #ffd700; text-shadow: 0 0 8px #ffd70044; }
-#achievements-btn:hover { background: #ffd700; color: #0a0a0f; box-shadow: 0 0 20px #ffd700; }
-
-#leaderboard-btn { border-color: #00ffaa; color: #00ffaa; text-shadow: 0 0 8px #00ffaa44; }
-#leaderboard-btn:hover { background: #00ffaa; color: #0a0a0f; box-shadow: 0 0 20px #00ffaa; }
-
 .game-btn.tertiary {
   border-color: #555;
   color: #888;
   font-size: 10px;
-  padding: 6px 14px;
+  padding: 8px 20px;
 }
 .game-btn.tertiary:hover {
   border-color: #aaa;
@@ -368,15 +335,9 @@ body.contrast-mode #combo-display {
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
-  pointer-events: none;
-  visibility: hidden;
 }
 
-#shop-overlay.active {
-  display: flex;
-  pointer-events: auto !important;
-  visibility: visible;
-}
+#shop-overlay.active { display: flex; }
 
 .shop-header {
   text-align: center;
@@ -413,7 +374,7 @@ body.contrast-mode #combo-display {
 .shop-item.rep-item { border-color: #00ffaa33; }
 
 .item-icon { font-size: 18px; margin-bottom: 5px; }
-.item-title { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
+.item-name { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
 .item-desc { font-size: 8px; color: #666; line-height: 1.4; margin-bottom: 8px; }
 .item-cost { font-size: 10px; color: #ffaa00; }
 .item-owned-badge { font-size: 8px; color: #ff00aa; margin-top: 5px; }
@@ -609,6 +570,8 @@ body.contrast-mode #combo-display {
   color: #ff6600;
   text-shadow: 0 0 8px #ff660088;
 }
+  transition: opacity 0.2s;
+}
 /* Multiplier display — styles above */
 
 /* Run end overlay */
@@ -760,7 +723,7 @@ body.contrast-mode #combo-display {
     <div id="hud-left">
       <div>
         <div class="hud-label">FLOOR</div>
-        <div id="floor-indicator" class="hud-value">1</div>
+        <div id="floor-indicator" class="hud-value">1/5</div>
       </div>
       <div>
         <div class="hud-label">BREACH</div>
@@ -830,24 +793,13 @@ body.contrast-mode #combo-display {
       <div>MASTERY POINTS: <span class="stat-value" id="menu-mastery" style="color:#ffd700;">0</span></div>
       <div id="daily-challenge-info" style="margin-top:8px;font-size:9px;color:#ffcc00;"></div>
     </div>
-
-    <div class="menu-section primary-section">
-      <button class="game-btn" id="start-btn">INITIATE BREACH</button>
-    </div>
-
-    <div class="menu-section secondary-section">
-      <button class="game-btn secondary" id="daily-btn">DAILY CHALLENGE</button>
-      <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
-    </div>
-
-    <div class="menu-section tertiary-section">
-      <button class="game-btn tertiary" id="contrast-btn">CONTRAST MODE</button>
-      <button class="game-btn tertiary" id="mastery-btn">MASTERY</button>
-      <button class="game-btn tertiary" id="skins-btn">SKINS</button>
-      <button class="game-btn tertiary" id="achievements-btn">ACHIEVEMENTS</button>
-      <button class="game-btn tertiary" id="leaderboard-btn">LEADERBOARD</button>
-    </div>
-
+    <button class="game-btn" id="start-btn">INITIATE BREACH</button>
+    <button class="game-btn secondary" id="daily-btn" style="color:#ffcc00;border-color:#ffcc00;font-size:11px;padding:8px 20px;">DAILY CHALLENGE</button>
+    <button class="game-btn secondary" id="reset-btn">RESET PROGRESS</button>
+    <button class="game-btn tertiary" id="contrast-btn" style="font-size:10px;padding:6px 16px;">CONTRAST MODE</button>
+    <button class="game-btn tertiary" id="mastery-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ffd700;color:#ffd700;">MASTERY</button>
+    <button class="game-btn tertiary" id="skins-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#ff44ff;color:#ff44ff;">SKINS</button>
+    <button class="game-btn tertiary" id="leaderboard-btn" style="font-size:10px;padding:6px 16px;margin-top:6px;border-color:#00ffaa;color:#00ffaa;">LEADERBOARD</button>
     <div class="instructions">
       Click to drop ball • Stack payloads for combos • Clear pegs to breach
     </div>
@@ -989,12 +941,11 @@ const GS = {
   breachBonusMultiplier: 1.0,
   startingPayloadCount: 0,
   jackpotGrowthBonus: 1.0,
+  startingCreditsBonus: 0,
   multiballEnabled: false,
   // Mastery upgrades
   masteryPoints: 0,
   pegRadar: false,
-  pegBonusMultiplier: 1.0,
-  comboThreshold: 3,
   shopDiscount: 1.0,
   // Daily challenge mode
   dailyMode: false,
@@ -1195,22 +1146,6 @@ const MASTERY_UPGRADES = {
       { cost: 50, effect: { pegRadar: true } },
     ]
   },
-  pegBonus: {
-    name: 'Peg Bonus',
-    desc: '+10% score per peg hit per tier',
-    tiers: [
-      { cost: 100, effect: { pegBonusMultiplier: 1.10 } },
-      { cost: 200, effect: { pegBonusMultiplier: 1.20 } },
-    ]
-  },
-  comboThreshold: {
-    name: 'Frenzy Trigger',
-    desc: 'Frenzy triggers at combo ≥ 2 / 1 instead of 3',
-    tiers: [
-      { cost: 200, effect: { comboThreshold: 2 } },
-      { cost: 400, effect: { comboThreshold: 1 } },
-    ]
-  },
 };
 
 const RANKS = [
@@ -1291,6 +1226,7 @@ function executePrestige() {
     return u && (u.cat === 'COSMETIC' || u.cat === 'TITLE');
   });
   meta.unlocks = cosmetics;
+  meta.prestigeLevel;
   // Reputation resets to 0 on prestige
   PERSIST.reputation = 0;
 
@@ -1315,7 +1251,7 @@ function loadPersist() {
   try {
     const d = localStorage.getItem('slotprotocol');
     PERSIST = d ? JSON.parse(d) : {};
-    GS.unlockedPayloads = PERSIST.unlockedPayloads ?? ['scrambler', 'trojan'];
+    GS.unlockedPayloads = PERSIST.unlockedPayloads || [];
     GS.unlockedUpgrades = PERSIST.unlockedUpgrades || [];
     GS.reputation = PERSIST.reputation || 0;
     GS.lifetimeBreach = PERSIST.lifetimeBreach || 0;
@@ -1324,9 +1260,6 @@ function loadPersist() {
     GS.bestScore = PERSIST.bestScore || 0;
     GS.lastScore = PERSIST.lastScore || 0;
     GS.hasSeenTutorial = PERSIST.hasSeenTutorial || false;
-    // Seed in-memory achievement set from persisted earned achievements
-    if (!PERSIST.achievements) PERSIST.achievements = [];
-    (PERSIST.achievements || []).forEach(k => _seenAchs.add(k));
   } catch(e) {
     PERSIST = {};
   }
@@ -1360,6 +1293,10 @@ function savePersist() {
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
   PERSIST.masteryPoints = PERSIST.masteryPoints;
   PERSIST.purchasedUpgrades = PERSIST.purchasedUpgrades || {};
+  // Track total runs
+  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
+  // Track best floor
+  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
   // Track best score
   if (GS.score > (PERSIST.bestScore || 0)) PERSIST.bestScore = GS.score;
   PERSIST.lastScore = GS.score;
@@ -1402,15 +1339,6 @@ const PEG_TYPES = {
   speedboost: { color: '#ffff00', glow: '#ffff00', radius: 6, bounce: 0.7, label: 'BOOST', velocityMult: 1.5 }
 };
 
-// ─── TIMING CONSTANTS ──────────────────────────────────────
-const TIMING = {
-  CHAIN_EXTEND: 30,        // frames per peg hit (~0.5s at 60fps)
-  CHAIN_AMPLIFY: 180,     // AMPLIFY slot bonus extension (~3s)
-  FRENZY_DURATION: 180,   // frenzy active duration (~3s)
-  COMBO_THRESHOLD: 5,      // peg hits to trigger frenzy
-  MAX_MULTIPLIER: 7,      // cap
-};
-
 // ─── PHYSICS CONSTANTS ───────────────────────────────────────
 const GRAVITY = 0.18;
 const FRICTION = 0.995;
@@ -1424,7 +1352,6 @@ const STUCK_DIST_THRESHOLD = 2; // px movement below which counts as stuck
 const SLOT_COUNT = 7;
 const SLOT_START_Y = 560;    // top of slot zone
 const SLOT_HEIGHT = 50;      // pocket depth
-const SLOT_Y = SLOT_START_Y;  // global alias for drawLayers() preview arc highlight
 const SLOT_WIDTH = 64;        // regular slot
 const SLOT_CENTER_WIDTH = 68; // center slot (slightly wider)
 const SLOT_GAP = 2;
@@ -1442,13 +1369,7 @@ const SLOT_TYPES = [
 
 // Slot unlock floors: which floor each slot unlocks on (0-indexed)
 // CREDITS(0), AMPLIFY(1), PAYLOAD(2), CRUMBLE(3), SHIELD(4), OVERCLOCK(5), JACKPOT(6)
-// Slots unlock every N floors, cycling through slot types
-const SLOT_UNLOCK_INTERVAL = 5;
-const SLOT_UNLOCK_FLOOR = [1, 2, 3, 4, 5, 6, 7].map(i => ((i - 1) % SLOT_UNLOCK_INTERVAL) + 1);
-// Dynamic unlock check based on floor
-function isSlotUnlocked(slotIndex) {
-  return GS.floor >= ((slotIndex % SLOT_UNLOCK_INTERVAL) + 1) * Math.floor(GS.floor / SLOT_UNLOCK_INTERVAL + 1);
-}
+const SLOT_UNLOCK_FLOOR = [1, 1, 2, 4, 3, 5, 1];
 
 // Multiplier tier colors — x1 dim cyan → x7 blazing white
 const MULT_COLORS = {
@@ -1488,22 +1409,25 @@ const layerVisible = {};
 const screenLayers = {
   menu:          [LAYER.BACKGROUND],
   playing:       [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS, LAYER.FX, LAYER.SLOTS],
-  shop:          [LAYER.BACKGROUND, LAYER.BOARD, LAYER.BALLS],
+  shop:          [LAYER.BACKGROUND],
   floor_complete:[LAYER.BACKGROUND],
   run_end:       [LAYER.BACKGROUND],
 };
 
 function setActiveScreen(name) {
+  console.log("setActiveScreen called:", name, "screenLayers[name]:", screenLayers[name]);
   const active = screenLayers[name] || [LAYER.BACKGROUND];
+  console.log("active layers:", active);
   for (const key in LAYER) {
     layerVisible[key] = active.includes(LAYER[key]);
   }
+  console.log("after setActiveScreen, layerVisible:", JSON.stringify(layerVisible));
 }
 
-function drawLayers(time) {
+function drawLayers(time) { console.log("drawLayers", "board:", GS.board.length, "BOARD visible:", layerVisible.BOARD);
   if (layerVisible.BACKGROUND) drawBackground();
   if (layerVisible.BOARD)      drawPegs();
-  if (layerVisible.BALLS && GS.screen !== 'run_end' && GS.screen !== 'floor_complete') for (const ball of GS.ballsInPlay) ball.draw();
+  if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
   // Preview arc — dashed cyan arc showing predicted ball trajectory
   if (GS.screen === 'playing' && previewArc.length > 0) {
     // Find landing slot from end of arc
@@ -1728,14 +1652,9 @@ class Ball {
     if (this.y > SLOT_START_Y) {
       const slotIdx = getSlotForX(this.x);
       if (slotIdx !== -1) {
-        // Locked slots: show message but keep ball alive — it falls through to overflow
-        if (!isSlotUnlocked(slotIdx)) {
-          spawnFloatText(getSlotX(slotIdx) + SLOT_WIDTH/2, SLOT_START_Y + SLOT_HEIGHT/2 - 10, 'LOCKED', '#666666');
-          return; // only show once — don't spam every frame while ball passes through
-        } else {
-          this.active = false;
-          triggerSlotCollected(this, slotIdx);
-        }
+        // Ball is captured by slot — play slot animation and effects
+        this.active = false;
+        triggerSlotCollected(this, slotIdx);
         return;
       }
       // Missed all slots → ball is in the OVERFLOW zone
@@ -1743,14 +1662,12 @@ class Ball {
     // OVERFLOW: ball passed through slot zone without capture → apply floor-scaled penalty
     if (this.y > SLOT_START_Y + SLOT_HEIGHT) {
       this.active = false;
-      this.scramblerActive = false;
       triggerOverflow(this.x, this.y, GS.floor, GS.shieldActive);
       return;
     }
     // Exit bottom (ball fell through gap or overshot)
     if (this.y > H + 20) {
       this.active = false;
-      this.scramblerActive = false;
       resolveBallExit(this);
     }
   }
@@ -1942,18 +1859,11 @@ class Ball {
 }
 
 // ─── PARTICLE SYSTEM ─────────────────────────────────────────
-const MAX_PARTICLES = 200;
-const MAX_FRAGMENTS = 80;
-const MAX_SHOCKWAVES = 30;
 const particles = [];
 const fragments = []; // Crumbling peg shards
 const shockwaves = []; // Seismic shockwave rings
 
 function spawnParticles(x, y, color, count = 8, spread = 3) {
-  // Evict dead particles from front of array to stay under cap
-  while (particles.length >= MAX_PARTICLES && particles.length > 0) {
-    particles.shift();
-  }
   for (let i = 0; i < count; i++) {
     particles.push({
       x, y,
@@ -1968,9 +1878,7 @@ function spawnParticles(x, y, color, count = 8, spread = 3) {
 }
 
 function spawnFragments(x, y, color) {
-  if (fragments.length >= MAX_FRAGMENTS) return;
   for (let i = 0; i < 5; i++) {
-    if (fragments.length >= MAX_FRAGMENTS) break;
     fragments.push({
       x, y,
       vx: (Math.random() - 0.5) * 4,
@@ -1986,7 +1894,6 @@ function spawnFragments(x, y, color) {
 }
 
 function spawnShockwave(x, y, color = '#00f0ff', maxRadius = 80) {
-  if (shockwaves.length >= MAX_SHOCKWAVES) shockwaves.shift();
   shockwaves.push({ x, y, color, radius: 10, maxRadius, life: 1, decay: 0.04 });
 }
 
@@ -2109,15 +2016,10 @@ function isSlotUnlocked(slotIdx) {
 }
 
 function updateUnlockedSlots() {
-  // Unlock slots dynamically based on floor and slot index
-  // Slots unlock on a cycle: every SLOT_UNLOCK_INTERVAL floors, one new slot type unlocks
-  // A slot is unlocked if floor >= (slot_index % SLOT_UNLOCK_INTERVAL) + 1 AND floor reaches the tier threshold
+  // Unlock slots based on current floor progression
   GS.unlockedSlots = [];
   for (let i = 0; i < SLOT_COUNT; i++) {
-    const unlockFloor = (i % SLOT_UNLOCK_INTERVAL) + 1;
-    const tier = Math.floor(i / SLOT_UNLOCK_INTERVAL);
-    const requiredFloor = unlockFloor + tier * SLOT_UNLOCK_INTERVAL;
-    if (GS.floor >= requiredFloor) {
+    if (GS.floor >= SLOT_UNLOCK_FLOOR[i]) {
       GS.unlockedSlots.push(i);
     }
   }
@@ -2159,7 +2061,6 @@ function triggerOverflow(x, y, floor, shieldActive) {
 
   // Apply lives penalty (floor ball count reduction)
   GS.livesLost = (GS.livesLost || 0) + livesLost;
-  canDrop = true;
 }
 
 function triggerSlotCollected(ball, slotIdx) {
@@ -2179,12 +2080,6 @@ function triggerSlotCollected(ball, slotIdx) {
     total: 30,  // frames
     triggered: false,
   });
-
-  // Deactivate ball — it went into the slot
-  ball.active = false;
-
-  // Re-enable drop — ball is gone, player can drop next ball
-  canDrop = true;
 
   // Check if slot is unlocked
   if (!isSlotUnlocked(slotIdx)) {
@@ -2208,7 +2103,7 @@ function triggerSlotCollected(ball, slotIdx) {
     case 1: // AMPLIFY: +1 multiplier
       GS.multiplier++;
       pts = 25 * mult;
-      GS.chainTimer = TIMING.CHAIN_AMPLIFY; // ~3 sec chain extension
+      GS.chainTimer = 180; // 3 sec chain extension
       triggerFlash(flashColor, 0.1);
       spawnFloatText(centerX, slotCenterY - 10, `x${GS.multiplier}`, slot.color);
       updateMultiplierDisplay();
@@ -2236,18 +2131,16 @@ function triggerSlotCollected(ball, slotIdx) {
         const peg = alive.splice(idx, 1)[0];
         if (!peg.destroyed) {
           peg.destroyed = true;
-          if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-          updateObjectiveBar();
+          GS.floorObjective.progress++;
           spawnParticles(peg.x, peg.y, peg.color || slot.color, 6, 3);
           cleared++;
         }
       }
       spawnFloatText(centerX, slotCenterY - 10, `CRUMBLE x${cleared}`, slot.color);
-      updateObjectiveBar();
       break;
     }
 
-    case 4: // SHIELD: next ball gets shield bubble + overflow protection
+    case 4: // SHIELD: next ball gets shield bubble
       GS.shieldNextBall = true;
       pts = 40 * mult;
       triggerFlash('#00ff8844', 0.12);
@@ -2280,7 +2173,6 @@ function triggerSlotCollected(ball, slotIdx) {
       triggerShake(12);
       spawnParticles(centerX, slotCenterY, '#ffd700', 20, 8);
       spawnFloatText(centerX, slotCenterY - 10, `JP+${100 * mult}`, slot.color);
-      showAchievement('jackpotWin');
       break;
   }
 
@@ -2588,22 +2480,15 @@ function drawFloatTexts(ctx) {
 
 // ─── ACHIEVEMENT TOASTS ─────────────────────────────────────
 const ACHIEVEMENTS = {
-  firstPeg:      { icon: '🔵', title: 'First Contact',     desc: 'Cleared your first peg' },
-  firstFloor:    { icon: '🏠', title: 'Floor Breached',     desc: 'Cleared floor 1' },
-  firstJackpot:  { icon: '💰', title: 'Jackpot Hit',        desc: 'Won the slot jackpot' },
-  firstOverload: { icon: '⚡', title: 'Cascade Overload',   desc: 'Triggered OVERLOAD mode' },
-  firstFrenzy:   { icon: '🔥', title: 'Frenzy Ready',       desc: 'Entered frenzy state' },
-  x3mult:        { icon: '⬆',  title: 'Hot Streak',         desc: 'Reached x3 multiplier' },
-  x5mult:        { icon: '🚀', title: 'On Fire',            desc: 'Reached x5 multiplier' },
-  x7mult:        { icon: '💫', title: 'Maximum Power',      desc: 'Hit x7 multiplier' },
-  fullBreach:    { icon: '👾', title: 'Full Breach',         desc: 'Completed all 5 floors' },
-  floor3:        { icon: '🔰', title: 'Advanced Operative',  desc: 'Reached floor 3' },
-  floor5:        { icon: '🏅', title: 'Elite Hacker',        desc: 'Reached floor 5' },
-  combo5:        { icon: '🔗', title: 'Chain Reaction',   desc: '5 consecutive pegs' },
-  combo10:       { icon: '💥', title: 'Cascade Failure',  desc: '10 consecutive pegs' },
-  fiftyRuns:     { icon: '🎖', title: 'Veteran',          desc: 'Completed 50 runs' },
-  hundredRuns:   { icon: '🛡', title: 'Lifetime Member',   desc: 'Completed 100 runs' },
-  jackpotWin:    { icon: '🌟', title: 'Jackpot Winner',    desc: 'Won the slot jackpot' },
+  firstPeg:      { icon: '🔵', title: 'First Contact',   desc: 'Cleared your first peg' },
+  firstFloor:    { icon: '🏠', title: 'Floor Breached',   desc: 'Cleared floor 1' },
+  firstJackpot:  { icon: '💰', title: 'Jackpot Hit',      desc: 'Won the slot jackpot' },
+  firstOverload: { icon: '⚡', title: 'Cascade Overload',  desc: 'Triggered OVERLOAD mode' },
+  firstFrenzy:   { icon: '🔥', title: 'Frenzy Ready',     desc: 'Entered frenzy state' },
+  x3mult:        { icon: '⬆',  title: 'Hot Streak',        desc: 'Reached x3 multiplier' },
+  x5mult:        { icon: '🚀', title: 'On Fire',           desc: 'Reached x5 multiplier' },
+  x7mult:        { icon: '💫', title: 'Maximum Power',     desc: 'Hit x7 multiplier' },
+  fullBreach:    { icon: '👾', title: 'Full Breach',        desc: 'Completed all 5 floors' },
 };
 
 const _seenAchs = new Set();
@@ -2613,10 +2498,6 @@ function showAchievement(key) {
   _seenAchs.add(key);
   const ach = ACHIEVEMENTS[key];
   if (!ach) return;
-  // Persist earned achievements to PERSIST
-  if (!PERSIST.achievements) PERSIST.achievements = [];
-  if (!PERSIST.achievements.includes(key)) PERSIST.achievements.push(key);
-  savePersist(); // persist immediately so achievement survives page refresh
   const el = document.getElementById('achievement-toast');
   if (!el) return;
   el.querySelector('.ach-icon').textContent = ach.icon;
@@ -2695,10 +2576,10 @@ function fadeBgmOut() {
   }, 50);
 }
 
-async function playBgm(trackId) {
+function playBgm(trackId) {
   // Resume audio context on user interaction (browser policy)
   const ctx = getAudioCtx();
-  if (ctx && ctx.state === 'suspended') await ctx.resume();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
 
   const track = _bgmTracks[trackId];
   if (!track) return;
@@ -2723,7 +2604,6 @@ function onScreenChange(screen) {
       playBgm('gameplay');
       break;
     case 'floor_complete':
-      stopBgm(true); // stop slot-spin music (from jackpot spin) before floor-complete silence or title fallback
       // Slot machine spin music handled separately via triggerSlotSpinMusic()
       break;
     case 'run_end':
@@ -3209,43 +3089,28 @@ function _seedHash(n) {
 }
 
 function generateBoard(floor) {
+  console.log("generateBoard called, floor:", floor);
   const board = [];
-  // Accept either a floor number or a date string (for daily challenge)
-  // Date string like '2025-05-19' gets hashed to a repeatable seed
-  let seed;
-  if (typeof floor === 'string') {
-    seed = getDailySeed(floor);
-  } else {
-    seed = floor * 1000 + 42;
-  }
+  const seed = floor * 1000 + 42;
   _boardSeed = seed;
   const rng = (function(s) {
-    let state = s | 0;
-    return {
-      random: function() {
-        state = (state + 0x6D2B79F5) | 0;
-        let t = Math.imul(state ^ state >>> 15, 1 | state);
-        t = (t + Math.imul(t ^ t >>> 7, 61 | t) ^ t) >>> 0;
-        return t / 4294967296;
-      }
+    return function() {
+      s |= 0; s = s + 0x6D2B79F5 | 0;
+      let t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   })(seed);
 
-  // ── Floor 1-2: Dense grid with mid-row pegs for tight, even coverage ──
-  // Canvas is 480px wide; peg area spans x=20 to x=460 (440px usable)
-  // Staggered rows: even rows get 7 pegs, odd rows get 6 pegs
-  // colSpacing tuned so the grid fills x=20 to x=460:
-  //   even row (7 pegs):   20 + 0*colSpacing ... 20 + 6*colSpacing = 460  → colSpacing = 73.3
-  //   odd row (6 pegs):    70 + 0*colSpacing ... 70 + 5*colSpacing = 440  → colSpacing = 74
-  // Use 70px spacing for both rows — gives even row end=440, odd row end=440+offset (with offset=50)
-  const floorColSpacing = 70;  // was 55 (too narrow, left-cramped)
   if (floor <= 2) {
+    // Dense grid — increased from 55px to 40px row spacing for better ball coverage
+    // Extra mid-rows every other row add additional collision opportunities
     for (let row = 0; row < 8; row++) {
       const cols = 7 - (row % 2);
-      const y = 120 + row * 40;  // 40px row spacing
-      const offset = (row % 2) === 0 ? 0 : 50;  // was 30 — now properly interleaved
+      const y = 120 + row * 40;  // was 55, compressed for tighter peg density
+      const offset = (row % 2) === 0 ? 0 : 30;
       for (let col = 0; col < cols; col++) {
-        const x = 20 + offset + col * floorColSpacing;  // starts at x=20, fills to x=460
+        const x = 50 + offset + col * 60;
         const r = rng.random();
         let type = 'node';
         if (r < 0.12) type = 'ice';
@@ -3256,194 +3121,97 @@ function generateBoard(floor) {
           evolution: assignEvolutionState(rng)
         });
       }
-      // Force center-column peg on even rows (offset=0) to block straight-shot paths
-      // Even rows: 7 pegs at x=20,90,160,230,300,370,440; dropX=240 falls in 70px gap [230,300]
-      // Adding node peg at x=240 ensures ball can't fall straight through without bouncing
-      if (row % 2 === 0) {
-        board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
-          hitsRemaining: 0, crumblingColor: null,
-          evolution: assignEvolutionState(rng)
-        });
-      } else {
-        // Odd rows: offset=50, pegs at x=70,140,210,280,350,420; dropX=240 is in 54px gap [210,280]
-        // Force a center peg at x=240 to block straight shots on odd rows too
-        board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
-          hitsRemaining: 0, crumblingColor: null,
-          evolution: assignEvolutionState(rng)
-        });
-      }
-      // Extra mid-row pegs — fills vertical gaps between main rows
-      // midCols = 5 on even rows, 4 on odd rows
-      // midOffset aligns with the main row offset for proper interleaving
-      if (row < 8) {
+      // Extra mid-row pegs between main rows for floor 1-2 to eliminate large vertical gaps
+      // Adds ~50% more pegs without changing horizontal structure
+      if (row < 7) {
         const midY = y + 20;  // halfway between this row and next
-        const midCols = 5 - (row % 2);
-        const midOffset = (row % 2) === 0 ? 0 : 50;  // was 20 — now consistent with main row offset
+        const midCols = 4 - (row % 2);  // fewer pegs in mid-rows
         for (let col = 0; col < midCols; col++) {
-          const x = 20 + midOffset + col * floorColSpacing + (rng.random() - 0.5) * 8;  // slight x jitter
+          const x = 80 + offset + col * 60 + (rng.random() - 0.5) * 15;  // slight x jitter
+          // Skip if too close to existing pegs (check against last row's pegs)
           const r2 = rng.random();
           let type = 'node';
           if (r2 < 0.08) type = 'ice';
-          board.push({ x: Math.max(20, Math.min(W - 20, x)), y: midY, type, hitCount: 0, id: board.length,
+          board.push({ x, y: midY, type, hitCount: 0, id: board.length,
             hitsRemaining: 0, crumblingColor: null,
             evolution: assignEvolutionState(rng)
           });
         }
       }
     }
-    // Cache pegs — compact placement within the dense grid
+    // Cache pegs
     for (let i = 0; i < 4; i++) {
       board.push({
-        x: 60 + rng.random() * 360,
+        x: 80 + rng.random() * 320,
         y: 150 + rng.random() * 280,
         type: 'cache',
-        hitCount: 0, id: board.length,
-        evolution: null
+        hitCount: 0, id: board.length
       });
     }
-    return board;
-  }
-
-  // ── Infinite floor generation — algorithmic approach ──
-  // Tier system: floors 3-5=tier0, 6-8=tier1, 9-11=tier2, etc.
-  // Sub-tier: 0,1,2 within each tier (determines special mode: boss/timelock/ghost)
-  // NOTE: In daily challenge, `floor` may be a date string (GS.dailyDate), NOT a number.
-  // Use GS.floor for tier/subTier calculations to avoid NaN from string arithmetic.
-  const actualFloor = (typeof floor === 'number') ? floor : GS.floor;
-  const tier = Math.floor((actualFloor - 1) / 3);
-  const subTier = (actualFloor - 1) % 3;
-  const isBossFloor = subTier === 2;  // every 3rd floor is a boss floor
-  const bossInterval = 5;  // boss pegs every 5 floors
-
-  // Base configuration — scale to fill the full peg area (y: 110 → ~480)
-  const pegAreaHeight = 480 - 110;  // 370px of vertical peg space
-  const baseRows = 7 + tier;
-  const baseYStep = Math.max(35, Math.floor(pegAreaHeight / baseRows));  // was: 50 - tier*3 (too sparse)
-  // baseCols: tier 0 needs 9 cols (xStep=50) to close vertical gaps that allowed straight shots.
-  // Higher tiers get proportionally more columns (7→8→9) to keep xStep in a safe range.
-  const baseCols = (tier === 0) ? 9 : 6 + Math.min(tier, 3);
-  // xStep tuned so x spans W-40 margin on both sides (full canvas width coverage)
-  const xSpan = W - 80;  // 400px usable width (480 - 80 margin)
-  const baseXStep = Math.floor(xSpan / (baseCols - 1));  // was: 55 - tier*3 (too narrow)
-
-  // Hazard probabilities scale with tier
-  const iceChance = 0.08 + tier * 0.03;
-  const hazardChance = 0.10 + tier * 0.06;
-  const specialChance = 0.04 + tier * 0.03;
-  const cacheCount = 3 + Math.floor(tier * 0.8);
-
-  // Boss peg: every `bossInterval` floors, or every tier-3 floor
-  const isBossPegFloor = floor % bossInterval === 0 || (tier >= 3 && isBossFloor);
-  const bossMaxHits = 10 + floor * 2;
-
-  for (let row = 0; row < baseRows; row++) {
-    const cols = baseCols - (row % 2);
-    const y = 110 + row * baseYStep;
-    const offset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
-    for (let col = 0; col < cols; col++) {
-      const x = 40 + offset + col * baseXStep;
-      const r = rng.random();
-      let type = 'node';
-
-      // Progressive hazard introduction based on tier
-      if (r < iceChance) type = 'ice';
-      else if (r < iceChance + hazardChance * 0.3) type = 'crumbling';
-      else if (r < iceChance + hazardChance * 0.5) type = 'fiber';
-      else if (r < iceChance + hazardChance * 0.7) type = 'mirror';
-      else if (tier >= 1 && r < iceChance + hazardChance * 0.85) type = 'honeypot';
-      else if (tier >= 1 && r < iceChance + hazardChance) type = 'overload';
-      else if (tier >= 2 && r < iceChance + hazardChance + specialChance * 0.3) type = 'seismic';
-      else if (tier >= 2 && r < iceChance + hazardChance + specialChance * 0.6) type = 'directional';
-      else if (tier >= 2 && r < iceChance + hazardChance + specialChance) type = 'teleport';
-      else if (tier >= 3 && r < iceChance + hazardChance + specialChance + 0.03) type = 'speedboost';
-
-      board.push({ x, y, type, hitCount: 0, id: board.length,
-        hitsRemaining: type === 'crumbling' ? 1 + Math.floor(rng.random() * (2 + tier)) : 0,
-        crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00','#ff6644','#44ffaa'][Math.floor(rng.random() * 4)] : null,
-        evolution: assignEvolutionState(rng)
-      });
-    }
-    // Force center-column peg on every row to block straight-shot paths at dropX=240
-    // Even rows: offset=0, col spacing creates large gaps where dropX=240 is clear
-    // Odd rows: offset=baseXStep/2, dropX=240 may also sit in a gap
-    // Adding node peg at x=240 on ALL rows ensures ball always hits at least one peg
-    board.push({ x: 240, y, type: 'node', hitCount: 0, id: board.length,
-      hitsRemaining: 0, crumblingColor: null, evolution: null });
-  }
-
-  // ── Mid-row pegs: fill vertical gaps between main rows (floors 3+) ──
-  // Without these, xStep=80 creates 68px gaps between peg edges — ball (14px dia) slips through.
-  // Mid-rows use y offset = baseYStep/2, interleaved x offsets, and slightly fewer columns.
-  // Even main row → mid row offset=0  → aligns with main peg column centers
-  // Odd main row  → mid row offset=baseXStep/2 → sits between main peg columns
-  for (let row = 0; row < baseRows - 1; row++) {
-    const y = 110 + row * baseYStep;
-    const midY = y + baseYStep / 2;
-    // Scale midCols proportionally to baseCols — mirrors main row alternating cols pattern
-    // Main rows use cols = baseCols - (row % 2), so midRows mirror this for consistent coverage
-    const midCols = Math.max(5, baseCols - ((row + 1) % 2));
-    const midOffset = (row % 2) === 0 ? 0 : Math.floor(baseXStep / 2);
-    for (let col = 0; col < midCols; col++) {
-      const x = midOffset + col * baseXStep + (rng.random() - 0.5) * 8;
-      const rx = rng.random();
-      let midType = 'node';
-      if (rx < iceChance * 0.5) midType = 'ice';
-      else if (rx < iceChance * 0.5 + hazardChance * 0.2) midType = 'crumbling';
-      else if (rx < iceChance * 0.5 + hazardChance * 0.35) midType = 'mirror';
-      else if (rx < iceChance * 0.5 + hazardChance * 0.5) midType = 'fiber';
-      board.push({
-        x: Math.max(20, Math.min(W - 20, x)),
-        y: midY,
-        type: midType,
-        hitCount: 0, id: board.length,
-        hitsRemaining: midType === 'crumbling' ? 1 + Math.floor(rng.random() * 2) : 0,
-        crumblingColor: midType === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(rng.random() * 2)] : null,
-        evolution: assignEvolutionState(rng)
-      });
-    }
-  }
-
-  // ── Extra y=320 mid-row: closes the ~23px gap that appears on floors 3-12
-  // where baseYStep (46-52) creates a gap around y=320 between midY rows.
-  // Insert a supplementary row of pegs at y=320 whenever no main-row or mid-row
-  // peg exists exactly at y=320. This row uses sparse columns (4 pegs) to avoid
-  // duplicating coverage already provided by adjacent main/mid rows.
-  {
-    const existingYs = board.map(p => Math.round(p.y));
-    const has320 = existingYs.includes(320);
-    if (!has320) {
-      // Sparse 4-peg row at y=320, centered with x offset
-      const xStep = baseXStep;
-      const xOffset = Math.floor(xStep / 2);
-      for (let col = 0; col < 4; col++) {
-        const x = 40 + xOffset + col * xStep + (rng.random() - 0.5) * 8;
-        board.push({
-          x: Math.max(20, Math.min(W - 20, x)),
-          y: 320,
-          type: 'node',
-          hitCount: 0, id: board.length,
-          hitsRemaining: 0,
-          crumblingColor: null,
+  } else if (floor <= 4) {
+    // Tighter, hazards
+    for (let row = 0; row < 10; row++) {
+      const cols = 8 - (row % 2);
+      const y = 100 + row * 48;
+      const offset = (row % 2) === 0 ? 0 : 25;
+      for (let col = 0; col < cols; col++) {
+        const x = 40 + offset + col * 50;
+        const r = Math.random();
+        let type = 'node';
+        if (r < 0.10) type = 'ice';
+        else if (r < 0.16) type = 'fiber';
+        else if (r < 0.20) type = 'mirror';
+        else if (r < 0.23) type = 'honeypot';
+        else if (r < 0.26) type = 'overload';
+        else if (r < 0.20 + (floor === 4 ? 0.08 : 0.04)) type = 'crumbling';
+        else if (r < 0.26 + (floor === 4 ? 0.06 : 0.03)) type = 'seismic';
+        else if (floor >= 3 && r < 0.34) type = 'directional';
+        else if (floor >= 3 && r < 0.36) type = 'teleport';
+        else if (floor >= 3 && r < 0.38) type = 'speedboost';
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
           evolution: assignEvolutionState(rng)
         });
       }
     }
-  }
-
-  // Cache pegs
-  for (let i = 0; i < cacheCount; i++) {
-    board.push({
-      x: 60 + rng.random() * 360,
-      y: 140 + rng.random() * 280,
-      type: 'cache',
-      hitCount: 0, id: board.length,
-      evolution: null
-    });
-  }
-
-  // Boss peg (not a cache): every bossInterval floors
-  if (isBossPegFloor) {
-    board.push({ x: W/2, y: H - 130, type: 'node', boss: true, hits: 0, maxHits: bossMaxHits, hitCount: 0, id: board.length, evolution: null });
+    for (let i = 0; i < 5; i++) {
+      board.push({
+        x: 60 + Math.random() * 360,
+        y: 130 + Math.random() * 320,
+        type: 'cache',
+        hitCount: 0, id: board.length,
+        evolution: null  // Cache pegs don't evolve
+      });
+    }
+  } else {
+    // Floor 5: Boss vault
+    // Vault target at bottom
+    board.push({ x: W/2, y: H - 120, type: 'cache', boss: true, hits: 0, maxHits: 15, hitCount: 0, id: board.length, evolution: null });
+    // Obstacle pegs
+    for (let row = 0; row < 8; row++) {
+      const cols = 6 - (row % 2);
+      const y = 100 + row * 50;
+      const offset = (row % 2) === 0 ? 0 : 30;
+      for (let col = 0; col < cols; col++) {
+        const x = 50 + offset + col * 65;
+        const r = Math.random();
+        let type = 'node';
+        if (r < 0.12) type = 'ice';
+        else if (r < 0.18) type = 'overload';
+        else if (r < 0.22) type = 'honeypot';
+        else if (r < 0.27) type = 'crumbling';
+        else if (r < 0.32) type = 'seismic';
+        else if (r < 0.36) type = 'directional';
+        else if (r < 0.38) type = 'teleport';
+        else if (r < 0.40) type = 'speedboost';
+        board.push({ x, y, type, hitCount: 0, id: board.length,
+          hitsRemaining: type === 'crumbling' ? 1 + Math.floor(Math.random() * 3) : 0,
+          crumblingColor: type === 'crumbling' ? ['#aa44ff','#ffcc00'][Math.floor(Math.random() * 2)] : null,
+          evolution: assignEvolutionState(rng)
+        });
+      }
+    }
   }
 
   return board;
@@ -3495,27 +3263,13 @@ function addExtraPegs(board) {
 // ─── OBJECTIVE SETUP ─────────────────────────────────────────
 function setupObjective(floor) {
   GS._lastPegMilestone = 0; // reset per-floor milestone tracking
-  const subTier = (floor - 1) % 3;
-  const tier = Math.floor((floor - 1) / 3);
-
-  // Every 3rd floor is a special mode (ghost, timelock, or boss)
-  if (subTier === 2) {
-    // Boss floor: crack a vault with target scaling by tier
-    return { type: 'boss', target: 12 + tier * 5, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
-  } else if (subTier === 1 && tier >= 1) {
-    // Timelock: 45 seconds, scales slightly — starts at floor 4 (tier=1, subTier=1)
-    // FIX: tier>=1 correctly starts timelock at floor 4; tier>=0 would start it at floor 2
-    // Note: subTier of 1 means every 3rd floor starting from floor 2 (floors 2, 5, 8, ...)
-    // but tier>=1 restricts to floor 4+ to give players early floor experience first
-    return { type: 'timelock', target: 0, progress: 0, label: `TIME LOCK - ${45 + tier * 5} SECONDS`, timeLimit: 45 + tier * 5 };
-  } else if (subTier === 0 && tier >= 2) {
-    // Ghost mode: starts appearing at floor 7 (tier=2, subTier=0)
-    return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: Math.max(2, 3 - Math.floor(tier / 2)), timeLimit: 0 };
+  switch (floor) {
+    case 1: return { type: 'standard', target: 20, progress: 0, label: 'CLEAR 20 PEGS' };
+    case 2: return { type: 'standard', target: 30, progress: 0, label: 'CLEAR 30 PEGS' };
+    case 3: return { type: 'ghost', target: 0, progress: 0, label: 'GHOST MODE — 0 ICE HITS', maxIceHits: 2, timeLimit: 0 };
+    case 4: return { type: 'timelock', target: 0, progress: 0, label: 'TIME LOCK - 45 SECONDS', timeLimit: 45 };
+    case 5: return { type: 'boss', target: 15, progress: 0, label: 'CRACK THE VAULT', timeLimit: 0 };
   }
-  // Standard floors: clear pegs, target scales with tier
-  const basePegs = 18 + subTier * 4;  // 18, 22, 26 for subTiers 0,1,2 at tier 0
-  const target = basePegs + tier * 8;
-  return { type: 'standard', target: Math.min(target, 200), progress: 0, label: `CLEAR ${target} PEGS` };
 }
 
 // ─── COLLISION DETECTION ─────────────────────────────────────
@@ -3523,17 +3277,10 @@ function checkCollisions() {
   for (const ball of GS.ballsInPlay) {
     if (!ball.active) continue;
 
-    // ── Spatial narrow-phase: only check pegs in ball's vertical band ──
-    // Reduces O(balls×pegs) brute-force to O(balls×nearby_pegs).
-    // Ball travels vertically so horizontal band is the effective culling axis.
-    const BAND_PX = 40; // px either side of ball.y to include pegs from
-    const visiblePegs = GS.board.filter(peg =>
-      !peg.destroyed &&
-      !ball.hitPegs.has(peg.id) &&
-      Math.abs(peg.y - ball.y) < BAND_PX + (PEG_TYPES[peg.type].radius || 6) + BALL_RADIUS
-    );
+    for (const peg of GS.board) {
+      if (ball.hitPegs.has(peg.id)) continue;
+      if (peg.destroyed) continue;
 
-    for (const peg of visiblePegs) {
       const dx = ball.x - peg.x;
       const dy = ball.y - peg.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
@@ -3567,34 +3314,29 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // ── GHOST PAYLOAD: phase through pegs without bounce ─────
   if (ball.ghostPhasing && ball.ghostPhaseRemaining > 0) {
-    if (!ball.hitPegs.has(peg.id)) {
-      // First contact with this peg during ghost phase — add to hit set
-      ball.hitPegs.add(peg.id);
-      ball.ghostPhaseRemaining--;
-      spawnParticles(peg.x, peg.y, '#ff88ff', 6, 2);
-      spawnFloatText(peg.x, peg.y - 8, `PHASE ${ball.ghostPhaseRemaining}`, '#cc88ff');
-      if (ball.ghostPhaseRemaining === 0) {
-        // Solidify
-        ball.ghostPhasing = false;
-        triggerFlash('#ffffff44', 0.2);
-        spawnFloatText(ball.x, ball.y - 15, 'GHOST END', '#cc88ff');
-      }
-      // Phase through — no bounce, just visual contact feedback
-      GS.comboCount++;
-      checkFrenzy();
-      // Still increment score/progress for peg contact
-      GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-      if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-      GS.totalPegsCleared++;
-      GS.chainTimer = TIMING.CHAIN_EXTEND;
-      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
-      updateMultiplierDisplay();
-      peg.hitCount++;
-      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
-      updateHUD();
-      updateObjectiveBar();
-      return; // skip normal bounce
+    ball.ghostPhaseRemaining--;
+    spawnParticles(peg.x, peg.y, '#ff88ff', 6, 2);
+    spawnFloatText(peg.x, peg.y - 8, `PHASE ${ball.ghostPhaseRemaining}`, '#cc88ff');
+    if (ball.ghostPhaseRemaining === 0) {
+      // Solidify
+      ball.ghostPhasing = false;
+      triggerFlash('#ffffff44', 0.2);
+      spawnFloatText(ball.x, ball.y - 15, 'GHOST END', '#cc88ff');
     }
+    // Phase through — no bounce, just visual contact feedback
+    GS.comboCount++;
+    checkFrenzy();
+    // Still increment score/progress for peg contact
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+    GS.floorObjective.progress++;
+    GS.totalPegsCleared++;
+    GS.chainTimer = 30;
+    GS.multiplier = Math.min(7, GS.multiplier + 1);
+    updateMultiplierDisplay();
+    peg.hitCount++;
+    updateHUD();
+    updateObjectiveBar();
+    return; // skip normal bounce
   }
 
   // ── WORM PAYLOAD: pierce through pegs, no bounce ─────────────
@@ -3610,14 +3352,13 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     }
     GS.comboCount++;
     checkFrenzy();
-    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
+    GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+    GS.floorObjective.progress++;
     GS.totalPegsCleared++;
-    GS.chainTimer = TIMING.CHAIN_EXTEND;
-    GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
+    GS.chainTimer = 30;
+    GS.multiplier = Math.min(7, GS.multiplier + 1);
     updateMultiplierDisplay();
     peg.hitCount++;
-    if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     updateHUD();
     updateObjectiveBar();
     return; // skip normal bounce
@@ -3630,21 +3371,20 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     if (ev.state === PegEvo.NORMAL) {
       // → GLOWING: ×2 points
       ev.state = PegEvo.GLOWING;
-      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier * GS.pegBonusMultiplier;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.glowing_multiplier - 1) * GS.multiplier;
       const prevMult = GS.multiplier;
-      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
+      GS.multiplier = Math.min(7, GS.multiplier + 1);
       updateMultiplierDisplay();
       if (GS.multiplier > prevMult) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFD700', 12, 4);
       spawnFloatText(peg.x, peg.y - 10, '▲', '#FFD700');
-      if (peg.id !== undefined) GS.pegsHit.add(peg.id);
     } else if (ev.state === PegEvo.GLOWING) {
       // → CHARGED: ×2 points + store 50% of hit value
       ev.storedPoints += (pegDef.bonus ? 200 : 50) * EVO_CONFIG.charged_store_fraction * GS.multiplier;
       ev.state = PegEvo.CHARGED;
-      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier * GS.pegBonusMultiplier;
+      GS.score += (pegDef.bonus ? 200 : 50) * (EVO_CONFIG.charged_multiplier - 1) * GS.multiplier;
       const prevMult2 = GS.multiplier;
-      GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
+      GS.multiplier = Math.min(7, GS.multiplier + 1);
       updateMultiplierDisplay();
       if (GS.multiplier > prevMult2) playSound('multiplierUp');
       spawnParticles(peg.x, peg.y, '#FFFFFF', 12, 4);
@@ -3725,15 +3465,13 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 
   // Effects based on peg type
   peg.hitCount++;
-  if (peg.id !== undefined) GS.pegsHit.add(peg.id);
   spawnParticles(peg.x, peg.y, peg.crumblingColor || pegDef.color, 10, 4);
   playSound('pegHit');
 
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
-  GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-  if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-  updateObjectiveBar();
+  GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1);
+  GS.floorObjective.progress++;
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
   if (GS.multiplier >= 3) showAchievement('x3mult');
@@ -3828,8 +3566,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               const eDist = Math.sqrt(edx * edx + edy * edy);
               if (eDist < radius) {
                 other.destroyed = true;
-                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-                updateObjectiveBar();
+                GS.floorObjective.progress++;
                 spawnParticles(other.x, other.y, other.color || PEG_TYPES[other.type]?.color || '#ff4400', 8, 3);
                 GS.score += 50;
               }
@@ -3843,8 +3580,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
                 .slice(0, 3);
               nearby.forEach(({ peg: targetPeg }) => {
                 targetPeg.destroyed = true;
-                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-                updateObjectiveBar();
+                GS.floorObjective.progress++;
                 spawnParticles(targetPeg.x, targetPeg.y, '#ff00ff', 10, 4);
                 GS.score += 75;
                 // Lightning arc
@@ -3886,7 +3622,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
           if (!ball.cloneSpawned) {
             ball.cloneSpawned = true;
             for (let i = 0; i < 2; i++) {
-              const clone = new Ball(ball.x, ball.y, (Math.random() - 0.5) * 4, Math.abs(ball.vy) * 0.8, []);
+              const clone = new Ball(ball.x, ball.y, (Math.random() - 0.5) * 4, ball.vy * 0.8, []);
               clone.active = true;
               clone.cloneBall = true;
               clone.dropMultiplier = ball.dropMultiplier;
@@ -3909,12 +3645,11 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   }
 
   // Chain multiplier
-  GS.chainTimer = TIMING.CHAIN_EXTEND; // ~0.5s at 60fps
+  GS.chainTimer = 30; // ~0.5s at 60fps
   const prevMult = GS.multiplier;
-  GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
+  GS.multiplier = Math.min(7, GS.multiplier + 1);
   GS.runMaxCombo = Math.max(GS.runMaxCombo || 0, GS.comboCount);
   updateMultiplierDisplay();
-  updateObjectiveBar();
   if (GS.multiplier > prevMult) playSound('multiplierUp');
 
   // Frenzy combo counter
@@ -3977,13 +3712,12 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   // Boss peg
   if (peg.boss) {
     peg.hits = (peg.hits || 0) + 1;
-    // Accumulate progress based on hit count rather than overwriting with direct assignment
-    GS.floorObjective.progress = Math.min(peg.hits, peg.maxHits);
+    GS.floorObjective.progress = peg.hits;
     triggerFlash('#ffcc0033', 0.15);
     spawnFloatText(peg.x, peg.y, `VAULT ${peg.hits}/${peg.maxHits}`, '#ffcc00');
-    updateObjectiveBar();
     if (peg.hits >= peg.maxHits) {
       peg.destroyed = true;
+      GS.floorObjective.progress = peg.maxHits;
       triggerFullBreach();
     }
   }
@@ -4061,9 +3795,6 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
 }
 
 function resolveBallExit(ball) {
-  // Re-enable drop — ball is gone, player can drop next ball
-  canDrop = true;
-
   // Logic bomb: explode all nearby pegs
   if (ball.payloads.includes('logicbomb')) {
     triggerFlash('#ffaa0033', 0.2);
@@ -4145,8 +3876,7 @@ function detonateExplosivePeg(ball, peg, board) {
     totalPoints += 50 * mult * GS.multiplier;
     GS.score += 50 * mult * GS.multiplier;
     other.hitCount++;
-    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
-    updateObjectiveBar();
+    GS.floorObjective.progress++;
     spawnParticles(other.x, other.y, '#FF4500', 6, 3);
   }
 
@@ -4182,11 +3912,6 @@ function detonateExplosivePeg(ball, peg, board) {
   }
 
   return totalPoints;
-}
-
-// Called after any peg destruction that may have updated floorObjective.progress
-function syncObjectiveBar() {
-  updateObjectiveBar();
 }
 
 // ─── PEG EVOLUTION: Dormant Activation Check ────────────────
@@ -4269,9 +3994,9 @@ function simulatePreviewArc(startX) {
 
 function dropBall() {
   if (!canDrop || GS.screen !== 'playing' || GS.balls <= 0) return;
-  canDrop = false; // lock immediately — before any second event from same gesture
   if (GS.ballsInPlay.length > 0 && GS.ballsInPlay.some(b => b.active)) return;
 
+  canDrop = false;
   GS.balls--;
   GS.totalBallsUsed++;
   playSound('drop');
@@ -4357,7 +4082,6 @@ function spawnReplacementBall() {
   GS.runMaxCombo = 0;
   updatePayloadSlots();
   updateHUD();
-  canDrop = true;
 }
 
 // ─── MULTIPLIER ──────────────────────────────────────────────
@@ -4408,7 +4132,7 @@ function updateChainTimerBar() {
   }
 
   bar.classList.add('active');
-  const pct = Math.min(100, (GS.chainTimer / TIMING.CHAIN_EXTEND) * 100); // 30 frames per chain extension
+  const pct = Math.min(100, (GS.chainTimer / 30) * 100);
   fill.style.width = pct + '%';
 
   // Danger zone: last 25% of time
@@ -4417,7 +4141,7 @@ function updateChainTimerBar() {
 
 // ─── HUD UPDATE ──────────────────────────────────────────────
 function updateHUD() {
-  document.getElementById('floor-indicator').textContent = `${GS.floor}`;
+  document.getElementById('floor-indicator').textContent = `${GS.floor}/5`;
   document.getElementById('score-value').textContent = GS.score.toLocaleString();
   document.getElementById('jackpot-display').textContent = (GS.jackpotPool || 500).toLocaleString();
 
@@ -4502,23 +4226,12 @@ function checkFrenzy() {
 
 function updateObjectiveBar() {
   const obj = GS.floorObjective;
-
-  // Time lock floors: show countdown instead of 0/0
-  if (obj.type === 'timelock') {
-    const remaining = Math.max(0, Math.ceil(GS.floorTimeRemaining || 0));
-    document.getElementById('objective-label').textContent = `TIME LOCK — ${remaining}s`;
-    document.getElementById('objective-fill').style.width = '0%';
-    return;
-  }
-
-  // Clamp progress to [0, target] so bar never exceeds 100% visually
-  const clamped = Math.min(obj.progress, obj.target);
-  const pct = obj.target > 0 ? (clamped / obj.target) * 100 : 0;
+  const pct = obj.target > 0 ? Math.min(100, (obj.progress / obj.target) * 100) : 0;
   document.getElementById('objective-fill').style.width = pct + '%';
   document.getElementById('objective-label').textContent = obj.label;
 
-  // Check completion — ghost/timelock modes have no target or use separate end conditions
-  if (obj.progress >= obj.target && obj.type !== 'ghost' && obj.type !== 'timelock' && GS.screen === 'playing') {
+  // Check completion
+  if (obj.progress >= obj.target && GS.screen === 'playing') {
     completeFloor();
   }
 }
@@ -4569,38 +4282,20 @@ function updateMenuStats() {
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
 function completeFloor() {
-  // Close leaderboard if open — prevent it from leaking over floor_complete screen
-  closeLeaderboard();
   GS.screen = 'floor_complete';
   setActiveScreen('floor_complete');
   playSound('floorClear');
   if (GS.floor === 1) showAchievement('firstFloor');
-  if (GS.floor === 3) showAchievement('floor3');
-  // Tier breach — every 5 floors trigger a major bonus
-  const isTierBreach = GS.floor % 5 === 0;
-  const tier = Math.floor(GS.floor / 5);
-  if (isTierBreach) {
-    showAchievement('fullBreach');
-    showAchievement('floor' + GS.floor);
-    triggerFlash('#00ffaa44', 0.6);
-  }
-  if (GS.floor === 1) showAchievement('firstFloor');
-  if (GS.floor === 3) showAchievement('floor3');
+  if (GS.floor === 5) showAchievement('fullBreach');
 
-  // Win condition: clear floor 10 = win
-  if (GS.floor >= 10) {
-    showGameOverInterstitial(() => endRun(true));
-    return;
-  }
-
-  const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10) + (isTierBreach ? tier * 200 : 0);
+  const creditGain = 50 + (GS.floor * 20) + (GS.multiplier * 10);
   GS.breachCredits += creditGain;
 
   const title = document.getElementById('floor-complete-title');
   const stats = document.getElementById('floor-stats');
 
-  if (isTierBreach) {
-    title.textContent = `◆ TIER ${tier + 1} BREACH ◆`;
+  if (GS.floor === 5) {
+    title.textContent = '◆ FULL BREACH ◆';
     title.style.color = '#00ffaa';
     triggerFlash('#00ffaa44', 0.6);
   } else {
@@ -4618,16 +4313,6 @@ function completeFloor() {
   document.getElementById('floor-overlay').classList.add('active');
   initJackpotSlots();
 }
-
-// Module-level timer registry for jackpot slot sessions
-// Cancelled on each new initJackpotSlots() call to prevent orphan timer pile-up
-let _jpTimers = [];
-
-// Session counter — every initJackpotSlots() gets a new unique ID.
-// Timer callbacks check (sessionId === _jpSession) before touching DOM.
-// This prevents stale closures from the previous floor's jackpot session
-// from corrupting the new session's UI state.
-let _jpSession = 0;
 
 function initJackpotSlots() {
   const reels = [
@@ -4651,16 +4336,6 @@ function initJackpotSlots() {
   let spinInProgress = false;
   let canReroll = false;
 
-  // Bump session — all timer callbacks guard against stale closures with this
-  _jpSession++;
-  const sessionId = _jpSession;
-
-  // ── Cancel orphaned timers from a previous floor's jackpot session ──
-  // Without this, multiple completeFloor() calls pile up setInterval+setTimeout
-  // closures → showResult() fires multiple times, corrupting button state
-  _jpTimers.forEach(id => { clearInterval(id); clearTimeout(id); });
-  _jpTimers = [];
-
   reels.forEach(r => r && (r.textContent = symbols[Math.floor(Math.random() * symbols.length)]));
   if (jpBanner) { jpBanner.style.display = 'none'; jpBanner.textContent = ''; }
   if (jpContinueBtn) jpContinueBtn.style.display = 'none';
@@ -4668,10 +4343,7 @@ function initJackpotSlots() {
 
   // Bind CONTINUE button to close overlay and open shop
   if (jpContinueBtn) jpContinueBtn.onclick = () => {
-    // Guard: only act if still in this session
-    if (_jpSession !== sessionId) return;
     document.getElementById('floor-overlay').classList.remove('active');
-    _shopOpenedAfterFloorComplete = true;
     openShop();
   };
 
@@ -4690,9 +4362,6 @@ function initJackpotSlots() {
   }
 
   function showResult() {
-    // Guard: skip if this session is stale (floor transitioned mid-spin)
-    if (_jpSession !== sessionId) return;
-
     const [a, b, c] = reels.map(r => r.textContent);
     const mult = GS.frenzyReady ? 3 : 1;
     GS.frenzyReady = false;
@@ -4750,8 +4419,6 @@ function initJackpotSlots() {
   }
 
   function doSpin() {
-    // Guard: ignore if session changed (floor transitioned mid-click)
-    if (_jpSession !== sessionId) return;
     if (spinInProgress) return;
     spinInProgress = true;
     GS.totalJackpotSpins = (GS.totalJackpotSpins || 0) + 1;
@@ -4759,7 +4426,7 @@ function initJackpotSlots() {
     if (promptEl) promptEl.style.display = 'none';
     if (jpRerollBtn) jpRerollBtn.style.display = 'none';
     playSound('jpSpin');
-    // No triggerSlotSpinMusic() — let background gameplay music continue uninterrupted
+    triggerSlotSpinMusic();
 
     // Spinning state — blur ramp + scale pulse on each reel
     reels.forEach(r => r && (r.style.filter = 'blur(6px)'));
@@ -4783,8 +4450,6 @@ function initJackpotSlots() {
     reels.forEach((reel, i) => {
       let count = 0;
       const spin = setInterval(() => {
-        // Guard: skip if this timer is stale (different session)
-        if (_jpSession !== sessionId) { clearInterval(spin); return; }
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         count++;
         // Ramp blur down as spin nears end — starts intense, settles
@@ -4795,13 +4460,10 @@ function initJackpotSlots() {
           reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         }
       }, 50 + i * 20);
-      _jpTimers.push(spin);
 
       // Staggered landing: each reel lands 400ms after the previous
       const reelIndex = i;
-      const landTimer = setTimeout(() => {
-        // Guard: skip if this timer is stale
-        if (_jpSession !== sessionId) return;
+      setTimeout(() => {
         clearInterval(spin);
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         reel.style.filter = 'blur(0px)';
@@ -4810,22 +4472,18 @@ function initJackpotSlots() {
         reel.style.transform = 'scale(1.25)';
         reel.style.transition = 'transform 0.08s ease-in, filter 0.15s ease-out';
         setTimeout(() => {
-          if (_jpSession !== sessionId) return;
           reel.style.transform = 'scale(1)';
-          setTimeout(() => { if (_jpSession === sessionId) reel.style.transition = ''; }, 80);
+          setTimeout(() => { reel.style.transition = ''; }, 80);
         }, 80);
       }, stopTimes[reelIndex]);
-      _jpTimers.push(landTimer);
     });
 
     // After all reels landed + settle time, show result
-    const resultTimer = setTimeout(() => {
-      if (_jpSession !== sessionId) return;
+    setTimeout(() => {
       spinInProgress = false;
       if (spinEl) spinEl.style.display = 'none';
       showResult();
     }, spinDurations[2] + 500);
-    _jpTimers.push(resultTimer);
   }
 
   if (jpBtn) {
@@ -4866,10 +4524,6 @@ const REP_SHOP_ITEMS = [
 ];
 
 function openShop(tab = 'credits') {
-  _shopContinueBusy = false; // reset debounce flag so CONTINUE works fresh
-  _shopContinueDebounce = false; // also reset debounce flag
-  const btn = document.getElementById('shop-continue-btn');
-  if (btn) btn.disabled = false;
   GS.screen = 'shop';
   setActiveScreen('shop');
   document.getElementById('shop-credits').textContent = GS.breachCredits;
@@ -4907,7 +4561,7 @@ function openShop(tab = 'credits') {
       el.style.borderColor = rarityColor + '55';
       el.innerHTML =
         '<div class="item-icon" style="color:' + rarityColor + ';">' + item.icon + '</div>' +
-        '<div class="item-title">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
+        '<div class="item-name">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         rarityBadge +
         (owned ? ownedBadge : lockedMsg);
@@ -4925,7 +4579,7 @@ function openShop(tab = 'credits') {
       const ownedBadge = '<div class="item-owned-badge" style="color:#00ffaa;">✓ OWNED</div>';
       el.innerHTML =
         '<div class="item-icon" style="color:#00ffaa;">' + item.icon + '</div>' +
-        '<div class="item-title" style="color:#00ffaa;">' + item.name + '</div>' +
+        '<div class="item-name" style="color:#00ffaa;">' + item.name + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         (owned ? ownedBadge : costDiv + buyBtn);
 
@@ -5028,6 +4682,9 @@ function applyUpgrade(id) {
     case 'rep_jackpot_hunter':
       GS.jackpotGrowthBonus = (GS.jackpotGrowthBonus || 1.0) + 0.05;
       break;
+    case 'rep_starting_credits':
+      GS.startingCreditsBonus = (GS.startingCreditsBonus || 0) + 100;
+      break;
     // Credits shop upgrades
     case 'extralife':
       GS.bonusStartingBalls = (GS.bonusStartingBalls || 0) + 1;
@@ -5053,8 +4710,6 @@ function applyMasteryUpgrades() {
   GS.shopDiscount = 1.0;
   GS.startingPayloadCount = 0;
   GS.pegRadar = false;
-  GS.pegBonusMultiplier = 1.0;
-  GS.comboThreshold = 3;
 
   for (const [id, tier] of Object.entries(purchased)) {
     const def = MASTERY_UPGRADES[id];
@@ -5066,13 +4721,11 @@ function applyMasteryUpgrades() {
     if (effect.shopDiscount !== undefined) GS.shopDiscount = effect.shopDiscount;
     if (effect.startingPayloadCount !== undefined) GS.startingPayloadCount = effect.startingPayloadCount;
     if (effect.pegRadar !== undefined) GS.pegRadar = effect.pegRadar;
-    if (effect.pegBonusMultiplier !== undefined) GS.pegBonusMultiplier = effect.pegBonusMultiplier;
-    if (effect.comboThreshold !== undefined) GS.comboThreshold = effect.comboThreshold;
   }
 }
 
 // Calculate mastery points earned at end of run
-function getMasteryPointsEarned(floor) {
+function getMasteryPointsEarned(floor, score) {
   const floorBonus = floor * 10;
   const vaultClearBonus = floor >= 5 ? 50 : 0;
   return floorBonus + vaultClearBonus;
@@ -5158,7 +4811,6 @@ function openMasteryScreen() {
 function closeMasteryScreen() {
   const overlay = document.getElementById('mastery-overlay');
   if (overlay) overlay.classList.remove('active');
-  GS.screen = 'playing';
 }
 
 function handleMasteryPurchase(id) {
@@ -5274,9 +4926,7 @@ function createSkinsOverlay() {
 }
 
 function openLeaderboard() {
-  const allLb = PERSIST.leaderboard || [];
-  // Apply daily filter
-  const lb = _lbFilter === 'daily' ? allLb.filter(e => e.daily) : allLb;
+  const lb = PERSIST.leaderboard || [];
   const overlay = document.getElementById('leaderboard-overlay') || createLeaderboardOverlay();
   const lbBody = document.getElementById('lb-body');
   if (!lbBody) {
@@ -5286,7 +4936,7 @@ function openLeaderboard() {
   }
 
   if (!lb.length) {
-    lbBody.innerHTML = `<div style="text-align:center;color:#444;font-size:11px;padding:20px;">${_lbFilter === 'daily' ? 'No daily challenge scores yet!' : 'No scores yet — play a run!'}</div>`;
+    lbBody.innerHTML = '<div style="text-align:center;color:#444;font-size:11px;padding:20px;">No scores yet — play a run!</div>';
   } else {
     lbBody.innerHTML = lb.map((entry, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
@@ -5332,7 +4982,7 @@ function submitHighScore() {
   lb.push({
     name,
     score: GS.score,
-    floor: GS.floor,
+    floor: Math.min(GS.floor, 5),
     pegs: GS.totalPegsCleared,
     date: new Date().toISOString().slice(0, 10),
     daily: !!GS.dailyMode
@@ -5359,155 +5009,33 @@ function createLeaderboardOverlay() {
       <div style="font-size:20px;color:#00ffaa;font-weight:700;letter-spacing:4px;">LEADERBOARD</div>
       <div style="font-size:11px;color:#666;margin-top:4px;">TOP 10 LOCAL SCORES</div>
     </div>
-    <div id="lb-filter-bar" style="display:flex;gap:8px;margin-bottom:12px;">
-      <button id="lb-filter-all" onclick="setLbFilter('all')" style="background:#1a1a2e;border:1px solid #00ffaa44;color:#00ffaa;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">ALL</button>
-      <button id="lb-filter-daily" onclick="setLbFilter('daily')" style="background:#1a1a2e;border:1px solid #ffcc0044;color:#ffcc00;padding:4px 12px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px;">DAILY ONLY</button>
-    </div>
     <div id="lb-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;"></div>
-    <button onclick="closeLeaderboard(); event.stopPropagation();" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
+    <button onclick="closeLeaderboard()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
   `;
   document.body.appendChild(overlay);
   return overlay;
 }
 
-let _lbFilter = 'all';
-
-function setLbFilter(f) {
-  _lbFilter = f;
-  document.getElementById('lb-filter-all').style.background = f === 'all' ? '#00ffaa22' : '#1a1a2e';
-  document.getElementById('lb-filter-all').style.borderColor = f === 'all' ? '#00ffaa' : '#00ffaa44';
-  document.getElementById('lb-filter-daily').style.background = f === 'daily' ? '#ffcc0022' : '#1a1a2e';
-  document.getElementById('lb-filter-daily').style.borderColor = f === 'daily' ? '#ffcc00' : '#ffcc0044';
-  openLeaderboard();
-}
-
-function openAchievements() {
-  const earned = PERSIST.achievements || [];
-  const overlay = document.getElementById('achievements-overlay') || createAchievementsOverlay();
-  const achBody = document.getElementById('ach-body');
-  if (!achBody) return;
-
-  const allKeys = Object.keys(ACHIEVEMENTS);
-  achBody.innerHTML = allKeys.map(key => {
-    const ach = ACHIEVEMENTS[key];
-    const isEarned = earned.includes(key);
-    if (isEarned) {
-      return `
-        <div style="background:#1a1a2e;border:1px solid #ffd70044;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;opacity:1;">
-          <div style="font-size:24px;flex-shrink:0;">${ach.icon}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;font-weight:700;color:#ffd700;letter-spacing:1px;">${ach.title}</div>
-            <div style="font-size:9px;color:#888;margin-top:2px;">${ach.desc}</div>
-          </div>
-          <div style="font-size:9px;color:#00ff88;flex-shrink:0;">✓ EARNED</div>
-        </div>
-      `;
-    } else {
-      return `
-        <div style="background:#0d0d1a;border:1px solid #333;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;opacity:0.4;">
-          <div style="font-size:24px;flex-shrink:0;">🔒</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;font-weight:700;color:#555;letter-spacing:1px;">???</div>
-            <div style="font-size:9px;color:#444;margin-top:2px;">Keep playing to unlock</div>
-          </div>
-          <div style="font-size:9px;color:#444;flex-shrink:0;">LOCKED</div>
-        </div>
-      `;
-    }
-  }).join('');
-
-  overlay.classList.add('active');
-}
-
-function closeAchievements() {
-  const overlay = document.getElementById('achievements-overlay');
-  if (overlay) {
-    overlay.style.opacity = '0';
-    setTimeout(() => {
-      overlay.classList.remove('active');
-      overlay.style.opacity = '';
-    }, 200);
-  }
-}
-
-function createAchievementsOverlay() {
-  const overlay = document.createElement('div');
-  overlay.id = 'achievements-overlay';
-  overlay.className = 'overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:#0a0a12ee;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:40px;';
-  overlay.innerHTML = `
-    <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:20px;color:#ffd700;font-weight:700;letter-spacing:4px;">ACHIEVEMENTS</div>
-      <div style="font-size:11px;color:#666;margin-top:4px;">${(PERSIST.achievements||[]).length} / ${Object.keys(ACHIEVEMENTS).length} UNLOCKED</div>
-    </div>
-    <div id="ach-body" style="width:100%;max-width:400px;background:#0d0d1a;border:1px solid #222;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:6px;"></div>
-    <button onclick="closeAchievements()" style="margin-top:20px;background:#1a1a2e;border:1px solid #333;color:#888;padding:8px 24px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:2px;">CLOSE</button>
-  `;
-  document.body.appendChild(overlay);
-  return overlay;
-}
-
-function closeShop(skipFloorAdvance = false) {
+function closeShop() {
   document.getElementById('shop-overlay').classList.remove('active');
   GS.screen = 'playing';
   setActiveScreen('playing');
-  // Only advance to the next floor when closing the shop after a floor clear.
-  // When the shop was opened mid-floor (e.g. via HUD SHOP button), the player
-  // should return to the current floor with their ball count intact — so we skip
-  // startNextFloor() in that case.
-  if (!skipFloorAdvance && GS.screen !== 'run_end') {
-    startNextFloor();
-  }
+  startNextFloor();
 }
-
-let _shopOpenedAfterFloorComplete = false;
-let _shopContinueDebounce = false;
-
-document.getElementById('shop-continue-btn').onclick = () => {
-  const btn = document.getElementById('shop-continue-btn');
-  if (_shopContinueDebounce || !btn || btn.disabled) return;
-  _shopContinueDebounce = true;
-  btn.disabled = true;
-  const skipAdvance = !_shopOpenedAfterFloorComplete;
-  _shopOpenedAfterFloorComplete = false;
-  closeShop(skipAdvance);
-  setTimeout(() => {
-    _shopContinueDebounce = false;
-    if (btn) btn.disabled = false;
-  }, 150);
-};
 
 // ─── GAME FLOW ────────────────────────────────────────────────
 function startNextFloor() {
-  // Infinite floors — no cap. Every 5 floors is a tier breach.
   GS.floor++;
-  const tier = Math.floor((GS.floor - 1) / 5);
-  const isTierBreach = GS.floor % 5 === 0;
-  if (isTierBreach) {
-    // Tier breach: award bonus credits, show interstitial, then continue
-    const bonus = 500 + tier * 200;
-    GS.breachCredits = (GS.breachCredits || 0) + bonus;
-    triggerFullBreach();
-    triggerFlash('#00ffaa44', 0.5);
-    spawnFloatText(W/2, H/2 - 60, `TIER ${tier + 1} BREACH!`, '#00ffaa');
-    spawnFloatText(W/2, H/2 - 20, `+${bonus} BREACH CREDITS`, '#ffcc00');
+  if (GS.floor > 5) {
+    endRun(true);
+    return;
   }
 
   startFloor();
 }
 
-function startFloor() {
-  // In daily mode, seed board from date so all players get same layout
-  // Close any lingering overlays before rendering new floor
-  const floorOverlay = document.getElementById('floor-overlay');
-  if (floorOverlay) floorOverlay.classList.remove('active');
-  const shopOverlay = document.getElementById('shop-overlay');
-  if (shopOverlay) shopOverlay.classList.remove('active');
-  if (GS.dailyMode && GS.dailyDate) {
-    GS.board = generateBoard(GS.dailyDate);
-  } else {
-    GS.board = generateBoard(GS.floor);
-  }
+function startFloor() { console.log("startFloor called, floor:", GS.floor);
+  GS.board = generateBoard(GS.floor);
   pairTeleportPegs(GS.board, GS.floor);
   GS.floorObjective = setupObjective(GS.floor);
   GS.ballsInPlay = [];
@@ -5516,7 +5044,7 @@ function startFloor() {
   GS.multiplierTimer = 0;
   GS.chainTimer = 0;
   GS.ghostModeIceHits = 0;
-
+  updateGhostHUD(); // Show ghost indicator immediately on floor 3
   GS.timeScale = 1.0;
   GS.slowmoBall = null;
   GS.frenzyActive = false;
@@ -5558,18 +5086,6 @@ function startFloor() {
   GS.floorTimeRemaining = GS.floorObjective.timeLimit || 0;
   // Ghost Mode — reset ice hit tracker
   GS.ghostModeIceHits = 0;
-  // Floor 5 timelock tutorial — show once per run before the floor starts
-  if (GS.floor === 5 && GS.floorObjective.type === 'timelock') {
-    const timeLimit = GS.floorObjective.timeLimit || 39;
-    showTutorialModal(
-      'FLOOR 5 — TIME LOCK',
-      `Clear all <span style="color:#88ccff;">ICE PEGS</span> before time runs out!<br><br>` +
-      `⏱ You have <span style="color:#ffd700;">${timeLimit} seconds</span>.<br>` +
-      `Timer counts down to <span style="color:#ff4466;">0</span> — floor fails at zero!<br><br>` +
-      `❄ Ice Pegs briefly freeze the ball — plan your drop zone carefully.`,
-      'floor5_timelock'
-    );
-  }
   // Slot Collector: update which slots are unlocked for this floor
   updateUnlockedSlots();
   // Reset slot state
@@ -5597,47 +5113,24 @@ function grantStartingPayload() {
   updatePayloadSlots();
 }
 
-// getNextRank — uses canonical RANKS array (line ~1211) and GS.rank
 function getNextRank() {
-  const idx = RANKS.findIndex(r => r.name === GS.rank);
-  return idx >= 0 && idx < RANKS.length - 1 ? RANKS[idx + 1].name : 'MAX';
+  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
+  const idx = ranks.indexOf(GS.rank);
+  return idx >= 0 && idx < ranks.length - 1 ? ranks[idx + 1] : 'MAX';
 }
-
-// getRankProgress is defined at line ~1297 (canonical,
-// uses PERSIST.reputation + RANKS array). The run-end overlay calls it
-// directly via template literals.
-
-// ── Tutorial Modal ────────────────────────────────────────────────
-function showTutorialModal(title, body, persistKey) {
-  // Skip if already shown this run (per-key flag in GS session)
-  if (GS._seenTutorials && GS._seenTutorials[persistKey]) return;
-  if (!GS._seenTutorials) GS._seenTutorials = {};
-  GS._seenTutorials[persistKey] = true;
-
-  let el = document.getElementById('tutorial-modal');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'tutorial-modal';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9997;font-family:inherit;padding:20px;';
-    document.body.appendChild(el);
-  }
-
-  el.innerHTML = `
-    <div style="border:2px solid #00f0ff;background:#0a0a1a;padding:28px 24px;max-width:340px;width:100%;text-align:center;">
-      <div style="font-size:14px;font-weight:700;color:#00f0ff;letter-spacing:3px;margin-bottom:16px;text-shadow:0 0 12px #00f0ff;">${title}</div>
-      <div style="font-size:11px;color:#aaa;line-height:1.7;margin-bottom:22px;">${body}</div>
-      <button id="tutorial-modal-close" style="background:transparent;border:2px solid #00f0ff;color:#00f0ff;padding:8px 28px;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:3px;transition:all 0.2s;text-shadow:0 0 8px #00f0ff88;">GOT IT</button>
-    </div>
-  `;
-  el.style.display = 'flex';
-
-  document.getElementById('tutorial-modal-close').addEventListener('click', () => {
-    el.style.display = 'none';
-  });
+function getRankProgress() {
+  const thresholds = [0, 500, 1500, 4000, 10000, 25000, 60000];
+  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
+  const idx = ranks.indexOf(GS.rank);
+  const next = idx >= 0 ? (thresholds[idx + 1] || 999999) : 999999;
+  const prev = idx > 0 ? (thresholds[idx] || 0) : 0;
+  const rep = GS.reputation || 0;
+  if (rep >= next) return 100;
+  return Math.min(100, Math.round(((rep - prev) / (next - prev)) * 100));
 }
 
 // ── Game Over Interstitial ──────────────────────────────────────────────
-function showGameOverInterstitial(callback, reason) {
+function showGameOverInterstitial(callback) {
   playSound('gameOver');
   playBgm('connection-lost'); // connection-lost BGM for the interstitial countdown
   let el = document.getElementById('gameover-interstitial');
@@ -5651,7 +5144,7 @@ function showGameOverInterstitial(callback, reason) {
   let countdown = 3;
   el.innerHTML = `
     <div style="font-size:42px;font-weight:900;color:#ff2244;text-shadow:0 0 24px #ff2244, 0 0 48px #ff224488;letter-spacing:4px;">CONNECTION LOST</div>
-    <div style="font-size:13px;color:#aa8866;margin-top:10px;">${reason || 'No balls remaining'}</div>
+    <div style="font-size:13px;color:#aa8866;margin-top:10px;">No balls remaining</div>
     <div id="goi-countdown" style="font-size:56px;font-weight:700;color:#ff6644;margin-top:24px;text-shadow:0 0 20px #ff664488;">${countdown}</div>
     <div style="font-size:11px;color:#555;margin-top:6px;">seconds until run end</div>
   `;
@@ -5670,8 +5163,6 @@ function showGameOverInterstitial(callback, reason) {
 }
 
 function endRun(won) {
-  // Declare isNewHighScore early to avoid TDZ when referenced in title ternary
-  let isNewHighScore;
   // Hide game canvas so overlays render on clean background
   const canvas = document.getElementById('game-canvas');
   if (canvas) canvas.style.display = 'none';
@@ -5685,10 +5176,6 @@ function endRun(won) {
   // Sync reputation to PERSIST for meta-progression
   PERSIST.reputation = GS.reputation;
 
-  // Track total runs and best floor — only at run end, not on every save
-  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
-  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
-
   // Apply prestige bonus if any
   const prestigeMult = 1 + (PERSIST.meta?.prestigeBonus || 0);
   const creditGain = Math.floor(GS.breachCredits * (1 + GS.balls * 0.1) * prestigeMult);
@@ -5699,14 +5186,14 @@ function endRun(won) {
   const newlyUnlocked = evaluateUnlocks();
 
   // Mastery points earned this run
-  const mpEarned = getMasteryPointsEarned(GS.floor);
+  const mpEarned = getMasteryPointsEarned(GS.floor, GS.score);
 
   const title = document.getElementById('runend-title');
   const stats = document.getElementById('runend-stats');
   const prevRank = GS.rank;
   GS.rank = getPlayerRank(PERSIST.reputation);
 
-  title.textContent = (won || isNewHighScore) ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
+  title.textContent = won ? '◆ BREACH COMPLETE ◆' : 'CONNECTION LOST';
   title.className = 'runend-title ' + (won ? 'win' : 'lose');
 
   // Build meta-progress display
@@ -5716,13 +5203,10 @@ function endRun(won) {
   const unlockPct = Math.round((unlockCount / totalUnlocks) * 100);
   const canPrestige = checkPrestigeEligibility();
 
-  // Compute livesLost penalty
-  const livesLostPenalty = (GS.livesLost || 0) * 50;
-  const effectiveScore = Math.max(0, GS.score - livesLostPenalty);
-
   // Check if score qualifies for leaderboard (top 10 or empty slots)
   const lb = PERSIST.leaderboard || [];
-  isNewHighScore = !lb.length || effectiveScore > (lb[0]?.score || 0);
+  const qualifies = lb.length < 10 || GS.score > (lb[lb.length - 1]?.score || 0);
+  const isNewHighScore = !lb.length || GS.score > (lb[0]?.score || 0);
 
   const prestigeInfo = canPrestige
     ? `<div style="margin-top:10px;padding:8px;border:1px solid #ffd70044;border-radius:6px;background:#ffd70011;">
@@ -5735,12 +5219,11 @@ function endRun(won) {
   const scoreHighlight = isNewHighScore ? '<span style="color:#ffd700;font-size:10px;"> ★ NEW HIGH SCORE ★</span>' : '';
 
   stats.innerHTML = `
-    <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}</span></div>
+    <div>FLOOR REACHED: <span class="runend-stat-value">${Math.min(GS.floor, 5)}/5</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
-    <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
-    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} OVERFLOWS (${GS.livesLost})</div>` : ''}
-    ${isNewHighScore && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
-    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;">${(PERSIST.leaderboard || []).length ? 'TOP ' + Math.min(3, (PERSIST.leaderboard || []).length) + ' SCORES: ' + (PERSIST.leaderboard || []).slice(0, 3).map(e => e.score).join(' / ') + ' — PLAY AGAIN TO JOIN!' : 'NO SCORES YET — PLAY A RUN!'}</div>
+    <div>TOTAL SCORE: <span class="runend-stat-value">${GS.score.toLocaleString()}${scoreHighlight}</span></div>
+    ${qualifies && GS.score > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
+    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
@@ -5843,26 +5326,17 @@ function startNewRun() {
   GS.totalBallsUsed = 0;
   particles.length = 0;
   floatTexts.length = 0;
-  // Note: do NOT clear _seenAchs — achievements persist across runs via PERSIST.achievements
+  _seenAchs.clear(); // reset achievements per run
 
   // Apply permanent upgrades
   if (GS.bonusStartingBalls > 0) GS.balls += GS.bonusStartingBalls;
+  if (GS.startingCreditsBonus > 0) GS.breachCredits += GS.startingCreditsBonus;
   if (GS.startingPayloadCount > 0) {
     const available = GS.unlockedPayloads.filter(p => !['extralife','multiball','creditbonus'].includes(p));
     for (let i = 0; i < GS.startingPayloadCount && available.length > 0; i++) {
       const idx = Math.floor(Math.random() * available.length);
       GS.currentPayloads.push(available.splice(idx, 1)[0]);
     }
-  }
-
-  // Daily Challenge: fixed 3 balls, floor 3, no mastery bonuses
-  if (GS.dailyMode) {
-    GS.balls = 3;
-    GS.bonusStartingBalls = 0;
-    GS.startingPayloadCount = 0;
-    GS.currentPayloads = [];
-    GS.floor = 3;  // fixed floor 3 for daily
-    applyDailyModifiers(GS, GS.dailyDate);
   }
 
   // Hide all overlays
@@ -5890,7 +5364,6 @@ function returnToMenu() {
   if (canvas) canvas.style.display = '';
   GS.screen = 'menu';
   setActiveScreen('menu');
-  stopBgm(true); // stop any slot-spin or gameplay music before title music starts
   onScreenChange('menu');
   playSound('menuStart');
   // Clear Slot Protocol 2.0 state so it doesn't leak onto menu screen
@@ -5933,13 +5406,13 @@ function drawBackground() {
 }
 
 function drawPegs() {
+  console.log("DBG pegs:", GS.board.length, "screen:", GS.screen, "layerVisible.BOARD:", layerVisible.BOARD);
   const time = Date.now() / 1000;
 
   for (const peg of GS.board) {
     if (peg.destroyed) continue;
 
     const def = PEG_TYPES[peg.type];
-    if (!def) continue;  // Safety: skip pegs with unknown types
     const pegColor = peg.crumblingColor || def.color;
     const pulse = 0.8 + Math.sin(time * 2 + peg.x * 0.1) * 0.2;
 
@@ -6307,20 +5780,6 @@ function drawBallDropZone() {
 }
 
 function render() {
-  // Stop canvas renders entirely when a DOM overlay is covering the canvas.
-  // The shop/menu/floor_complete/run_end screens draw over the canvas via
-  // DOM — continuing to render the board physics every frame wastes CPU.
-  if (GS.screen !== 'playing') {
-    if (GS.screen === 'menu') {
-      // Menu needs a clear frame to avoid ghosting; still skip physics
-      ctx.fillStyle = C.void;
-      ctx.fillRect(0, 0, W, H);
-      if (layerVisible.BACKGROUND) drawBackground();
-    }
-    // All other screens: render() is a no-op while DOM overlay is shown
-    return;
-  }
-
   // Screen shake
   ctx.save();
   if (screenShake > 0) {
@@ -6447,25 +5906,20 @@ function update() {
       spawnFloatText(W/2, H/2, '⚠ NO BALLS LEFT ⚠', '#ff4444');
       setTimeout(() => {
         if (GS.screen !== 'playing') return; // already transitioned
-        // Ghost mode: win if at least 1 ball fired and no ice hits taken, fail otherwise
+        // Ghost mode: win if no ice hits were taken, fail otherwise
         if (GS.floorObjective.type === 'ghost') {
           const maxHits = GS.floorObjective.maxIceHits || 2;
-          if ((GS.totalBallsUsed || 0) === 0) {
-            // 0 balls fired — can't win ghost floor this way, must fail
-            triggerFlash('#ff224433', 0.3);
-            spawnFloatText(W/2, H/2, 'GHOST FAILED — NO BALLS FIRED', '#ff4444');
-            showGameOverInterstitial(() => endRun(false), 'GHOST FAILED — no balls fired');
-          } else if ((GS.ghostModeIceHits || 0) < maxHits) {
+          if ((GS.ghostModeIceHits || 0) <= maxHits) {
             showGameOverInterstitial(() => completeFloor());
           } else {
             triggerFlash('#ff224433', 0.3);
             spawnFloatText(W/2, H/2, `GHOST FAILED — ${GS.ghostModeIceHits} ICE HITS!`, '#ff4444');
-            showGameOverInterstitial(() => endRun(false), 'GHOST FAILED — ' + GS.ghostModeIceHits + ' ice hits');
+            showGameOverInterstitial(() => endRun(false));
           }
-        } else if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target && GS.floorObjective.target > 0) {
+        } else if (GS.floorObjective.progress >= GS.floorObjective.target) {
           showGameOverInterstitial(() => completeFloor());
         } else {
-          showGameOverInterstitial(() => endRun(false), 'Objective not met — balls depleted');
+          showGameOverInterstitial(() => endRun(false));
         }
       }, 1500);
       return;
@@ -6503,20 +5957,10 @@ function updateGhostHUD() {
     GS.floorTimeRemaining -= 1/60;
     if (GS.floorTimeRemaining <= 0) {
       GS.floorTimeRemaining = 0;
-      // Check if all ice pegs were cleared (win) or time ran out (lose)
-      const icePegs = GS.board.filter(p => p.type === 'ice');
-      const allIceCleared = icePegs.length > 0 && icePegs.every(p => p.destroyed);
-      if (allIceCleared) {
-        // WIN: all ice pegs cleared before time expired
-        spawnFloatText(W/2, H/2 - 50, '✓ FLOOR COMPLETE', '#00ffaa');
-        showGameOverInterstitial(() => completeFloor());
-      } else {
-        // FAIL: time expired without clearing all ice pegs
-        triggerFlash('#ff224433', 0.3);
-        spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
-        spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
-        showGameOverInterstitial(() => endRun(false), 'Time expired — TIME LOCK');
-      }
+      triggerFlash('#ff224433', 0.3);
+      spawnFloatText(W/2, H/2 - 50, 'TIME LOCK!', '#ff4444');
+      spawnFloatText(W/2, H/2, 'FLOOR FAILED', '#ff6666');
+      endRun(false);
     }
   }
 
@@ -6551,23 +5995,8 @@ function updateGhostHUD() {
     ghostEl.style.display = 'none';
   }
 
-  // Direct DOM update for score (bypasses updateHUD() lag)
-  const scoreEl = document.getElementById('score-value');
-  if (scoreEl) scoreEl.textContent = GS.score.toLocaleString();
-
-  // Direct DOM update for balls count label (bypasses updateHUD() lag)
-  const ballsLabel = document.querySelector('#balls-display > span');
-  if (ballsLabel) {
-    ballsLabel.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
-    ballsLabel.style.color = GS.balls === 0 ? '#ff4444' : '#00f0ff';
-    ballsLabel.style.textShadow = GS.balls === 0 ? '0 0 6px #ff4444' : '0 0 6px #00f0ff';
-  }
-
-  // ── FIX HUD LAG: ensure HUD reads current GS.score/GS.balls after physics/tick ──
-  updateHUD();
-
-  // Check objective periodically (standard/boss modes only — ghost/timelock have their own end conditions)
-  if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.type !== 'timelock' && GS.floorObjective.progress >= GS.floorObjective.target) {
+  // Check objective periodically (standard/boss modes only — ghost has its own end condition)
+  if (GS.floorObjective.type !== 'ghost' && GS.floorObjective.progress >= GS.floorObjective.target) {
     completeFloor();
   }
 }
@@ -6581,15 +6010,6 @@ function gameLoop() {
 }
 
 // ─── INPUT HANDLING ──────────────────────────────────────────
-// One-time unlock: first mouse move on title screen starts music (AudioContext requires user gesture)
-canvas.addEventListener('mousemove', () => {
-  if (GS.screen === 'menu' && !canvas._bgmUnlocked) {
-    canvas._bgmUnlocked = true;
-    playBgm('title');
-    canvas.removeEventListener('mousemove', arguments.callee);
-  }
-}, { once: true });
-
 canvas.addEventListener('mousemove', (e) => {
   if (GS.screen !== 'playing') return;
   const rect = canvas.getBoundingClientRect();
@@ -6598,10 +6018,7 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
-  if (GS.screen !== 'playing') {
-    if (GS.screen === 'shop') spawnFloatText(W / 2, H / 2 + 80, 'CLICK CONTINUE TO RESUME', '#ff00aa');
-    return;
-  }
+  if (GS.screen !== 'playing') return;
   const rect = canvas.getBoundingClientRect();
   dropX = Math.max(20, Math.min(W - 20, (e.clientX - rect.left) * (W / rect.width)));
   dropBall();
@@ -6646,8 +6063,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── BUTTON BINDINGS ─────────────────────────────────────────
-const startBtn = document.getElementById('start-btn');
-if (startBtn) startBtn.onclick = () => {
+document.getElementById('start-btn').onclick = () => {
   GS.dailyMode = false;
   GS.dailyDate = null;
   startNewRun();
@@ -6666,15 +6082,13 @@ if (startBtn) startBtn.onclick = () => {
   }
 };
 
-const dailyBtn = document.getElementById('daily-btn');
-if (dailyBtn) dailyBtn.onclick = () => {
+document.getElementById('daily-btn').onclick = () => {
   GS.dailyMode = true;
   GS.dailyDate = new Date().toISOString().slice(0, 10);
   startNewRun();
 };
 
-const resetBtn = document.getElementById('reset-btn');
-if (resetBtn) resetBtn.onclick = () => {
+document.getElementById('reset-btn').onclick = () => {
   if (confirm('Reset all progress? This cannot be undone.')) {
     localStorage.removeItem('slotprotocol');
     PERSIST = {
@@ -6707,13 +6121,10 @@ document.getElementById('leaderboard-btn').onclick = () => {
   openLeaderboard();
 };
 
-document.getElementById('achievements-btn').onclick = () => {
-  openAchievements();
-};
+document.getElementById('shop-continue-btn').onclick = closeShop;
 
 document.getElementById('floor-continue-btn').onclick = () => {
   document.getElementById('floor-overlay').classList.remove('active');
-  _shopOpenedAfterFloorComplete = true;
   openShop();
 };
 

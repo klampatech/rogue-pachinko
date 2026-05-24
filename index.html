@@ -5676,7 +5676,7 @@ function endRun(won) {
     <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
-    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} BREACH PENALTY (${GS.livesLost} overflow${GS.livesLost > 1 ? 's' : ''})</div>` : ''}
+    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} OVERFLOWS (${GS.livesLost})</div>` : ''}
     ${isNewHighScore && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
     <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
@@ -6473,6 +6473,18 @@ function updateGhostHUD() {
     ghostEl.style.display = 'block';
   } else if (ghostEl) {
     ghostEl.style.display = 'none';
+  }
+
+  // Direct DOM update for score (bypasses updateHUD() lag)
+  const scoreEl = document.getElementById('score-value');
+  if (scoreEl) scoreEl.textContent = GS.score.toLocaleString();
+
+  // Direct DOM update for balls count label (bypasses updateHUD() lag)
+  const ballsLabel = document.querySelector('#balls-display > span');
+  if (ballsLabel) {
+    ballsLabel.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
+    ballsLabel.style.color = GS.balls === 0 ? '#ff4444' : '#00f0ff';
+    ballsLabel.style.textShadow = GS.balls === 0 ? '0 0 6px #ff4444' : '0 0 6px #00f0ff';
   }
 
   // ── FIX HUD LAG: ensure HUD reads current GS.score/GS.balls after physics/tick ──

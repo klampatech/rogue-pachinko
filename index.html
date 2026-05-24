@@ -4569,8 +4569,28 @@ function updateMenuStats() {
 
 // ─── FLOOR COMPLETION ─────────────────────────────────────────
 function completeFloor() {
+  // Re-entrancy guard: if already showing floor_complete, ignore duplicate calls.
+  // This can happen when balls are still in flight when the floor objective completes
+  // — update() keeps running until all balls drain, and if another peg is hit
+  // during that window, it could call completeFloor() again.
+  if (GS.screen === 'floor_complete') return;
+
   // Close leaderboard if open — prevent it from leaking over floor_complete screen
   closeLeaderboard();
+
+  // Clear any remaining balls in flight — they are no longer relevant.
+  // Not clearing them means update() keeps moving them, and a mid-air collision
+  // could re-trigger completeFloor() through the peg-hit path.
+  GS.ballsInPlay = [];
+
+  // Dismiss tutorial modal if still open — Floor 5 timelock tutorial is an
+  // async overlay (z-index 9997) that can block the SPIN button (z-index 90)
+  // from receiving click events. The physics loop keeps running during the
+  // tutorial, so if a ball is dropped and the objective completes, the
+  // tutorial would linger over the jackpot slot UI.
+  const tutModal = document.getElementById('tutorial-modal');
+  if (tutModal) tutModal.style.display = 'none';
+
   GS.screen = 'floor_complete';
   setActiveScreen('floor_complete');
   playSound('floorClear');

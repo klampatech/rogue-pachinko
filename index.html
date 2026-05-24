@@ -4809,6 +4809,7 @@ const REP_SHOP_ITEMS = [
 
 function openShop(tab = 'credits') {
   _shopContinueBusy = false; // reset debounce flag so CONTINUE works fresh
+  _shopContinueDebounce = false; // also reset debounce flag
   const btn = document.getElementById('shop-continue-btn');
   if (btn) btn.disabled = false;
   GS.screen = 'shop';
@@ -5402,18 +5403,20 @@ function closeShop(skipFloorAdvance = false) {
 }
 
 let _shopOpenedAfterFloorComplete = false;
+let _shopContinueDebounce = false;
 
 document.getElementById('shop-continue-btn').onclick = () => {
   const btn = document.getElementById('shop-continue-btn');
-  if (btn.disabled) return;
+  if (_shopContinueDebounce || !btn || btn.disabled) return;
+  _shopContinueDebounce = true;
   btn.disabled = true;
-  // _shopOpenedAfterFloorComplete = true means shop was opened via floor-continue-btn
-  // or jp-continue-btn — meaning the player cleared the floor and is done shopping.
-  // In that case we DO want to advance to the next floor.
-  // If the shop was opened mid-floor (HUD SHOP button), _shopOpenedAfterFloorComplete
-  // is false and we stay on the current floor.
-  closeShop(!_shopOpenedAfterFloorComplete);
+  const skipAdvance = !_shopOpenedAfterFloorComplete;
   _shopOpenedAfterFloorComplete = false;
+  closeShop(skipAdvance);
+  setTimeout(() => {
+    _shopContinueDebounce = false;
+    if (btn) btn.disabled = false;
+  }, 150);
 };
 
 // ─── GAME FLOW ────────────────────────────────────────────────

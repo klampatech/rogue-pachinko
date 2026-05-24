@@ -2221,7 +2221,7 @@ function triggerSlotCollected(ball, slotIdx) {
         const peg = alive.splice(idx, 1)[0];
         if (!peg.destroyed) {
           peg.destroyed = true;
-          GS.floorObjective.progress++;
+          if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
           updateObjectiveBar();
           spawnParticles(peg.x, peg.y, peg.color || slot.color, 6, 3);
           cleared++;
@@ -3562,7 +3562,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       checkFrenzy();
       // Still increment score/progress for peg contact
       GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-      GS.floorObjective.progress++;
+      if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
       GS.totalPegsCleared++;
       GS.chainTimer = TIMING.CHAIN_EXTEND;
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
@@ -3589,7 +3589,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.comboCount++;
     checkFrenzy();
     GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-    GS.floorObjective.progress++;
+    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
     GS.totalPegsCleared++;
     GS.chainTimer = TIMING.CHAIN_EXTEND;
     GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
@@ -3710,7 +3710,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
   GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-  GS.floorObjective.progress++;
+  if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
   updateObjectiveBar();
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
@@ -3806,7 +3806,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               const eDist = Math.sqrt(edx * edx + edy * edy);
               if (eDist < radius) {
                 other.destroyed = true;
-                GS.floorObjective.progress++;
+                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
                 updateObjectiveBar();
                 spawnParticles(other.x, other.y, other.color || PEG_TYPES[other.type]?.color || '#ff4400', 8, 3);
                 GS.score += 50;
@@ -3821,7 +3821,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
                 .slice(0, 3);
               nearby.forEach(({ peg: targetPeg }) => {
                 targetPeg.destroyed = true;
-                GS.floorObjective.progress++;
+                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
                 updateObjectiveBar();
                 spawnParticles(targetPeg.x, targetPeg.y, '#ff00ff', 10, 4);
                 GS.score += 75;
@@ -4123,7 +4123,7 @@ function detonateExplosivePeg(ball, peg, board) {
     totalPoints += 50 * mult * GS.multiplier;
     GS.score += 50 * mult * GS.multiplier;
     other.hitCount++;
-    GS.floorObjective.progress++;
+    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
     updateObjectiveBar();
     spawnParticles(other.x, other.y, '#FF4500', 6, 3);
   }

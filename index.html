@@ -5678,7 +5678,7 @@ function endRun(won) {
     <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
     ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} OVERFLOWS (${GS.livesLost})</div>` : ''}
     ${isNewHighScore && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
-    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
+    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;">${(PERSIST.leaderboard || []).length ? 'TOP ' + Math.min(3, (PERSIST.leaderboard || []).length) + ' SCORES: ' + (PERSIST.leaderboard || []).slice(0, 3).map(e => e.score).join(' / ') + ' — PLAY AGAIN TO JOIN!' : 'NO SCORES YET — PLAY A RUN!'}</div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>

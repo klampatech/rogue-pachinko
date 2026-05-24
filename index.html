@@ -6475,6 +6475,18 @@ function updateGhostHUD() {
     ghostEl.style.display = 'none';
   }
 
+  // Direct DOM update for score (bypasses updateHUD() lag)
+  const scoreEl = document.getElementById('score-value');
+  if (scoreEl) scoreEl.textContent = GS.score.toLocaleString();
+
+  // Direct DOM update for balls count label (bypasses updateHUD() lag)
+  const ballsLabel = document.querySelector('#balls-display > span');
+  if (ballsLabel) {
+    ballsLabel.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
+    ballsLabel.style.color = GS.balls === 0 ? '#ff4444' : '#00f0ff';
+    ballsLabel.style.textShadow = GS.balls === 0 ? '0 0 6px #ff4444' : '0 0 6px #00f0ff';
+  }
+
   // ── FIX HUD LAG: ensure HUD reads current GS.score/GS.balls after physics/tick ──
   updateHUD();
 

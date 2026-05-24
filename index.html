@@ -1355,10 +1355,6 @@ function savePersist() {
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
   PERSIST.masteryPoints = PERSIST.masteryPoints;
   PERSIST.purchasedUpgrades = PERSIST.purchasedUpgrades || {};
-  // Track total runs
-  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
-  // Track best floor
-  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
   // Track best score
   if (GS.score > (PERSIST.bestScore || 0)) PERSIST.bestScore = GS.score;
   PERSIST.lastScore = GS.score;
@@ -5626,6 +5622,10 @@ function endRun(won) {
 
   // Sync reputation to PERSIST for meta-progression
   PERSIST.reputation = GS.reputation;
+
+  // Track total runs and best floor — only at run end, not on every save
+  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
+  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
 
   // Apply prestige bonus if any
   const prestigeMult = 1 + (PERSIST.meta?.prestigeBonus || 0);

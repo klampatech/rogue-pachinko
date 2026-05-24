@@ -365,12 +365,14 @@ body.contrast-mode #combo-display {
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
-  pointer-events: none; /* prevent capturing clicks when not visible */
+  pointer-events: none;
+  visibility: hidden;
 }
 
 #shop-overlay.active {
   display: flex;
-  pointer-events: auto; /* re-enable clicks only when active/open */
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .shop-header {
@@ -408,7 +410,7 @@ body.contrast-mode #combo-display {
 .shop-item.rep-item { border-color: #00ffaa33; }
 
 .item-icon { font-size: 18px; margin-bottom: 5px; }
-.item-name { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
+.item-title { font-size: 10px; color: #00f0ff; margin-bottom: 3px; }
 .item-desc { font-size: 8px; color: #666; line-height: 1.4; margin-bottom: 8px; }
 .item-cost { font-size: 10px; color: #ffaa00; }
 .item-owned-badge { font-size: 8px; color: #ff00aa; margin-top: 5px; }
@@ -1355,10 +1357,6 @@ function savePersist() {
   PERSIST.lifetimeBreach = GS.lifetimeBreach;
   PERSIST.masteryPoints = PERSIST.masteryPoints;
   PERSIST.purchasedUpgrades = PERSIST.purchasedUpgrades || {};
-  // Track total runs
-  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
-  // Track best floor
-  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
   // Track best score
   if (GS.score > (PERSIST.bestScore || 0)) PERSIST.bestScore = GS.score;
   PERSIST.lastScore = GS.score;
@@ -1502,7 +1500,7 @@ function setActiveScreen(name) {
 function drawLayers(time) {
   if (layerVisible.BACKGROUND) drawBackground();
   if (layerVisible.BOARD)      drawPegs();
-  if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
+  if (layerVisible.BALLS && GS.screen !== 'run_end' && GS.screen !== 'floor_complete') for (const ball of GS.ballsInPlay) ball.draw();
   // Preview arc — dashed cyan arc showing predicted ball trajectory
   if (GS.screen === 'playing' && previewArc.length > 0) {
     // Find landing slot from end of arc
@@ -2225,7 +2223,7 @@ function triggerSlotCollected(ball, slotIdx) {
         const peg = alive.splice(idx, 1)[0];
         if (!peg.destroyed) {
           peg.destroyed = true;
-          GS.floorObjective.progress++;
+          if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
           updateObjectiveBar();
           spawnParticles(peg.x, peg.y, peg.color || slot.color, 6, 3);
           cleared++;
@@ -3566,7 +3564,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
       checkFrenzy();
       // Still increment score/progress for peg contact
       GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-      GS.floorObjective.progress++;
+      if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
       GS.totalPegsCleared++;
       GS.chainTimer = TIMING.CHAIN_EXTEND;
       GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
@@ -3593,7 +3591,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
     GS.comboCount++;
     checkFrenzy();
     GS.score += (pegDef.bonus ? 200 : 50) * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-    GS.floorObjective.progress++;
+    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
     GS.totalPegsCleared++;
     GS.chainTimer = TIMING.CHAIN_EXTEND;
     GS.multiplier = Math.min(TIMING.MAX_MULTIPLIER, GS.multiplier + 1);
@@ -3714,7 +3712,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   // Scoring
   const baseScore = pegDef.bonus ? 200 : 50;
   GS.score += baseScore * GS.multiplier * (GS.frenzyActive ? 3 : 1) * GS.pegBonusMultiplier;
-  GS.floorObjective.progress++;
+  if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
   updateObjectiveBar();
   GS.totalPegsCleared++;
   if (GS.totalPegsCleared === 1) showAchievement('firstPeg');
@@ -3810,7 +3808,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
               const eDist = Math.sqrt(edx * edx + edy * edy);
               if (eDist < radius) {
                 other.destroyed = true;
-                GS.floorObjective.progress++;
+                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
                 updateObjectiveBar();
                 spawnParticles(other.x, other.y, other.color || PEG_TYPES[other.type]?.color || '#ff4400', 8, 3);
                 GS.score += 50;
@@ -3825,7 +3823,7 @@ function handlePegHit(ball, peg, dx, dy, dist, minDist) {
                 .slice(0, 3);
               nearby.forEach(({ peg: targetPeg }) => {
                 targetPeg.destroyed = true;
-                GS.floorObjective.progress++;
+                if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
                 updateObjectiveBar();
                 spawnParticles(targetPeg.x, targetPeg.y, '#ff00ff', 10, 4);
                 GS.score += 75;
@@ -4127,7 +4125,7 @@ function detonateExplosivePeg(ball, peg, board) {
     totalPoints += 50 * mult * GS.multiplier;
     GS.score += 50 * mult * GS.multiplier;
     other.hitCount++;
-    GS.floorObjective.progress++;
+    if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
     updateObjectiveBar();
     spawnParticles(other.x, other.y, '#FF4500', 6, 3);
   }
@@ -4850,7 +4848,7 @@ function openShop(tab = 'credits') {
       el.style.borderColor = rarityColor + '55';
       el.innerHTML =
         '<div class="item-icon" style="color:' + rarityColor + ';">' + item.icon + '</div>' +
-        '<div class="item-name">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
+        '<div class="item-title">' + item.name + (rankLocked && !rankMet ? ' 🔒' : '') + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         rarityBadge +
         (owned ? ownedBadge : lockedMsg);
@@ -4868,7 +4866,7 @@ function openShop(tab = 'credits') {
       const ownedBadge = '<div class="item-owned-badge" style="color:#00ffaa;">✓ OWNED</div>';
       el.innerHTML =
         '<div class="item-icon" style="color:#00ffaa;">' + item.icon + '</div>' +
-        '<div class="item-name" style="color:#00ffaa;">' + item.name + '</div>' +
+        '<div class="item-title" style="color:#00ffaa;">' + item.name + '</div>' +
         '<div class="item-desc">' + item.desc + '</div>' +
         (owned ? ownedBadge : costDiv + buyBtn);
 
@@ -5406,6 +5404,9 @@ function closeShop(skipFloorAdvance = false) {
 let _shopOpenedAfterFloorComplete = false;
 
 document.getElementById('shop-continue-btn').onclick = () => {
+  const btn = document.getElementById('shop-continue-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
   // _shopOpenedAfterFloorComplete = true means shop was opened via floor-continue-btn
   // or jp-continue-btn — meaning the player cleared the floor and is done shopping.
   // In that case we DO want to advance to the next floor.
@@ -5498,13 +5499,13 @@ function startFloor() {
   GS.ghostModeIceHits = 0;
   // Floor 5 timelock tutorial — show once per run before the floor starts
   if (GS.floor === 5 && GS.floorObjective.type === 'timelock') {
-    const timeLimit = GS.floorObjective.timeLimit || 45;
+    const timeLimit = GS.floorObjective.timeLimit || 39;
     showTutorialModal(
       'FLOOR 5 — TIME LOCK',
-      `Survive the countdown! Clear all ICE PEGS before time runs out to complete this floor.<br><br>` +
-      `⏱ Time Limit: <span style="color:#ffd700;">${timeLimit} seconds</span><br>` +
-      `❄ Ice Pegs freeze the ball briefly — plan your drop zone!<br>` +
-      `✅ Goal: Clear all ice pegs before the timer hits zero.`,
+      `Clear all <span style="color:#88ccff;">ICE PEGS</span> before time runs out!<br><br>` +
+      `⏱ You have <span style="color:#ffd700;">${timeLimit} seconds</span>.<br>` +
+      `Timer counts down to <span style="color:#ff4466;">0</span> — floor fails at zero!<br><br>` +
+      `❄ Ice Pegs briefly freeze the ball — plan your drop zone carefully.`,
       'floor5_timelock'
     );
   }
@@ -5535,21 +5536,15 @@ function grantStartingPayload() {
   updatePayloadSlots();
 }
 
+// getNextRank — uses canonical RANKS array (line ~1211) and GS.rank
 function getNextRank() {
-  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
-  const idx = ranks.indexOf(GS.rank);
-  return idx >= 0 && idx < ranks.length - 1 ? ranks[idx + 1] : 'MAX';
+  const idx = RANKS.findIndex(r => r.name === GS.rank);
+  return idx >= 0 && idx < RANKS.length - 1 ? RANKS[idx + 1].name : 'MAX';
 }
-function getRankProgress() {
-  const thresholds = [0, 500, 1500, 4000, 10000, 25000, 60000];
-  const ranks = ['Script Kiddie','Script Kiddie+','Netrunner','Netrunner+','Ghost','Phantom','Legend'];
-  const idx = ranks.indexOf(GS.rank);
-  const next = idx >= 0 ? (thresholds[idx + 1] || 999999) : 999999;
-  const prev = idx > 0 ? (thresholds[idx] || 0) : 0;
-  const rep = GS.reputation || 0;
-  if (rep >= next) return 100;
-  return Math.min(100, Math.round(((rep - prev) / (next - prev)) * 100));
-}
+
+// getRankProgress is defined at line ~1297 (canonical,
+// uses PERSIST.reputation + RANKS array). The run-end overlay calls it
+// directly via template literals.
 
 // ── Tutorial Modal ────────────────────────────────────────────────
 function showTutorialModal(title, body, persistKey) {
@@ -5627,6 +5622,10 @@ function endRun(won) {
   // Sync reputation to PERSIST for meta-progression
   PERSIST.reputation = GS.reputation;
 
+  // Track total runs and best floor — only at run end, not on every save
+  PERSIST.totalRuns = (PERSIST.totalRuns || 0) + 1;
+  if (GS.floor > (PERSIST.bestFloor || 0)) PERSIST.bestFloor = GS.floor;
+
   // Apply prestige bonus if any
   const prestigeMult = 1 + (PERSIST.meta?.prestigeBonus || 0);
   const creditGain = Math.floor(GS.breachCredits * (1 + GS.balls * 0.1) * prestigeMult);
@@ -5676,9 +5675,9 @@ function endRun(won) {
     <div>FLOOR REACHED: <span class="runend-stat-value">${GS.floor}</span></div>
     <div>ALL-TIME BEST FLOOR: <span class="runend-stat-value">${PERSIST.bestFloor || 0}</span></div>
     <div>TOTAL SCORE: <span class="runend-stat-value">${effectiveScore.toLocaleString()}${scoreHighlight}</span></div>
-    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} BREACH PENALTY (${GS.livesLost} overflow${GS.livesLost > 1 ? 's' : ''})</div>` : ''}
+    ${livesLostPenalty > 0 ? `<div style="color:#ff4444;font-size:9px;margin-top:2px;">−${livesLostPenalty} OVERFLOWS (${GS.livesLost})</div>` : ''}
     ${isNewHighScore && effectiveScore > 0 ? `<div id="lb-name-entry" style="margin-top:6px;"><input id="lb-name-input" maxlength="12" placeholder="YOUR HANDLE" onkeydown="if(event.key==='Enter')submitHighScore()" style="background:#111;border:1px solid #333;color:#ffd700;font-family:inherit;font-size:11px;padding:4px 8px;width:120px;text-align:center;border-radius:4px;letter-spacing:2px;" /> <button onclick="submitHighScore()" style="background:#ffd70022;border:1px solid #ffd700;color:#ffd700;padding:4px 10px;font-family:inherit;font-size:10px;cursor:pointer;border-radius:4px;">SAVE</button></div>` : ''}
-    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;"></div>
+    <div id="lb-preview" style="margin-top:8px;font-size:9px;color:#555;">${(PERSIST.leaderboard || []).length ? 'TOP ' + Math.min(3, (PERSIST.leaderboard || []).length) + ' SCORES: ' + (PERSIST.leaderboard || []).slice(0, 3).map(e => e.score).join(' / ') + ' — PLAY AGAIN TO JOIN!' : 'NO SCORES YET — PLAY A RUN!'}</div>
     ${GS.dailyMode ? `<div style="color:#ffcc00;font-size:11px;margin-top:4px;">🏆 DAILY CHALLENGE</div>` : ''}
     <div>PEG CLEARED: <span class="runend-stat-value">${GS.totalPegsCleared}</span></div>
     <div>BEST COMBO: <span class="runend-stat-value">${GS.runMaxCombo || 0} hits</span></div>
@@ -6473,6 +6472,18 @@ function updateGhostHUD() {
     ghostEl.style.display = 'block';
   } else if (ghostEl) {
     ghostEl.style.display = 'none';
+  }
+
+  // Direct DOM update for score (bypasses updateHUD() lag)
+  const scoreEl = document.getElementById('score-value');
+  if (scoreEl) scoreEl.textContent = GS.score.toLocaleString();
+
+  // Direct DOM update for balls count label (bypasses updateHUD() lag)
+  const ballsLabel = document.querySelector('#balls-display > span');
+  if (ballsLabel) {
+    ballsLabel.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
+    ballsLabel.style.color = GS.balls === 0 ? '#ff4444' : '#00f0ff';
+    ballsLabel.style.textShadow = GS.balls === 0 ? '0 0 6px #ff4444' : '0 0 6px #00f0ff';
   }
 
   // ── FIX HUD LAG: ensure HUD reads current GS.score/GS.balls after physics/tick ──

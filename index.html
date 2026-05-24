@@ -378,6 +378,84 @@ body.contrast-mode #combo-display {
   visibility: visible;
 }
 
+/* Reset confirmation modal */
+#reset-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.85);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  visibility: hidden;
+}
+#reset-overlay.active {
+  display: flex;
+  pointer-events: auto;
+  visibility: visible;
+}
+#reset-overlay .reset-backdrop {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+#reset-overlay .reset-box {
+  position: relative;
+  background: #0d0d1a;
+  border: 2px solid #ff4444;
+  border-radius: 8px;
+  padding: 28px 32px;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+  max-width: 320px;
+  width: 90%;
+}
+#reset-overlay .reset-msg {
+  font-size: 13px;
+  color: #ccc;
+  margin-bottom: 24px;
+  line-height: 1.5;
+  letter-spacing: 1px;
+}
+#reset-overlay .reset-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+#reset-overlay .reset-cancel {
+  background: #1a1a2e;
+  border: 1px solid #444;
+  color: #888;
+  padding: 8px 20px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  letter-spacing: 2px;
+}
+#reset-overlay .reset-cancel:hover {
+  border-color: #666;
+  color: #aaa;
+}
+#reset-overlay .reset-confirm {
+  background: #ff4444;
+  border: 1px solid #ff4444;
+  color: #fff;
+  padding: 8px 20px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.4);
+}
+#reset-overlay .reset-confirm:hover {
+  background: #ff6666;
+  border-color: #ff6666;
+}
+
 .shop-header {
   text-align: center;
   margin-bottom: 20px;
@@ -6719,21 +6797,51 @@ if (dailyBtn) dailyBtn.onclick = () => {
 
 const resetBtn = document.getElementById('reset-btn');
 if (resetBtn) resetBtn.onclick = () => {
-  if (confirm('Reset all progress? This cannot be undone.')) {
-    localStorage.removeItem('slotprotocol');
-    PERSIST = {
-      reputation: 0,
-      lifetimeBreach: 0,
-      totalRuns: 0,
-      bestFloor: 0,
-      unlockedPayloads: ['scrambler', 'trojan'],
-      unlockedUpgrades: []
-    };
-    GS.unlockedPayloads = ['scrambler', 'trojan'];
-    GS.unlockedUpgrades = [];
-    updateMenuStats();
-  }
+  showResetModal();
 };
+
+function showResetModal() {
+  let overlay = document.getElementById('reset-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'reset-overlay';
+    overlay.innerHTML = `
+      <div class="reset-backdrop" onclick="closeResetModal()"></div>
+      <div class="reset-box">
+        <div class="reset-msg">Reset all progress?<br><span style="color:#666;font-size:10px;">This cannot be undone.</span></div>
+        <div class="reset-actions">
+          <button class="reset-cancel" onclick="closeResetModal()">CANCEL</button>
+          <button class="reset-confirm" onclick="confirmReset()">CONFIRM</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.add('active');
+}
+
+function closeResetModal() {
+  const overlay = document.getElementById('reset-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function confirmReset() {
+  localStorage.removeItem('slotprotocol');
+  PERSIST = {
+    reputation: 0,
+    lifetimeBreach: 0,
+    totalRuns: 0,
+    bestFloor: 0,
+    unlockedPayloads: ['scrambler', 'trojan'],
+    unlockedUpgrades: [],
+    meta: {}
+  };
+  GS.unlockedPayloads = ['scrambler', 'trojan'];
+  GS.unlockedUpgrades = [];
+  updateMenuStats();
+  closeResetModal();
+  returnToMenu();
+}
 
 document.getElementById('shop-btn').onclick = () => {
   openShop();

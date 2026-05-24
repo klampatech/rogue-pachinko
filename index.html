@@ -4623,6 +4623,12 @@ function completeFloor() {
 // Cancelled on each new initJackpotSlots() call to prevent orphan timer pile-up
 let _jpTimers = [];
 
+// Session counter — every initJackpotSlots() gets a new unique ID.
+// Timer callbacks check (sessionId === _jpSession) before touching DOM.
+// This prevents stale closures from the previous floor's jackpot session
+// from corrupting the new session's UI state.
+let _jpSession = 0;
+
 function initJackpotSlots() {
   const reels = [
     document.getElementById('reel-0'),
@@ -4645,6 +4651,10 @@ function initJackpotSlots() {
   let spinInProgress = false;
   let canReroll = false;
 
+  // Bump session — all timer callbacks guard against stale closures with this
+  _jpSession++;
+  const sessionId = _jpSession;
+
   // ── Cancel orphaned timers from a previous floor's jackpot session ──
   // Without this, multiple completeFloor() calls pile up setInterval+setTimeout
   // closures → showResult() fires multiple times, corrupting button state
@@ -4658,6 +4668,8 @@ function initJackpotSlots() {
 
   // Bind CONTINUE button to close overlay and open shop
   if (jpContinueBtn) jpContinueBtn.onclick = () => {
+    // Guard: only act if still in this session
+    if (_jpSession !== sessionId) return;
     document.getElementById('floor-overlay').classList.remove('active');
     _shopOpenedAfterFloorComplete = true;
     openShop();
@@ -4678,6 +4690,9 @@ function initJackpotSlots() {
   }
 
   function showResult() {
+    // Guard: skip if this session is stale (floor transitioned mid-spin)
+    if (_jpSession !== sessionId) return;
+
     const [a, b, c] = reels.map(r => r.textContent);
     const mult = GS.frenzyReady ? 3 : 1;
     GS.frenzyReady = false;
@@ -4735,6 +4750,8 @@ function initJackpotSlots() {
   }
 
   function doSpin() {
+    // Guard: ignore if session changed (floor transitioned mid-click)
+    if (_jpSession !== sessionId) return;
     if (spinInProgress) return;
     spinInProgress = true;
     GS.totalJackpotSpins = (GS.totalJackpotSpins || 0) + 1;
@@ -4766,6 +4783,8 @@ function initJackpotSlots() {
     reels.forEach((reel, i) => {
       let count = 0;
       const spin = setInterval(() => {
+        // Guard: skip if this timer is stale (different session)
+        if (_jpSession !== sessionId) { clearInterval(spin); return; }
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         count++;
         // Ramp blur down as spin nears end — starts intense, settles
@@ -4781,6 +4800,8 @@ function initJackpotSlots() {
       // Staggered landing: each reel lands 400ms after the previous
       const reelIndex = i;
       const landTimer = setTimeout(() => {
+        // Guard: skip if this timer is stale
+        if (_jpSession !== sessionId) return;
         clearInterval(spin);
         reel.textContent = symbols[Math.floor(Math.random() * symbols.length)];
         reel.style.filter = 'blur(0px)';
@@ -4789,8 +4810,9 @@ function initJackpotSlots() {
         reel.style.transform = 'scale(1.25)';
         reel.style.transition = 'transform 0.08s ease-in, filter 0.15s ease-out';
         setTimeout(() => {
+          if (_jpSession !== sessionId) return;
           reel.style.transform = 'scale(1)';
-          setTimeout(() => { reel.style.transition = ''; }, 80);
+          setTimeout(() => { if (_jpSession === sessionId) reel.style.transition = ''; }, 80);
         }, 80);
       }, stopTimes[reelIndex]);
       _jpTimers.push(landTimer);
@@ -4798,6 +4820,7 @@ function initJackpotSlots() {
 
     // After all reels landed + settle time, show result
     const resultTimer = setTimeout(() => {
+      if (_jpSession !== sessionId) return;
       spinInProgress = false;
       if (spinEl) spinEl.style.display = 'none';
       showResult();

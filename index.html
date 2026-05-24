@@ -1502,7 +1502,7 @@ function setActiveScreen(name) {
 function drawLayers(time) {
   if (layerVisible.BACKGROUND) drawBackground();
   if (layerVisible.BOARD)      drawPegs();
-  if (layerVisible.BALLS)     for (const ball of GS.ballsInPlay) ball.draw();
+  if (layerVisible.BALLS && GS.screen !== 'run_end' && GS.screen !== 'floor_complete') for (const ball of GS.ballsInPlay) ball.draw();
   // Preview arc — dashed cyan arc showing predicted ball trajectory
   if (GS.screen === 'playing' && previewArc.length > 0) {
     // Find landing slot from end of arc

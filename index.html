@@ -6012,6 +6012,30 @@ function drawPegs() {
       }
     }
 
+    // ── TIMELOCK FLOOR: pulsing highlight ring around ICE pegs ──
+    // Shows players exactly which pegs must be cleared to win the floor
+    if (GS.floorObjective.type === 'timelock' && peg.type === 'ice' && !peg.destroyed) {
+      const iceHighlight = 0.5 + Math.sin(time * 3.5 + peg.y * 0.08) * 0.5;
+      const ringRadius = def.radius + 10;
+      // Outer glow ring
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, ringRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0, 240, 255, ${0.5 * iceHighlight})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 14 * iceHighlight;
+      ctx.stroke();
+      // Inner gold ring
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, ringRadius - 3, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255, 215, 0, ${0.7 * iceHighlight})`;
+      ctx.lineWidth = 1;
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 8 * iceHighlight;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
     // ── CRUMBLING PEG: cracked overlay + hit dots ─────────────
     if (def.crumbling && !peg.destroyed) {
       const pegColor = peg.crumblingColor || def.color;

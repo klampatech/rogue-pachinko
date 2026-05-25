@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rogue Pachinko — Test Suite</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #0a0a0f; color: #00f0ff; height: 100vh; display: flex; }
+  #sidebar { width: 340px; min-width: 340px; height: 100vh; overflow-y: auto; background: #111; border-right: 1px solid #222; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #game-frame { flex: 1; height: 100vh; border: none; display: block; }
+  .hdr { font-size: 11px; color: #ff00aa; text-transform: uppercase; letter-spacing: 2px; margin-top: 8px; }
+  .suite { color: #ff00aa; font-weight: bold; font-size: 13px; padding: 4px 0 2px; border-bottom: 1px solid #333; margin-top: 8px; cursor: pointer; }
+  .test { font-size: 11px; padding: 2px 0 2px 14px; display: flex; align-items: center; gap: 6px; }
+  .test-name { flex: 1; }
+  .pass { color: #00ff88; } .fail { color: #ff4444; font-weight: bold; } .skip { color: #ffaa00; }
+  .err { color: #ff6600; font-size: 10px; }
+  #summary { position: sticky; bottom: 0; background: #111; border-top: 1px solid #333; padding: 8px 0; font-size: 12px; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; }
+  .controls button, .controls input { background: #1a1a2e; color: #00f0ff; border: 1px solid #333; padding: 4px 8px; font-family: inherit; font-size: 11px; cursor: pointer; }
+  .controls input { width: 80px; }
+  #status { font-size: 11px; color: #888; }
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <div class="hdr">Rogue Pachinko — Test Suite</div>
+  <div class="controls">
+    <button id="btn-run">▶ Run All</button>
+    <button id="btn-rerun">↺ Re-run Failed</button>
+    <input id="in-seed" placeholder="seed" title="Force RNG seed">
+    <input id="in-floor" placeholder="floor" title="Start at floor N">
+  </div>
+  <div id="output"></div>
+  <div id="summary"></div>
+</div>
+<iframe id="game-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+
+<script type="module">
+// ─────────────────────────────────────────────────────────────────────────────
+// Test Runner — loads game in isolated iframe, runs test modules, reports
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GAME_SRC = '../index.html';
+let lastFailed = [];
+let currentSeed = null;
+let currentFloor = null;
+
+function log(html) {
+  document.getElementById('output').insertAdjacentHTML('beforeend', html + '\n');
+}
+
+function logSuite(name) {
+  log(`<div class="suite">▸ ${name}</div>`);
+}
+
+function logTest(name, status, ms, errMsg) {
+  const icon = status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○';
+  const cls  = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'skip';
+  let html = `<div class="test ${cls}"><span class="test-name">${icon} ${name}</span>`;
+  if (ms !== undefined) html += `<span style="color:#555;font-size:10px">${ms}ms</span>`;
+  if (errMsg) html += `<div class="err">↳ ${errMsg}</div>`;
+  html += '</div>';
+  log(html);
+}
+
+// Load test files and call their runTests() with a TEST helper
+async function loadTests() {
+  const { globals, execute } = await import('./test-harness.js');
+  const modules = globals._testModules || [];
+
+  // Discover all tests/test-*.test.js under tests/
+  const testDir = './tests/';
+  let files;
+  try {
+    files = modules.map(m => m.url).filter(u => u.includes('/tests/') && u.endsWith('.test.js'));
+  } catch {
+    // fallback — enumerate via import glob (static)
+    files = [];
+    const { readdirSync } = await import('fs').catch(() => ({ readdirSync: () => [] }));
+    try {
+      const dir = new URL('./tests/', import.meta.url);
+      files = readdirSync(dir.pathname).filter(f => f.endsWith('.test.js')).map(f => `./tests/${f}`);
+    } catch { files = []; }
+  }
+
+  return files;
+}
+
+async function runSuite(file, TEST) {
+  logSuite(file);
+  try {
+    const mod = await import(file + '?t=' + Date.now());
+    if (typeof mod.runTests === 'function') {
+      const result = await mod.runTests(TEST);
+      for (const t of result.tests) {
+        logTest(t.name, t.status, t.ms, t.err);
+      }
+      return result;
+    } else {
+      logTest(`(no runTests export in ${file})`, 'SKIP');
+      return { passed: 0, failed: 0, skipped: 1, tests: [] };
+    }
+  } catch(e) {
+    logTest(`FAILED TO LOAD ${file}`, 'FAIL', undefined, e.message);
+    return { passed: 0, failed: 1, skipped: 0, tests: [] };
+  }
+}
+
+function buildTestSummary(totals) {
+  const { total, passed, failed, skipped } = totals;
+  const all  = total  === passed + skipped ? ' style="color:#00ff88"' : '';
+  const pStr = `<span class="pass">${passed} passed</span>`;
+  const fStr = fail > 0 ? `<span class="fail">${fail} failed</span>` : '';
+  const sStr = skipped > 0 ? `<span class="skip">${skipped} skipped</span>` : '';
+  document.getElementById('summary').innerHTML =
+    `<div${all}>TOTAL: ${passed}/${total}</div>${pStr} ${fStr} ${sStr}`;
+}
+
+async function runAll() {
+  log('');
+  log(`<div style="color:#ff00aa;font-size:11px">▀▀▀ RUN ${new Date().toISOString()} ▀▀▀</div>`);
+
+  const iframe = document.getElementById('game-frame');
+  const url = new URL(GAME_SRC, import.meta.url);
+  if (currentSeed)  url.searchParams.set('seed',  currentSeed);
+  if (currentFloor) url.searchParams.set('floor', currentFloor);
+  iframe.src = url.href;
+
+  await new Promise(r => iframe.addEventListener('load', r, { once: true }));
+
+  // Build TEST helper from iframe globals
+  const TEST = await buildTestHelper(iframe);
+
+  const files = await getTestFiles();
+  let totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
+
+  for (const file of files) {
+    const r = await runSuite(file, TEST);
+    // Support both {passed,failed,skipped,tests[]} and {passed,failed,skipped,errors[]}
+    const testList = r.tests || (r.errors ? r.errors.map(e => ({ name: e, status: 'FAIL' })) : []);
+    for (const t of testList) { logTest(t.name || file, t.status, t.ms, t.err); }
+    totals.total   += (r.tests ? r.tests.length : r.passed + r.failed);
+    totals.passed += r.passed;
+    totals.failed += r.failed;
+    totals.skipped += r.skipped;
+    if (r.failed > 0) lastFailed.push(file);
+  }
+
+  buildTestSummary(totals);
+  log(`<div style="color:#ff00aa;font-size:11px">▄▄▄ END ▄▄▄</div>`);
+}
+
+async function buildTestHelper(iframe) {
+  // Expose helpers that forward into the game iframe context
+  return {
+    // ── State access ──────────────────────────────────────────────
+    getGS()       { return iframe.contentWindow.GS; },
+    getPersist() { return iframe.contentWindow.PERSIST; },
+
+    // ── Seed control ──────────────────────────────────────────────
+    seed(n) {
+      iframe.contentWindow._boardSeed = n;
+      iframe.contentWindow._rngState  = n;
+    },
+
+    // ── Game navigation ────────────────────────────────────────────
+    gotoFloor(n) { iframe.contentWindow.startFloor ? iframe.contentWindow.startFloor(n) : null; },
+    startRun()   { iframe.contentWindow.startNewRun ? iframe.contentWindow.startNewRun() : null; },
+    endRun()     { iframe.contentWindow.endRun ? iframe.contentWindow.endRun(false) : null; },
+    returnToMenu() { iframe.contentWindow.returnToMenu ? iframe.contentWindow.returnToMenu() : null; },
+
+    // ── State injection ───────────────────────────────────────────
+    setBalls(n)  { const g = iframe.contentWindow.GS; if (g) g.balls = n; },
+    setScore(n)  { const g = iframe.contentWindow.GS; if (g) g.score = n; },
+    setFloor(n)  { const g = iframe.contentWindow.GS; if (g) g.floor = n; },
+    setPayload(type) {
+      const g = iframe.contentWindow.GS;
+      if (g && !g.activePayloads) g.activePayloads = [];
+      if (g) g.activePayloads.push(type);
+    },
+    setCombo(n)  { const g = iframe.contentWindow.GS; if (g) g.combo = n; },
+    setMultiplier(n) { const g = iframe.contentWindow.GS; if (g) g.multiplier = n; },
+    addCredits(n) {
+      const g = iframe.contentWindow.GS;
+      if (g) g.credits = (g.credits || 0) + n;
+    },
+    subCredits(n) {
+      const g = iframe.contentWindow.GS;
+      if (g) g.credits = Math.max(0, (g.credits || 0) - n);
+    },
+
+    // ── Input / interaction simulation ─────────────────────────────
+    click(idQuery) {
+      const el = iframe.contentDocument.querySelector(idQuery);
+      if (el) { el.focus(); elDispatcher(el, 'mousedown'); elDispatcher(el, 'mouseup'); elDispatcher(el, 'click'); }
+    },
+    type(idQuery, text) {
+      const el = iframe.contentDocument.querySelector(idQuery);
+      if (el) { el.value = text; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    },
+    dispatch(el, event) { elDispatcher(el, event); },
+
+    // ── Physics helpers ────────────────────────────────────────────
+    simulateArc(x, y) {
+      return iframe.contentWindow.simulatePreviewArc ? iframe.contentWindow.simulatePreviewArc(x, y) : null;
+    },
+
+    // ── Peg helpers ───────────────────────────────────────────────
+    triggerPegHit(x, y) {
+      const g = iframe.contentWindow.GS;
+      if (g && g.pegs) {
+        const peg = g.pegs.find(p => Math.hypot(p.x - x, p.y - y) < 20);
+        if (peg && iframe.contentWindow.handlePegHit) iframe.contentWindow.handlePegHit(peg, null);
+      }
+    },
+    getPegs() { return iframe.contentWindow.GS?.pegs || []; },
+    getPegCount() { return (iframe.contentWindow.GS?.pegs || []).length; },
+
+    // ── Slot helpers ───────────────────────────────────────────────
+    triggerSlot(slotIdx) {
+      return iframe.contentWindow.triggerSlotCollected ? iframe.contentWindow.triggerSlotCollected(slotIdx) : null;
+    },
+    getSlotForX(x) { return iframe.contentWindow.getSlotForX ? iframe.contentWindow.getSlotForX(x) : -1; },
+    isSlotUnlocked(idx) { return iframe.contentWindow.isSlotUnlocked ? iframe.contentWindow.isSlotUnlocked(idx) : false; },
+
+    // ── Audio helpers ──────────────────────────────────────────────
+    getAudioCtx()   { return iframe.contentWindow.getAudioCtx ? iframe.contentWindow.getAudioCtx() : null; },
+    playSound(id)   { return iframe.contentWindow.playSound ? iframe.contentWindow.playSound(id, 0) : null; },
+    stopBgm()       { return iframe.contentWindow.stopBgm ? iframe.contentWindow.stopBgm() : null; },
+
+    // ── Persistence ──────────────────────────────────────────────
+    savePersist()   { return iframe.contentWindow.savePersist ? iframe.contentWindow.savePersist() : null; },
+    loadPersist()   { return iframe.contentWindow.loadPersist ? iframe.contentWindow.loadPersist() : null; },
+    clearLocalStorage() {
+      iframe.contentWindow.localStorage.removeItem('slotprotocol');
+    },
+
+    // ── Timing ─────────────────────────────────────────────────────
+    async wait(ms) { return new Promise(r => setTimeout(r, ms)); },
+    async waitRAF(n) {
+      for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r));
+    },
+
+    // ── Assertions ───────────────────────────────────────────────
+    is(a, b, msg)   { return { ok: a === b, msg: msg || `${a} === ${b}` }; },
+    ok(v, msg)      { return { ok: !!v,  msg: msg || 'expected truthy' }; },
+    gt(a, b, msg)   { return { ok: a > b,  msg: msg || `${a} > ${b}` }; },
+    lt(a, b, msg)   { return { ok: a < b,  msg: msg || `${a} < ${b}` }; },
+    throws(fn, msg) {
+      try { fn(); return { ok: false, msg: msg || 'expected to throw' }; }
+      catch(e) { return { ok: true,  msg: msg || `threw: ${e.message}` }; }
+    },
+    // Deep equal for objects
+    equal(a, b, msg) {
+      const s = JSON.stringify(a), sb = JSON.stringify(b);
+      return { ok: s === sb, msg: msg || `${s} === ${sb}` };
+    },
+  };
+}
+
+function elDispatcher(el, type) {
+  const ev = new MouseEvent(type, { bubbles: true, cancelable: true, view: window });
+  el.dispatchEvent(ev);
+}
+
+async function getTestFiles() {
+  // Static list — always current
+  return [
+    './tests/a00_core.test.js',
+    './tests/a01_persistence.test.js',
+    './tests/a02_game_flow.test.js',
+    './tests/b01_ball_physics.test.js',
+    './tests/b02_drop_mechanics.test.js',
+    './tests/b03_collision.test.js',
+    './tests/b04_peg_types.test.js',
+    './tests/c01_slot_collector.test.js',
+    './tests/c02_jackpot.test.js',
+    './tests/d01_payloads.test.js',
+    './tests/d02_evolutions.test.js',
+    './tests/d03_multipliers.test.js',
+    './tests/e01_shop.test.js',
+    './tests/e02_mastery.test.js',
+    './tests/e03_skins.test.js',
+    './tests/e04_leaderboard.test.js',
+    './tests/e05_achievements.test.js',
+    './tests/f01_hud.test.js',
+    './tests/f02_overlay_screens.test.js',
+    './tests/f03_buttons.test.js',
+    './tests/f04_tutorial_modals.test.js',
+    './tests/g01_audio.test.js',
+    './tests/g02_visual_effects.test.js',
+    './tests/g03_rendering.test.js',
+    './tests/h01_board_generation.test.js',
+    './tests/h02_daily_challenge.test.js',
+    './tests/h03_timelock.test.js',
+    './tests/h04_ghosts.test.js',
+    './tests/h05_boss.test.js',
+    './tests/i01_prestige.test.js',
+    './tests/i02_meta_progression.test.js',
+    './tests/j01_known_bugs.test.js',
+    './tests/k01_edge_cases.test.js',
+  ];
+}
+
+document.getElementById('btn-run').addEventListener('click', runAll);
+document.getElementById('btn-rerun').addEventListener('click', () => {
+  if (lastFailed.length) { log('<div style="color:#ff00aa">↺ Re-running failed suites...</div>'); runAll(); }
+});
+
+document.getElementById('in-seed').addEventListener('change',  e => currentSeed  = e.target.value || null);
+document.getElementById('in-floor').addEventListener('change', e => currentFloor = e.target.value || null);
+
+// Auto-run on ?autorun=1
+if (new URL(location.href).searchParams.get('autorun') === '1') {
+  runAll();
+}
+</script>
+<script type="module" id="harness-embed">
+// Inline test harness (loaded in sidebar)
+// Provides import.meta.url safety and a placeholder for the real harness
+window._testModules = [];
+</script>
+</body></html>

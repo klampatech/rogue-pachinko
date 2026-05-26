@@ -81,7 +81,15 @@ async function runSuite(file, iframe, TEST) {
     var p = new Promise(function(r) { resolver = r; });
 
     function handler(msg) {
-      if (!msg.data || msg.data.__testId !== id) return;
+      // DEBUG: log unexpected messages
+      if (!msg.data || !msg.data.__testId) {
+        console.log('[TESTRUNNER] Unexpected message:', JSON.stringify(msg.data).slice(0, 100));
+        return;
+      }
+      if (msg.data.__testId !== id) {
+        console.log('[TESTRUNNER] Message id mismatch:', msg.data.__testId, '!==', id);
+        return;
+      }
       window.removeEventListener('message', handler);
       clearTimeout(timer);
       resolver(msg.data);

@@ -1024,7 +1024,10 @@ const C = {
 };
 
 // ─── GAME STATE ─────────────────────────────────────────────
-const GS = {
+// NOTE: changed from `const GS` to `let GS` to allow test runner to replace
+// the GS binding with a mutable proxy so tests can mutate game state between
+// runs without mutating the real game objects.
+let GS = {
   screen: 'menu', // menu | playing | shop | floor_complete | run_end
   floor: 1,
   score: 0,
@@ -6878,6 +6881,10 @@ document.getElementById('contrast-btn').onclick = () => {
 };
 
 // ─── INIT ────────────────────────────────────────────────────
+// Expose globals for test runner (allows window.GS / window.PERSIST access)
+window.GS = GS;
+window.PERSIST = PERSIST;
+
 loadPersist();
 updateMenuStats();
 initBgmTracks();

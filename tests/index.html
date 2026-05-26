@@ -102,59 +102,60 @@ async function runSuite(file, iframe, TEST) {
     }, 60000);
 
     try {
-      // Inline code as a JSON string to avoid scope issues in eval
-      var codeJson = JSON.stringify(code);
-      var idJson = JSON.stringify(id);
-      // Build TEST object as JavaScript code string (not JSON — avoids fn serialization issue)
-      // Note: inside contentWindow.eval, "window" refers to the iframe's window, so we use direct
-      // GS/PERSIST references rather than iframe.contentWindow (which isn't in scope for eval)
-      var testFnBody =
-        '{' +
-        '  getGS: function() { try { return (typeof GS !== "undefined") ? GS : eval("GS"); } catch(e) { return eval("GS"); } },' +
-        '  getPersist: function() { try { return (typeof PERSIST !== "undefined") ? PERSIST : eval("PERSIST"); } catch(e) { return eval("PERSIST"); } },' +
-        '  ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },' +
-        '  log: function() { console.log("[TEST]", Array.prototype.slice.call(arguments).join(" ")); },' +
-        '  seed: function(n) { try { _boardSeed = n; _rngState = n; } catch(e) {} },' +
-        '  gotoFloor: function(n) { try { if (typeof startFloor !== "undefined") startFloor(n); } catch(e) {} },' +
-        '  startRun: function() { try { if (typeof startNewRun !== "undefined") startNewRun(); } catch(e) {} },' +
-        '  endRun: function() { try { if (typeof endRun !== "undefined") endRun(false); } catch(e) {} },' +
-        '  returnToMenu: function() { try { if (typeof returnToMenu !== "undefined") returnToMenu(); } catch(e) {} },' +
-        '  setBalls: function(n) { try { GS.balls = n; } catch(e) {} },' +
-        '  setScore: function(n) { try { GS.score = n; } catch(e) {} },' +
-        '  setFloor: function(n) { try { GS.floor = n; } catch(e) {} },' +
-        '  setPayload: function(t) { try { if (!GS.activePayloads) GS.activePayloads = []; GS.activePayloads.push(t); } catch(e) {} },' +
-        '  setCombo: function(n) { try { GS.combo = n; } catch(e) {} },' +
-        '  setMultiplier: function(n) { try { GS.multiplier = n; } catch(e) {} },' +
-        '  addCredits: function(n) { try { GS.credits = (GS.credits || 0) + n; } catch(e) {} },' +
-        '  subCredits: function(n) { try { GS.credits = Math.max(0, (GS.credits || 0) - n); } catch(e) {} },' +
-        '  click: function(q) { var el = document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
-        '  type: function(q, txt) { var el = document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
-        '  wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },' +
-        '  waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },' +
-        '  is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },' +
-        '  gt: function(a, b, m) { return { ok: a > b, msg: m || (a + " > " + b) }; },' +
-        '  lt: function(a, b, m) { return { ok: a < b, msg: m || (a + " < " + b) }; },' +
-        '  throws: function(fn, m) { try { fn(); return { ok: false, msg: m || "expected to throw" }; } catch(e) { return { ok: true, msg: m || "threw: " + e.message }; } },' +
-        '  equal: function(a, b, m) { var s = JSON.stringify(a), sb = JSON.stringify(b); return { ok: s === sb, msg: m || (s + " === " + sb) }; },' +
-        '}';
-      // Run inside iframe using contentWindow.eval — TEST built as JS object, not JSON
-      (0, iframe.contentWindow.eval)(
-        '(async (codeJson, testId) => {' +
-          '  var T = ' + testFnBody + ';' +
-          '  try {' +
-          '    var mod = await import("data:text/javascript," + encodeURIComponent(JSON.parse(codeJson)));' +
-          '    var results = await mod.runTests(T);' +
-          '    parent.postMessage({ __testId: testId, status: "ok", tests: results || [] }, "*");' +
-          '  } catch(e2) {' +
-          '    parent.postMessage({ __testId: testId, status: "error", error: e2.message, tests: [] }, "*");' +
-          '  }' +
-          '})(' + codeJson + ', ' + idJson + ')'
-      );
-    } catch(e) {
-      clearTimeout(timer);
-      window.removeEventListener('message', handler);
-      return { passed: 0, failed: 1, skipped: 0, tests: [], errors: [e.message] };
-    }
+      // Use Blob + URL to avoid JSON encoding issues with test code
+      var blob = new Blob([code], { type: 'application/javascript' });
+      var blobUrl = URL.createObjectURL(blob);
+    var blobUrlJson = JSON.stringify(blobUrl);
+    var idJson = JSON.stringify(id);
+
+    // Build TEST object as JavaScript code string for eval context
+    // Inside contentWindow.eval, GS/PERSIST are directly accessible (same-origin iframe)
+    var testFnBody =
+      '{' +
+      '  getGS: function() { try { return (typeof GS !== "undefined") ? GS : eval("GS"); } catch(e) { return eval("GS"); } },' +
+      '  getPersist: function() { try { return (typeof PERSIST !== "undefined") ? PERSIST : eval("PERSIST"); } catch(e) { return eval("PERSIST"); } },' +
+      '  ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },' +
+      '  log: function() { console.log("[TEST]", Array.prototype.slice.call(arguments).join(" ")); },' +
+      '  seed: function(n) { try { _boardSeed = n; _rngState = n; } catch(e) {} },' +
+      '  gotoFloor: function(n) { try { if (typeof startFloor !== "undefined") startFloor(n); } catch(e) {} },' +
+      '  startRun: function() { try { if (typeof startNewRun !== "undefined") startNewRun(); } catch(e) {} },' +
+      '  endRun: function() { try { if (typeof endRun !== "undefined") endRun(false); } catch(e) {} },' +
+      '  returnToMenu: function() { try { if (typeof returnToMenu !== "undefined") returnToMenu(); } catch(e) {} },' +
+      '  setBalls: function(n) { try { GS.balls = n; } catch(e) {} },' +
+      '  setScore: function(n) { try { GS.score = n; } catch(e) {} },' +
+      '  setFloor: function(n) { try { GS.floor = n; } catch(e) {} },' +
+      '  setPayload: function(t) { try { if (!GS.activePayloads) GS.activePayloads = []; GS.activePayloads.push(t); } catch(e) {} },' +
+      '  setCombo: function(n) { try { GS.combo = n; } catch(e) {} },' +
+      '  setMultiplier: function(n) { try { GS.multiplier = n; } catch(e) {} },' +
+      '  addCredits: function(n) { try { GS.credits = (GS.credits || 0) + n; } catch(e) {} },' +
+      '  subCredits: function(n) { try { GS.credits = Math.max(0, (GS.credits || 0) - n); } catch(e) {} },' +
+      '  click: function(q) { var el = document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
+      '  type: function(q, txt) { var el = document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
+      '  wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },' +
+      '  waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },' +
+      '  is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },' +
+      '  gt: function(a, b, m) { return { ok: a > b, msg: m || (a + " > " + b) }; },' +
+      '  lt: function(a, b, m) { return { ok: a < b, msg: m || (a + " < " + b) }; },' +
+      '  throws: function(fn, m) { try { fn(); return { ok: false, msg: m || "expected to throw" }; } catch(e) { return { ok: true, msg: m || "threw: " + e.message }; } },' +
+      '  equal: function(a, b, m) { var s = JSON.stringify(a), sb = JSON.stringify(b); return { ok: s === sb, msg: m || (s + " === " + sb) }; },' +
+      '}';
+
+    // Run inside iframe: create blob URL from code, import it as module, call runTests
+    (0, iframe.contentWindow.eval)(
+      '(async (blobUrl, testId) => {' +
+      '  var T = ' + testFnBody + ';' +
+      '  try {' +
+      '    var mod = await import(blobUrl);' +
+      '    var results = await mod.runTests(T);' +
+      '    parent.postMessage({ __testId: testId, status: "ok", tests: results || [] }, "*");' +
+      '  } catch(e2) {' +
+      '    parent.postMessage({ __testId: testId, status: "error", error: e2.message, tests: [] }, "*");' +
+      '  } finally {' +
+      '    URL.revokeObjectURL(blobUrl);' +
+      '  }' +
+      '})(' + blobUrlJson + ', ' + idJson + ')'
+    );
+    URL.revokeObjectURL(blobUrl); // Revoke after passing to eval
 
     var result = await p.catch(function(e) {
       return { status: 'error', error: e.message, tests: [] };

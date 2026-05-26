@@ -1,0 +1,37 @@
+{
+  "agent": "ernie",
+  "status": "done",
+  "branch": "squad-ernie-testrunner-fix",
+  "harness_methods": [
+    "addCredits", "click", "endRun", "equal", "getGS", "getPersist",
+    "gotoFloor", "gt", "is", "log", "lt", "ok", "returnToMenu",
+    "seed", "setBalls", "setCombo", "setFloor", "setMultiplier",
+    "setPayload", "setScore", "startRun", "subCredits", "throws",
+    "type", "wait", "waitRAF"
+  ],
+  "missing_in_harness": [],
+  "files_by_pattern": {
+    "b04": [
+      "b01_ball_physics.test.js", "b02_drop_mechanics.test.js",
+      "b03_collision.test.js", "b04_peg_types.test.js",
+      "c01_slot_collector.test.js", "c02_jackpot.test.js"
+    ],
+    "a00": [],
+    "other": [
+      "a00_core.test.js", "a01_persistence.test.js", "a02_game_flow.test.js",
+      "d01_payloads.test.js", "d02_evolutions.test.js", "d03_multipliers.test.js",
+      "e01_shop.test.js", "e02_mastery.test.js", "e03_skins.test.js",
+      "e04_leaderboard.test.js", "e05_achievements.test.js",
+      "f01_hud.test.js", "f02_overlay_screens.test.js", "f03_buttons.test.js",
+      "f04_tutorial_modals.test.js", "g01_audio.test.js",
+      "g02_visual_effects.test.js", "g03_rendering.test.js",
+      "h01_board_generation.test.js", "h02_daily_challenge.test.js",
+      "h03_timelock.test.js", "h04_ghosts.test.js", "h05_boss.test.js",
+      "i01_prestige.test.js", "i02_meta_progression.test.js",
+      "j01_known_bugs.test.js", "k01_edge_cases.test.js"
+    ]
+  },
+  "async_count": 27,
+  "sync_count": 6,
+  "audit_summary": "26 harness methods documented. All 33 test files use only harness methods (no unknown calls). 27 files use async runTests; 6 use sync. The b04 destructuring pattern gives each file only 1 TEST.* call (TEST.seed(42)), because all assertions use destructured shortnames (is,ok,gt,lt,equal,throws) without the TEST. prefix. 6 files use b04 pattern; all other files use TEST.<method> syntax directly."
+}

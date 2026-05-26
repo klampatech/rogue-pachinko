@@ -41,7 +41,7 @@
 // Test Runner — loads game in isolated iframe, runs test modules, reports
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GAME_SRC = '../index.html';
+const GAME_SRC = '/index.html';
 let lastFailed = [];
 let currentSeed = null;
 let currentFloor = null;
@@ -125,9 +125,28 @@ async function runAll() {
   const url = new URL(GAME_SRC, import.meta.url);
   if (currentSeed)  url.searchParams.set('seed',  currentSeed);
   if (currentFloor) url.searchParams.set('floor', currentFloor);
-  iframe.src = url.href;
+
+  let gameHtml;
+  try {
+    const res = await fetch(GAME_SRC + '?t=' + Date.now());
+    if (res.ok) gameHtml = await res.text();
+  } catch {}
+  if (gameHtml) {
+    iframe.srcdoc = gameHtml;
+  } else {
+    iframe.src = url.href;
+  }
 
   await new Promise(r => iframe.addEventListener('load', r, { once: true }));
+
+  // Ensure GS is initialized before running suites
+  if (!iframe.contentWindow.GS || !iframe.contentWindow.GS.screen) {
+    iframe.contentWindow.eval(`
+      if (typeof loadPersist === 'function') loadPersist();
+      if (typeof gameLoop === 'function' && typeof GS !== 'undefined') gameLoop();
+      if (typeof initGame === 'function') initGame();
+    `);
+  }
 
   // Build TEST helper from iframe globals
   const TEST = await buildTestHelper(iframe);
@@ -313,7 +332,7 @@ document.getElementById('in-floor').addEventListener('change', e => currentFloor
 
 // Auto-run on ?autorun=1
 if (new URL(location.href).searchParams.get('autorun') === '1') {
-  runAll();
+  setTimeout(runAll, 0);
 }
 </script>
 <script type="module" id="harness-embed">

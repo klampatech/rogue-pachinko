@@ -26,15 +26,15 @@
 <div id="sidebar">
   <div class="hdr">Rogue Pachinko — Test Suite</div>
   <div class="controls">
-    <button id="btn-run">&#9654; Run All</button>
-    <button id="btn-rerun">&#8635; Re-run Failed</button>
+    <button id="btn-run">▶ Run All</button>
+    <button id="btn-rerun">↺ Re-run Failed</button>
     <input id="in-seed" placeholder="seed" title="Force RNG seed">
     <input id="in-floor" placeholder="floor" title="Start at floor N">
   </div>
   <div id="output"></div>
   <div id="summary"></div>
 </div>
-<iframe id="game-frame"></iframe>
+<iframe id="game-frame" sandbox="allow-scripts allow-same-origin"></iframe>
 
 <script type="module">
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,9 +64,167 @@ function logTest(name, status, ms, errMsg) {
   log(html);
 }
 
-// Load test files and call their runTests() with a TEST helper
-async function loadTests() {
-  // Discover all tests/tests/*.test.js under tests/
+// Load test file via fetch + data: URI import inside iframe (avoids CORS)
+async function runSuite(file, iframe, TEST) {
+  logSuite(file);
+  try {
+    // Fetch test file text
+    var resp = await fetch(file + '?t=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var code = await resp.text();
+
+    var iwin = iframe.contentWindow;
+    var id = 't' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    // Promise to receive results from iframe via postMessage
+    var resolver;
+    var p = new Promise(function(r) { resolver = r; });
+
+    function handler(msg) {
+      if (!msg.data || msg.data.__testId !== id) return;
+      window.removeEventListener('message', handler);
+      clearTimeout(timer);
+      resolver(msg.data);
+    }
+    window.addEventListener('message', handler);
+
+    var timer = setTimeout(function() {
+      window.removeEventListener('message', handler);
+      resolver({ status: 'error', error: 'Timeout (>60s)', tests: [] });
+    }, 60000);
+
+    try {
+      // Inline code as a JSON string to avoid scope issues in eval
+      var codeJson = JSON.stringify(code);
+      // Run inside iframe with data: URI import — GS/PERSIST in scope via refs
+      (0, iwin.eval)(
+        '(async () => {' +
+          'var G = { current: window.GS };' +
+          'var P = { current: window.PERSIST };' +
+          'var T = {' +
+            'getGS: function() { return G.current; },' +
+            'getPersist: function() { return P.current; },' +
+            'ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },' +
+            'log: function() { var a = Array.prototype.slice.call(arguments); console.log("[TEST]", a.join(" ")); },' +
+            'seed: function(n) { window._boardSeed = n; window._rngState = n; },' +
+            'gotoFloor: function(n) { if (window.startFloor) window.startFloor(n); },' +
+            'startRun: function() { if (window.startNewRun) window.startNewRun(); },' +
+            'endRun: function() { if (window.endRun) window.endRun(false); },' +
+            'returnToMenu: function() { if (window.returnToMenu) window.returnToMenu(); },' +
+            'setBalls: function(n) { var g = window.GS; if (g) g.balls = n; },' +
+            'setScore: function(n) { var g = window.GS; if (g) g.score = n; },' +
+            'setFloor: function(n) { var g = window.GS; if (g) g.floor = n; },' +
+            'setPayload: function(t) { var g = window.GS; if (g) { if (!g.activePayloads) g.activePayloads = []; g.activePayloads.push(t); } },' +
+            'setCombo: function(n) { var g = window.GS; if (g) g.combo = n; },' +
+            'setMultiplier: function(n) { var g = window.GS; if (g) g.multiplier = n; },' +
+            'addCredits: function(n) { var g = window.GS; if (g) g.credits = (g.credits || 0) + n; },' +
+            'subCredits: function(n) { var g = window.GS; if (g) g.credits = Math.max(0, (g.credits || 0) - n); },' +
+            'click: function(q) { var el = window.document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true,view:window})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
+            'type: function(q, txt) { var el = window.document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
+            'wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },' +
+            'waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },' +
+            'is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },' +
+            'gt: function(a, b, m) { return { ok: a > b, msg: m || (a + " > " + b) }; },' +
+            'lt: function(a, b, m) { return { ok: a < b, msg: m || (a + " < " + b) }; },' +
+            'throws: function(fn, m) { try { fn(); return { ok: false, msg: m || "expected to throw" }; } catch(e) { return { ok: true, msg: m || "threw: " + e.message }; } },' +
+            'equal: function(a, b, m) { var s = JSON.stringify(a), sb = JSON.stringify(b); return { ok: s === sb, msg: m || (s + " === " + sb) }; },' +
+          '};' +
+          'var results;' +
+          'try {' +
+            'var mod = await import("data:text/javascript," + encodeURIComponent(' + codeJson + '));' +
+            'results = await mod.runTests(T);' +
+          '} catch(e2) {' +
+            'throw new Error("Load error: " + e2.message);' +
+          '}' +
+          'parent.postMessage({ __testId: id, status: "ok", tests: results }, "*");' +
+        '})()'
+      );
+    } catch(e) {
+      clearTimeout(timer);
+      window.removeEventListener('message', handler);
+      return { passed: 0, failed: 1, skipped: 0, tests: [], errors: [e.message] };
+    }
+
+    var result = await p;
+    clearTimeout(timer);
+    window.removeEventListener('message', handler);
+
+    if (result.status === 'error') {
+      logTest('RUNNER ERROR: ' + result.error, 'FAIL');
+      return { passed: 0, failed: 1, skipped: 0, tests: [] };
+    }
+
+    var tests = result.tests || [];
+    for (var i = 0; i < tests.length; i++) {
+      logTest(tests[i].name, tests[i].status, tests[i].ms, tests[i].err);
+    }
+    return result;
+
+  } catch(e) {
+    logTest('FAILED TO LOAD ' + file, 'FAIL', undefined, e.message);
+    return { passed: 0, failed: 1, skipped: 0, tests: [], errors: [e.message] };
+  }
+}
+
+function buildTestSummary(totals) {
+  var total   = totals.total;
+  var passed  = totals.passed;
+  var failed  = totals.failed;
+  var skipped = totals.skipped;
+  var all  = total === passed + skipped ? ' style="color:#00ff88"' : '';
+  var pStr = '<span class="pass">' + passed + ' passed</span>';
+  var fStr = failed > 0 ? '<span class="fail">' + failed + ' failed</span>' : '';
+  var sStr = skipped > 0 ? '<span class="skip">' + skipped + ' skipped</span>' : '';
+  document.getElementById('summary').innerHTML =
+    '<div' + all + '>TOTAL: ' + passed + '/' + total + '</div>' + pStr + ' ' + fStr + ' ' + sStr;
+}
+
+async function runAll() {
+  log('<div style="color:#ff00aa;font-size:11px">&#9600;&#9600;&#9600; RUN ' + new Date().toISOString() + ' &#9600;&#9600;&#9600;</div>');
+
+  var iframe = document.getElementById('game-frame');
+
+  // Build URL with optional seed/floor params
+  var url = new URL(GAME_SRC, location.href);
+  if (currentSeed)  url.searchParams.set('seed',  currentSeed);
+  if (currentFloor) url.searchParams.set('floor', currentFloor);
+
+  // Load game — use absolute path so iframe gets same origin
+  var loadPromise = new Promise(function(r) { iframe.addEventListener('load', r, { once: true }); });
+  iframe.src = url.href;
+  await loadPromise;
+
+  // Quick check that GS is accessible
+  var gsCheck;
+  try {
+    gsCheck = iframe.contentWindow.GS;
+  } catch(e) {
+    log('<div style="color:#ff4444">ERROR: Cannot access GS — ' + e.message + '</div>');
+    return;
+  }
+
+  // Get test file list
+  var files = getTestFiles();
+  var totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
+
+  for (var i = 0; i < files.length; i++) {
+    var r = await runSuite(files[i], iframe, null);
+    var testList = r.tests || [];
+    for (var j = 0; j < testList.length; j++) {
+      var t = testList[j];
+      if (t.status === 'PASS') totals.passed++;
+      else if (t.status === 'FAIL') totals.failed++;
+      else totals.skipped++;
+      totals.total++;
+    }
+    if (r.failed > 0) lastFailed.push(files[i]);
+  }
+
+  buildTestSummary(totals);
+  log('<div style="color:#ff00aa;font-size:11px">&#9608;&#9608;&#9608; END &#9608;&#9608;&#9608;</div>');
+}
+
+function getTestFiles() {
   return [
     './tests/a00_core.test.js',
     './tests/a01_persistence.test.js',
@@ -104,194 +262,20 @@ async function loadTests() {
   ];
 }
 
-async function runSuite(file, TEST) {
-  logSuite(file);
-  try {
-    var resp = await fetch(file + '?t=' + Date.now());
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var code = await resp.text();
-
-    var iwin = document.getElementById('game-frame').contentWindow;
-
-    // Capture GS and PERSIST from iframe via refs
-    var GS_REF      = { current: iwin.GS };
-    var PERSIST_REF = { current: iwin.PERSIST };
-
-    var id = 't' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-    var resolver;
-    var p = new Promise(function(r) { resolver = r; });
-
-    function handler(msg) {
-      if (!msg.data || msg.data.__testId !== id) return;
-      window.removeEventListener('message', handler);
-      clearTimeout(timer);
-      resolver(msg.data);
-    }
-    window.addEventListener('message', handler);
-
-    var timer = setTimeout(function() {
-      window.removeEventListener('message', handler);
-      resolver({ status: 'error', error: 'Timeout (>60s)', tests: [] });
-    }, 60000);
-
-    try {
-      // Run inside iframe so GS/PERSIST are in scope; use data: URI import
-      (0, iwin.eval)(`
-        (async () => {
-          var G = { current: window.GS };
-          var P = { current: window.PERSIST };
-          var T = {
-            getGS:      function() { return G.current; },
-            getPersist: function() { return P.current; },
-            ok:         function(e, m) { if (!e) throw new Error(m || ""); return true; },
-            log:        function() {
-              var args = Array.prototype.slice.call(arguments);
-              console.log("[TEST]", args.join(' '));
-            },
-          };
-          var results;
-          try {
-            var mod = await import("data:text/javascript," + encodeURIComponent(code));
-            results = await mod.runTests(T);
-          } catch(e2) {
-            throw new Error("Load error: " + e2.message);
-          }
-          parent.postMessage({ __testId: id, status: 'ok', tests: results }, '*');
-        })()
-      `);
-    } catch(e) {
-      clearTimeout(timer);
-      window.removeEventListener('message', handler);
-      return { status: 'error', error: e.message, tests: [] };
-    }
-
-    return await p;
-
-  } catch(e) {
-    logTest('FAILED TO LOAD ' + file, 'FAIL', undefined, e.message);
-    return { status: 'error', error: e.message, tests: [] };
-  }
-}
-
-function buildTestSummary(totals) {
-  var total   = totals.total;
-  var passed  = totals.passed;
-  var failed  = totals.failed;
-  var skipped = totals.skipped;
-  var all  = total === passed + skipped ? ' style="color:#00ff88"' : '';
-  var pStr = '<span class="pass">' + passed + ' passed</span>';
-  var fStr = failed > 0 ? '<span class="fail">' + failed + ' failed</span>' : '';
-  var sStr = skipped > 0 ? '<span class="skip">' + skipped + ' skipped</span>' : '';
-  document.getElementById('summary').innerHTML =
-    '<div' + all + '>TOTAL: ' + passed + '/' + total + '</div>' + pStr + ' ' + fStr + ' ' + sStr;
-}
-
-async function runAll() {
-  log('<div style="color:#ff00aa;font-size:11px">&#9600;&#9600;&#9600; RUN ' + new Date().toISOString() + ' &#9600;&#9600;&#9600;</div>');
-
-  var iframe = document.getElementById('game-frame');
-
-  // Build URL with optional seed/floor params
-  var url = new URL(GAME_SRC, location.href);
-  if (currentSeed)  url.searchParams.set('seed',  currentSeed);
-  if (currentFloor) url.searchParams.set('floor', currentFloor);
-
-  // Load game — use iframe.src (no cross-origin issue with /index.html)
-  var loadPromise = new Promise(function(r) { iframe.addEventListener('load', r, { once: true }); });
-  iframe.src = url.href;
-  await loadPromise;
-
-  var iwin = iframe.contentWindow;
-
-  // Quick check that GS is accessible
-  var gsCheck;
-  try {
-    gsCheck = (0, iwin.eval)('typeof GS');
-  } catch(e) {
-    gsCheck = 'error';
-  }
-  if (gsCheck === 'undefined') {
-    log('<div style="color:#ff4444">GS is undefined — iframe game did not load.</div>');
-    return;
-  }
-
-  // Initialize game state before running tests
-  var initCode = [
-    '(async function() {',
-    '  try { if (typeof loadPersist === "function") loadPersist(); } catch(e) {}',
-    '  try { if (typeof gameLoop === "function") gameLoop(); } catch(e) {}',
-    '  await new Promise(function(r) { setTimeout(r, 100); });',
-    '  parent.postMessage({__testReady: true}, "*");',
-    '})();'
-  ].join('\n');
-
-  var readyResolver;
-  var readyPromise = new Promise(function(r) { readyResolver = r; });
-  function readyHandler(msg) {
-    if (msg.data && msg.data.__testReady) {
-      window.removeEventListener('message', readyHandler);
-      clearTimeout(readyTimer);
-      readyResolver();
-    }
-  }
-  window.addEventListener('message', readyHandler);
-  var readyTimer = setTimeout(function() {
-    window.removeEventListener('message', readyHandler);
-    readyResolver();
-  }, 5000);
-  (0, iwin.eval)(initCode);
-  await readyPromise;
-
-  var files = await loadTests();
-  var totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
-
-  for (var fi = 0; fi < files.length; fi++) {
-    var file = files[fi];
-    var result = await runSuite(file);
-
-    if (result.status === 'error') {
-      logTest('LOAD ERROR', 'FAIL', undefined, result.error);
-      totals.failed++;
-      totals.total++;
-      lastFailed.push(file);
-      continue;
-    }
-
-    var tests = result.tests || [];
-    var passed = 0, failed = 0, skipped = 0;
-    for (var ti = 0; ti < tests.length; ti++) {
-      var t = tests[ti];
-      var status = t.skip ? 'SKIP' : t.pass !== false ? 'PASS' : 'FAIL';
-      logTest(t.name || file, status, t.ms, t.error);
-      if (t.skip) skipped++;
-      else if (t.pass !== false) passed++;
-      else failed++;
-    }
-    totals.total   += tests.length;
-    totals.passed += passed;
-    totals.failed += failed;
-    totals.skipped += skipped;
-    if (failed > 0) lastFailed.push(file);
-  }
-
-  buildTestSummary(totals);
-  log('<div style="color:#ff00aa;font-size:11px">&#9604;&#9604;&#9604; END &#9604;&#9604;&#9604;</div>');
-}
-
 document.getElementById('btn-run').addEventListener('click', runAll);
 document.getElementById('btn-rerun').addEventListener('click', function() {
   if (lastFailed.length) { log('<div style="color:#ff00aa">&#8635; Re-running failed suites...</div>'); runAll(); }
 });
 
-document.getElementById('in-seed').addEventListener('change', function(e) { currentSeed  = e.target.value || null; });
+document.getElementById('in-seed').addEventListener('change',  function(e) { currentSeed  = e.target.value || null; });
 document.getElementById('in-floor').addEventListener('change', function(e) { currentFloor = e.target.value || null; });
 
-// Auto-run on ?autorun=1 — defer by one tick so DOM is ready
+// Auto-run on ?autorun=1
 if (new URL(location.href).searchParams.get('autorun') === '1') {
   setTimeout(runAll, 0);
 }
-
 </script>
-</body>
-</html>
+<script type="module" id="harness-embed">
+window._testModules = [];
+</script>
+</body></html>

@@ -106,27 +106,29 @@ async function runSuite(file, iframe, TEST) {
       var codeJson = JSON.stringify(code);
       var idJson = JSON.stringify(id);
       // Build TEST object as JavaScript code string (not JSON — avoids fn serialization issue)
+      // Note: inside contentWindow.eval, "window" refers to the iframe's window, so we use direct
+      // GS/PERSIST references rather than iframe.contentWindow (which isn't in scope for eval)
       var testFnBody =
         '{' +
-        '  getGS: function() { try { var g = iframe.contentWindow.GS; return (g != null) ? g : iframe.contentWindow.eval("GS"); } catch(e) { return iframe.contentWindow.eval("GS"); } },' +
-        '  getPersist: function() { try { var p = iframe.contentWindow.PERSIST; return (p != null) ? p : iframe.contentWindow.eval("PERSIST"); } catch(e) { return iframe.contentWindow.eval("PERSIST"); } },' +
+        '  getGS: function() { try { return (typeof GS !== "undefined") ? GS : eval("GS"); } catch(e) { return eval("GS"); } },' +
+        '  getPersist: function() { try { return (typeof PERSIST !== "undefined") ? PERSIST : eval("PERSIST"); } catch(e) { return eval("PERSIST"); } },' +
         '  ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },' +
         '  log: function() { console.log("[TEST]", Array.prototype.slice.call(arguments).join(" ")); },' +
-        '  seed: function(n) { try { iframe.contentWindow._boardSeed = n; iframe.contentWindow._rngState = n; } catch(e) {} },' +
-        '  gotoFloor: function(n) { try { if (iframe.contentWindow.startFloor) iframe.contentWindow.startFloor(n); } catch(e) {} },' +
-        '  startRun: function() { try { if (iframe.contentWindow.startNewRun) iframe.contentWindow.startNewRun(); } catch(e) {} },' +
-        '  endRun: function() { try { if (iframe.contentWindow.endRun) iframe.contentWindow.endRun(false); } catch(e) {} },' +
-        '  returnToMenu: function() { try { if (iframe.contentWindow.returnToMenu) iframe.contentWindow.returnToMenu(); } catch(e) {} },' +
-        '  setBalls: function(n) { var g = iframe.contentWindow.GS; if (g) g.balls = n; },' +
-        '  setScore: function(n) { var g = iframe.contentWindow.GS; if (g) g.score = n; },' +
-        '  setFloor: function(n) { var g = iframe.contentWindow.GS; if (g) g.floor = n; },' +
-        '  setPayload: function(t) { var g = iframe.contentWindow.GS; if (g) { if (!g.activePayloads) g.activePayloads = []; g.activePayloads.push(t); } },' +
-        '  setCombo: function(n) { var g = iframe.contentWindow.GS; if (g) g.combo = n; },' +
-        '  setMultiplier: function(n) { var g = iframe.contentWindow.GS; if (g) g.multiplier = n; },' +
-        '  addCredits: function(n) { var g = iframe.contentWindow.GS; if (g) g.credits = (g.credits || 0) + n; },' +
-        '  subCredits: function(n) { var g = iframe.contentWindow.GS; if (g) g.credits = Math.max(0, (g.credits || 0) - n); },' +
-        '  click: function(q) { var el = iframe.contentWindow.document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true,view:iframe.contentWindow})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
-        '  type: function(q, txt) { var el = iframe.contentWindow.document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
+        '  seed: function(n) { try { _boardSeed = n; _rngState = n; } catch(e) {} },' +
+        '  gotoFloor: function(n) { try { if (typeof startFloor !== "undefined") startFloor(n); } catch(e) {} },' +
+        '  startRun: function() { try { if (typeof startNewRun !== "undefined") startNewRun(); } catch(e) {} },' +
+        '  endRun: function() { try { if (typeof endRun !== "undefined") endRun(false); } catch(e) {} },' +
+        '  returnToMenu: function() { try { if (typeof returnToMenu !== "undefined") returnToMenu(); } catch(e) {} },' +
+        '  setBalls: function(n) { try { GS.balls = n; } catch(e) {} },' +
+        '  setScore: function(n) { try { GS.score = n; } catch(e) {} },' +
+        '  setFloor: function(n) { try { GS.floor = n; } catch(e) {} },' +
+        '  setPayload: function(t) { try { if (!GS.activePayloads) GS.activePayloads = []; GS.activePayloads.push(t); } catch(e) {} },' +
+        '  setCombo: function(n) { try { GS.combo = n; } catch(e) {} },' +
+        '  setMultiplier: function(n) { try { GS.multiplier = n; } catch(e) {} },' +
+        '  addCredits: function(n) { try { GS.credits = (GS.credits || 0) + n; } catch(e) {} },' +
+        '  subCredits: function(n) { try { GS.credits = Math.max(0, (GS.credits || 0) - n); } catch(e) {} },' +
+        '  click: function(q) { var el = document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
+        '  type: function(q, txt) { var el = document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
         '  wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },' +
         '  waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },' +
         '  is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },' +

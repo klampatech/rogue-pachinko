@@ -146,7 +146,9 @@ async function runSuite(file, iframe, TEST) {
       return { passed: 0, failed: 1, skipped: 0, tests: [], errors: [e.message] };
     }
 
-    var result = await p;
+    var result = await p.catch(function(e) {
+      return { status: 'error', error: e.message, tests: [] };
+    });
     clearTimeout(timer);
     window.removeEventListener('message', handler);
 

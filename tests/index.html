@@ -26,22 +26,22 @@
 <div id="sidebar">
   <div class="hdr">Rogue Pachinko — Test Suite</div>
   <div class="controls">
-    <button id="btn-run">▶ Run All</button>
-    <button id="btn-rerun">↺ Re-run Failed</button>
+    <button id="btn-run">&#9654; Run All</button>
+    <button id="btn-rerun">&#8635; Re-run Failed</button>
     <input id="in-seed" placeholder="seed" title="Force RNG seed">
     <input id="in-floor" placeholder="floor" title="Start at floor N">
   </div>
   <div id="output"></div>
   <div id="summary"></div>
 </div>
-<iframe id="game-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+<iframe id="game-frame"></iframe>
 
 <script type="module">
 // ─────────────────────────────────────────────────────────────────────────────
 // Test Runner — loads game in isolated iframe, runs test modules, reports
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GAME_SRC = '../index.html';
+const GAME_SRC = '/index.html';
 let lastFailed = [];
 let currentSeed = null;
 let currentFloor = null;
@@ -51,221 +51,22 @@ function log(html) {
 }
 
 function logSuite(name) {
-  log(`<div class="suite">▸ ${name}</div>`);
+  log('<div class="suite">&#9658; ' + name + '</div>');
 }
 
 function logTest(name, status, ms, errMsg) {
-  const icon = status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○';
-  const cls  = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'skip';
-  let html = `<div class="test ${cls}"><span class="test-name">${icon} ${name}</span>`;
-  if (ms !== undefined) html += `<span style="color:#555;font-size:10px">${ms}ms</span>`;
-  if (errMsg) html += `<div class="err">↳ ${errMsg}</div>`;
+  var icon = status === 'PASS' ? '&#10003;' : status === 'FAIL' ? '&#10007;' : '&#9675;';
+  var cls  = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'skip';
+  var html = '<div class="test ' + cls + '"><span class="test-name">' + icon + ' ' + name + '</span>';
+  if (ms !== undefined) html += '<span style="color:#555;font-size:10px">' + ms + 'ms</span>';
+  if (errMsg) html += '<div class="err">&#8594; ' + errMsg + '</div>';
   html += '</div>';
   log(html);
 }
 
 // Load test files and call their runTests() with a TEST helper
 async function loadTests() {
-  const { globals, execute } = await import('./test-harness.js');
-  const modules = globals._testModules || [];
-
-  // Discover all tests/test-*.test.js under tests/
-  const testDir = './tests/';
-  let files;
-  try {
-    files = modules.map(m => m.url).filter(u => u.includes('/tests/') && u.endsWith('.test.js'));
-  } catch {
-    // fallback — enumerate via import glob (static)
-    files = [];
-    const { readdirSync } = await import('fs').catch(() => ({ readdirSync: () => [] }));
-    try {
-      const dir = new URL('./tests/', import.meta.url);
-      files = readdirSync(dir.pathname).filter(f => f.endsWith('.test.js')).map(f => `./tests/${f}`);
-    } catch { files = []; }
-  }
-
-  return files;
-}
-
-async function runSuite(file, TEST) {
-  logSuite(file);
-  try {
-    const mod = await import(file + '?t=' + Date.now());
-    if (typeof mod.runTests === 'function') {
-      const result = await mod.runTests(TEST);
-      for (const t of result.tests) {
-        logTest(t.name, t.status, t.ms, t.err);
-      }
-      return result;
-    } else {
-      logTest(`(no runTests export in ${file})`, 'SKIP');
-      return { passed: 0, failed: 0, skipped: 1, tests: [] };
-    }
-  } catch(e) {
-    logTest(`FAILED TO LOAD ${file}`, 'FAIL', undefined, e.message);
-    return { passed: 0, failed: 1, skipped: 0, tests: [] };
-  }
-}
-
-function buildTestSummary(totals) {
-  const { total, passed, failed, skipped } = totals;
-  const all  = total  === passed + skipped ? ' style="color:#00ff88"' : '';
-  const pStr = `<span class="pass">${passed} passed</span>`;
-  const fStr = fail > 0 ? `<span class="fail">${fail} failed</span>` : '';
-  const sStr = skipped > 0 ? `<span class="skip">${skipped} skipped</span>` : '';
-  document.getElementById('summary').innerHTML =
-    `<div${all}>TOTAL: ${passed}/${total}</div>${pStr} ${fStr} ${sStr}`;
-}
-
-async function runAll() {
-  log('');
-  log(`<div style="color:#ff00aa;font-size:11px">▀▀▀ RUN ${new Date().toISOString()} ▀▀▀</div>`);
-
-  const iframe = document.getElementById('game-frame');
-  const url = new URL(GAME_SRC, import.meta.url);
-  if (currentSeed)  url.searchParams.set('seed',  currentSeed);
-  if (currentFloor) url.searchParams.set('floor', currentFloor);
-  iframe.src = url.href;
-
-  await new Promise(r => iframe.addEventListener('load', r, { once: true }));
-
-  // Build TEST helper from iframe globals
-  const TEST = await buildTestHelper(iframe);
-
-  const files = await getTestFiles();
-  let totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
-
-  for (const file of files) {
-    const r = await runSuite(file, TEST);
-    // Support both {passed,failed,skipped,tests[]} and {passed,failed,skipped,errors[]}
-    const testList = r.tests || (r.errors ? r.errors.map(e => ({ name: e, status: 'FAIL' })) : []);
-    for (const t of testList) { logTest(t.name || file, t.status, t.ms, t.err); }
-    totals.total   += (r.tests ? r.tests.length : r.passed + r.failed);
-    totals.passed += r.passed;
-    totals.failed += r.failed;
-    totals.skipped += r.skipped;
-    if (r.failed > 0) lastFailed.push(file);
-  }
-
-  buildTestSummary(totals);
-  log(`<div style="color:#ff00aa;font-size:11px">▄▄▄ END ▄▄▄</div>`);
-}
-
-async function buildTestHelper(iframe) {
-  // Expose helpers that forward into the game iframe context
-  return {
-    // ── State access ──────────────────────────────────────────────
-    getGS()       { return iframe.contentWindow.GS; },
-    getPersist() { return iframe.contentWindow.PERSIST; },
-
-    // ── Seed control ──────────────────────────────────────────────
-    seed(n) {
-      iframe.contentWindow._boardSeed = n;
-      iframe.contentWindow._rngState  = n;
-    },
-
-    // ── Game navigation ────────────────────────────────────────────
-    gotoFloor(n) { iframe.contentWindow.startFloor ? iframe.contentWindow.startFloor(n) : null; },
-    startRun()   { iframe.contentWindow.startNewRun ? iframe.contentWindow.startNewRun() : null; },
-    endRun()     { iframe.contentWindow.endRun ? iframe.contentWindow.endRun(false) : null; },
-    returnToMenu() { iframe.contentWindow.returnToMenu ? iframe.contentWindow.returnToMenu() : null; },
-
-    // ── State injection ───────────────────────────────────────────
-    setBalls(n)  { const g = iframe.contentWindow.GS; if (g) g.balls = n; },
-    setScore(n)  { const g = iframe.contentWindow.GS; if (g) g.score = n; },
-    setFloor(n)  { const g = iframe.contentWindow.GS; if (g) g.floor = n; },
-    setPayload(type) {
-      const g = iframe.contentWindow.GS;
-      if (g && !g.activePayloads) g.activePayloads = [];
-      if (g) g.activePayloads.push(type);
-    },
-    setCombo(n)  { const g = iframe.contentWindow.GS; if (g) g.combo = n; },
-    setMultiplier(n) { const g = iframe.contentWindow.GS; if (g) g.multiplier = n; },
-    addCredits(n) {
-      const g = iframe.contentWindow.GS;
-      if (g) g.credits = (g.credits || 0) + n;
-    },
-    subCredits(n) {
-      const g = iframe.contentWindow.GS;
-      if (g) g.credits = Math.max(0, (g.credits || 0) - n);
-    },
-
-    // ── Input / interaction simulation ─────────────────────────────
-    click(idQuery) {
-      const el = iframe.contentDocument.querySelector(idQuery);
-      if (el) { el.focus(); elDispatcher(el, 'mousedown'); elDispatcher(el, 'mouseup'); elDispatcher(el, 'click'); }
-    },
-    type(idQuery, text) {
-      const el = iframe.contentDocument.querySelector(idQuery);
-      if (el) { el.value = text; el.dispatchEvent(new Event('input', { bubbles: true })); }
-    },
-    dispatch(el, event) { elDispatcher(el, event); },
-
-    // ── Physics helpers ────────────────────────────────────────────
-    simulateArc(x, y) {
-      return iframe.contentWindow.simulatePreviewArc ? iframe.contentWindow.simulatePreviewArc(x, y) : null;
-    },
-
-    // ── Peg helpers ───────────────────────────────────────────────
-    triggerPegHit(x, y) {
-      const g = iframe.contentWindow.GS;
-      if (g && g.pegs) {
-        const peg = g.pegs.find(p => Math.hypot(p.x - x, p.y - y) < 20);
-        if (peg && iframe.contentWindow.handlePegHit) iframe.contentWindow.handlePegHit(peg, null);
-      }
-    },
-    getPegs() { return iframe.contentWindow.GS?.pegs || []; },
-    getPegCount() { return (iframe.contentWindow.GS?.pegs || []).length; },
-
-    // ── Slot helpers ───────────────────────────────────────────────
-    triggerSlot(slotIdx) {
-      return iframe.contentWindow.triggerSlotCollected ? iframe.contentWindow.triggerSlotCollected(slotIdx) : null;
-    },
-    getSlotForX(x) { return iframe.contentWindow.getSlotForX ? iframe.contentWindow.getSlotForX(x) : -1; },
-    isSlotUnlocked(idx) { return iframe.contentWindow.isSlotUnlocked ? iframe.contentWindow.isSlotUnlocked(idx) : false; },
-
-    // ── Audio helpers ──────────────────────────────────────────────
-    getAudioCtx()   { return iframe.contentWindow.getAudioCtx ? iframe.contentWindow.getAudioCtx() : null; },
-    playSound(id)   { return iframe.contentWindow.playSound ? iframe.contentWindow.playSound(id, 0) : null; },
-    stopBgm()       { return iframe.contentWindow.stopBgm ? iframe.contentWindow.stopBgm() : null; },
-
-    // ── Persistence ──────────────────────────────────────────────
-    savePersist()   { return iframe.contentWindow.savePersist ? iframe.contentWindow.savePersist() : null; },
-    loadPersist()   { return iframe.contentWindow.loadPersist ? iframe.contentWindow.loadPersist() : null; },
-    clearLocalStorage() {
-      iframe.contentWindow.localStorage.removeItem('slotprotocol');
-    },
-
-    // ── Timing ─────────────────────────────────────────────────────
-    async wait(ms) { return new Promise(r => setTimeout(r, ms)); },
-    async waitRAF(n) {
-      for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(r));
-    },
-
-    // ── Assertions ───────────────────────────────────────────────
-    is(a, b, msg)   { return { ok: a === b, msg: msg || `${a} === ${b}` }; },
-    ok(v, msg)      { return { ok: !!v,  msg: msg || 'expected truthy' }; },
-    gt(a, b, msg)   { return { ok: a > b,  msg: msg || `${a} > ${b}` }; },
-    lt(a, b, msg)   { return { ok: a < b,  msg: msg || `${a} < ${b}` }; },
-    throws(fn, msg) {
-      try { fn(); return { ok: false, msg: msg || 'expected to throw' }; }
-      catch(e) { return { ok: true,  msg: msg || `threw: ${e.message}` }; }
-    },
-    // Deep equal for objects
-    equal(a, b, msg) {
-      const s = JSON.stringify(a), sb = JSON.stringify(b);
-      return { ok: s === sb, msg: msg || `${s} === ${sb}` };
-    },
-  };
-}
-
-function elDispatcher(el, type) {
-  const ev = new MouseEvent(type, { bubbles: true, cancelable: true, view: window });
-  el.dispatchEvent(ev);
-}
-
-async function getTestFiles() {
-  // Static list — always current
+  // Discover all tests/tests/*.test.js under tests/
   return [
     './tests/a00_core.test.js',
     './tests/a01_persistence.test.js',
@@ -303,22 +104,194 @@ async function getTestFiles() {
   ];
 }
 
+async function runSuite(file, TEST) {
+  logSuite(file);
+  try {
+    var resp = await fetch(file + '?t=' + Date.now());
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var code = await resp.text();
+
+    var iwin = document.getElementById('game-frame').contentWindow;
+
+    // Capture GS and PERSIST from iframe via refs
+    var GS_REF      = { current: iwin.GS };
+    var PERSIST_REF = { current: iwin.PERSIST };
+
+    var id = 't' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    var resolver;
+    var p = new Promise(function(r) { resolver = r; });
+
+    function handler(msg) {
+      if (!msg.data || msg.data.__testId !== id) return;
+      window.removeEventListener('message', handler);
+      clearTimeout(timer);
+      resolver(msg.data);
+    }
+    window.addEventListener('message', handler);
+
+    var timer = setTimeout(function() {
+      window.removeEventListener('message', handler);
+      resolver({ status: 'error', error: 'Timeout (>60s)', tests: [] });
+    }, 60000);
+
+    try {
+      // Run inside iframe so GS/PERSIST are in scope; use data: URI import
+      (0, iwin.eval)(`
+        (async () => {
+          var G = { current: window.GS };
+          var P = { current: window.PERSIST };
+          var T = {
+            getGS:      function() { return G.current; },
+            getPersist: function() { return P.current; },
+            ok:         function(e, m) { if (!e) throw new Error(m || ""); return true; },
+            log:        function() {
+              var args = Array.prototype.slice.call(arguments);
+              console.log("[TEST]", args.join(' '));
+            },
+          };
+          var results;
+          try {
+            var mod = await import("data:text/javascript," + encodeURIComponent(code));
+            results = await mod.runTests(T);
+          } catch(e2) {
+            throw new Error("Load error: " + e2.message);
+          }
+          parent.postMessage({ __testId: id, status: 'ok', tests: results }, '*');
+        })()
+      `);
+    } catch(e) {
+      clearTimeout(timer);
+      window.removeEventListener('message', handler);
+      return { status: 'error', error: e.message, tests: [] };
+    }
+
+    return await p;
+
+  } catch(e) {
+    logTest('FAILED TO LOAD ' + file, 'FAIL', undefined, e.message);
+    return { status: 'error', error: e.message, tests: [] };
+  }
+}
+
+function buildTestSummary(totals) {
+  var total   = totals.total;
+  var passed  = totals.passed;
+  var failed  = totals.failed;
+  var skipped = totals.skipped;
+  var all  = total === passed + skipped ? ' style="color:#00ff88"' : '';
+  var pStr = '<span class="pass">' + passed + ' passed</span>';
+  var fStr = failed > 0 ? '<span class="fail">' + failed + ' failed</span>' : '';
+  var sStr = skipped > 0 ? '<span class="skip">' + skipped + ' skipped</span>' : '';
+  document.getElementById('summary').innerHTML =
+    '<div' + all + '>TOTAL: ' + passed + '/' + total + '</div>' + pStr + ' ' + fStr + ' ' + sStr;
+}
+
+async function runAll() {
+  log('<div style="color:#ff00aa;font-size:11px">&#9600;&#9600;&#9600; RUN ' + new Date().toISOString() + ' &#9600;&#9600;&#9600;</div>');
+
+  var iframe = document.getElementById('game-frame');
+
+  // Build URL with optional seed/floor params
+  var url = new URL(GAME_SRC, location.href);
+  if (currentSeed)  url.searchParams.set('seed',  currentSeed);
+  if (currentFloor) url.searchParams.set('floor', currentFloor);
+
+  // Load game — use iframe.src (no cross-origin issue with /index.html)
+  var loadPromise = new Promise(function(r) { iframe.addEventListener('load', r, { once: true }); });
+  iframe.src = url.href;
+  await loadPromise;
+
+  var iwin = iframe.contentWindow;
+
+  // Quick check that GS is accessible
+  var gsCheck;
+  try {
+    gsCheck = (0, iwin.eval)('typeof GS');
+  } catch(e) {
+    gsCheck = 'error';
+  }
+  if (gsCheck === 'undefined') {
+    log('<div style="color:#ff4444">GS is undefined — iframe game did not load.</div>');
+    return;
+  }
+
+  // Initialize game state before running tests
+  var initCode = [
+    '(async function() {',
+    '  try { if (typeof loadPersist === "function") loadPersist(); } catch(e) {}',
+    '  try { if (typeof gameLoop === "function") gameLoop(); } catch(e) {}',
+    '  await new Promise(function(r) { setTimeout(r, 100); });',
+    '  parent.postMessage({__testReady: true}, "*");',
+    '})();'
+  ].join('\n');
+
+  var readyResolver;
+  var readyPromise = new Promise(function(r) { readyResolver = r; });
+  function readyHandler(msg) {
+    if (msg.data && msg.data.__testReady) {
+      window.removeEventListener('message', readyHandler);
+      clearTimeout(readyTimer);
+      readyResolver();
+    }
+  }
+  window.addEventListener('message', readyHandler);
+  var readyTimer = setTimeout(function() {
+    window.removeEventListener('message', readyHandler);
+    readyResolver();
+  }, 5000);
+  (0, iwin.eval)(initCode);
+  await readyPromise;
+
+  var files = await loadTests();
+  var totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
+
+  for (var fi = 0; fi < files.length; fi++) {
+    var file = files[fi];
+    var result = await runSuite(file);
+
+    if (result.status === 'error') {
+      logTest('LOAD ERROR', 'FAIL', undefined, result.error);
+      totals.failed++;
+      totals.total++;
+      lastFailed.push(file);
+      continue;
+    }
+
+    var tests = result.tests || [];
+    var passed = 0, failed = 0, skipped = 0;
+    for (var ti = 0; ti < tests.length; ti++) {
+      var t = tests[ti];
+      var status = t.skip ? 'SKIP' : t.pass !== false ? 'PASS' : 'FAIL';
+      logTest(t.name || file, status, t.ms, t.error);
+      if (t.skip) skipped++;
+      else if (t.pass !== false) passed++;
+      else failed++;
+    }
+    totals.total   += tests.length;
+    totals.passed += passed;
+    totals.failed += failed;
+    totals.skipped += skipped;
+    if (failed > 0) lastFailed.push(file);
+  }
+
+  buildTestSummary(totals);
+  log('<div style="color:#ff00aa;font-size:11px">&#9604;&#9604;&#9604; END &#9604;&#9604;&#9604;</div>');
+}
+
 document.getElementById('btn-run').addEventListener('click', runAll);
-document.getElementById('btn-rerun').addEventListener('click', () => {
-  if (lastFailed.length) { log('<div style="color:#ff00aa">↺ Re-running failed suites...</div>'); runAll(); }
+document.getElementById('btn-rerun').addEventListener('click', function() {
+  if (lastFailed.length) { log('<div style="color:#ff00aa">&#8635; Re-running failed suites...</div>'); runAll(); }
 });
 
-document.getElementById('in-seed').addEventListener('change',  e => currentSeed  = e.target.value || null);
-document.getElementById('in-floor').addEventListener('change', e => currentFloor = e.target.value || null);
+document.getElementById('in-seed').addEventListener('change', function(e) { currentSeed  = e.target.value || null; });
+document.getElementById('in-floor').addEventListener('change', function(e) { currentFloor = e.target.value || null; });
 
-// Auto-run on ?autorun=1
+// Auto-run on ?autorun=1 — defer by one tick so DOM is ready
 if (new URL(location.href).searchParams.get('autorun') === '1') {
-  runAll();
+  setTimeout(runAll, 0);
 }
+
 </script>
-<script type="module" id="harness-embed">
-// Inline test harness (loaded in sidebar)
-// Provides import.meta.url safety and a placeholder for the real harness
-window._testModules = [];
-</script>
-</body></html>
+</body>
+</html>

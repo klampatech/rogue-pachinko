@@ -96,48 +96,49 @@ async function runSuite(file, iframe, TEST) {
     try {
       // Inline code as a JSON string to avoid scope issues in eval
       var codeJson = JSON.stringify(code);
-      // Run inside iframe with data: URI import — GS/PERSIST in scope via refs
-      (0, iwin.eval)(
-        '(async () => {' +
-          'var G = { current: window.GS };' +
-          'var P = { current: window.PERSIST };' +
-          'var T = {' +
-            'getGS: function() { return G.current; },' +
-            'getPersist: function() { return P.current; },' +
-            'ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },' +
-            'log: function() { var a = Array.prototype.slice.call(arguments); console.log("[TEST]", a.join(" ")); },' +
-            'seed: function(n) { window._boardSeed = n; window._rngState = n; },' +
-            'gotoFloor: function(n) { if (window.startFloor) window.startFloor(n); },' +
-            'startRun: function() { if (window.startNewRun) window.startNewRun(); },' +
-            'endRun: function() { if (window.endRun) window.endRun(false); },' +
-            'returnToMenu: function() { if (window.returnToMenu) window.returnToMenu(); },' +
-            'setBalls: function(n) { var g = window.GS; if (g) g.balls = n; },' +
-            'setScore: function(n) { var g = window.GS; if (g) g.score = n; },' +
-            'setFloor: function(n) { var g = window.GS; if (g) g.floor = n; },' +
-            'setPayload: function(t) { var g = window.GS; if (g) { if (!g.activePayloads) g.activePayloads = []; g.activePayloads.push(t); } },' +
-            'setCombo: function(n) { var g = window.GS; if (g) g.combo = n; },' +
-            'setMultiplier: function(n) { var g = window.GS; if (g) g.multiplier = n; },' +
-            'addCredits: function(n) { var g = window.GS; if (g) g.credits = (g.credits || 0) + n; },' +
-            'subCredits: function(n) { var g = window.GS; if (g) g.credits = Math.max(0, (g.credits || 0) - n); },' +
-            'click: function(q) { var el = window.document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true,view:window})); }; d("mousedown"); d("mouseup"); d("click"); } },' +
-            'type: function(q, txt) { var el = window.document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },' +
-            'wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },' +
-            'waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },' +
-            'is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },' +
-            'gt: function(a, b, m) { return { ok: a > b, msg: m || (a + " > " + b) }; },' +
-            'lt: function(a, b, m) { return { ok: a < b, msg: m || (a + " < " + b) }; },' +
-            'throws: function(fn, m) { try { fn(); return { ok: false, msg: m || "expected to throw" }; } catch(e) { return { ok: true, msg: m || "threw: " + e.message }; } },' +
-            'equal: function(a, b, m) { var s = JSON.stringify(a), sb = JSON.stringify(b); return { ok: s === sb, msg: m || (s + " === " + sb) }; },' +
-          '};' +
+      // Build TEST helper as inline object
+      var testHelper = {
+        getGS: function() { try { var g = iframe.contentWindow.GS; return (g != null) ? g : iframe.contentWindow.eval('GS'); } catch(e) { return iframe.contentWindow.eval('GS'); } },
+        getPersist: function() { try { var p2 = iframe.contentWindow.PERSIST; return (p2 != null) ? p2 : iframe.contentWindow.eval('PERSIST'); } catch(e) { return iframe.contentWindow.eval('PERSIST'); } },
+        ok: function(v, m) { if (!v) throw new Error(m || "assertion failed"); return true; },
+        log: function() { console.log("[TEST]", Array.prototype.slice.call(arguments).join(" ")); },
+        seed: function(n) { try { iframe.contentWindow._boardSeed = n; iframe.contentWindow._rngState = n; } catch(e) {} },
+        gotoFloor: function(n) { try { if (iframe.contentWindow.startFloor) iframe.contentWindow.startFloor(n); } catch(e) {} },
+        startRun: function() { try { if (iframe.contentWindow.startNewRun) iframe.contentWindow.startNewRun(); } catch(e) {} },
+        endRun: function() { try { if (iframe.contentWindow.endRun) iframe.contentWindow.endRun(false); } catch(e) {} },
+        returnToMenu: function() { try { if (iframe.contentWindow.returnToMenu) iframe.contentWindow.returnToMenu(); } catch(e) {} },
+        setBalls: function(n) { var g = iframe.contentWindow.GS; if (g) g.balls = n; },
+        setScore: function(n) { var g = iframe.contentWindow.GS; if (g) g.score = n; },
+        setFloor: function(n) { var g = iframe.contentWindow.GS; if (g) g.floor = n; },
+        setPayload: function(t) { var g = iframe.contentWindow.GS; if (g) { if (!g.activePayloads) g.activePayloads = []; g.activePayloads.push(t); } },
+        setCombo: function(n) { var g = iframe.contentWindow.GS; if (g) g.combo = n; },
+        setMultiplier: function(n) { var g = iframe.contentWindow.GS; if (g) g.multiplier = n; },
+        addCredits: function(n) { var g = iframe.contentWindow.GS; if (g) g.credits = (g.credits || 0) + n; },
+        subCredits: function(n) { var g = iframe.contentWindow.GS; if (g) g.credits = Math.max(0, (g.credits || 0) - n); },
+        click: function(q) { var el = iframe.contentWindow.document.querySelector(q); if (el) { el.focus(); var d = function(t) { el.dispatchEvent(new MouseEvent(t, {bubbles:true,cancelable:true,view:iframe.contentWindow})); }; d("mousedown"); d("mouseup"); d("click"); } },
+        type: function(q, txt) { var el = iframe.contentWindow.document.querySelector(q); if (el) { el.value = txt; el.dispatchEvent(new Event("input", {bubbles:true})); } },
+        wait: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
+        waitRAF: function(n) { var p = Promise.resolve(); for (var i = 0; i < n; i++) p = p.then(function() { return new Promise(function(r) { requestAnimationFrame(r); }); }); return p; },
+        is: function(a, b, m) { return { ok: a === b, msg: m || (a + " === " + b) }; },
+        gt: function(a, b, m) { return { ok: a > b, msg: m || (a + " > " + b) }; },
+        lt: function(a, b, m) { return { ok: a < b, msg: m || (a + " < " + b) }; },
+        throws: function(fn, m) { try { fn(); return { ok: false, msg: m || "expected to throw" }; } catch(e) { return { ok: true, msg: m || "threw: " + e.message }; } },
+        equal: function(a, b, m) { var s = JSON.stringify(a), sb = JSON.stringify(b); return { ok: s === sb, msg: m || (s + " === " + sb) }; },
+      };
+      var testJson = JSON.stringify(testHelper);
+      var codeStr = JSON.stringify(code);
+      // Run inside iframe using contentWindow.eval — GS/PERSIST accessed via window refs
+      (0, iframe.contentWindow.eval)(
+        '(async (T, testId) => {' +
           'var results;' +
           'try {' +
-            'var mod = await import("data:text/javascript," + encodeURIComponent(' + codeJson + '));' +
+            'var mod = await import("data:text/javascript," + encodeURIComponent(' + codeStr + '));' +
             'results = await mod.runTests(T);' +
           '} catch(e2) {' +
-            'throw new Error("Load error: " + e2.message);' +
+            'throw new Error("Load: " + e2.message);' +
           '}' +
-          'parent.postMessage({ __testId: id, status: "ok", tests: results }, "*");' +
-        '})()'
+          'parent.postMessage({ __testId: testId, status: "ok", tests: results || [] }, "*");' +
+        '})(JSON.parse(' + testJson + '), ' + JSON.stringify(id) + ')'
       );
     } catch(e) {
       clearTimeout(timer);

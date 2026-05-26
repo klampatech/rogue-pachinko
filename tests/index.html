@@ -105,8 +105,8 @@ async function runSuite(file, iframe, TEST) {
       // Use Blob + URL to avoid JSON encoding issues with test code
       var blob = new Blob([code], { type: 'application/javascript' });
       var blobUrl = URL.createObjectURL(blob);
-    var blobUrlJson = JSON.stringify(blobUrl);
-    var idJson = JSON.stringify(id);
+      var blobUrlJson = JSON.stringify(blobUrl);
+      var idJson = JSON.stringify(id);
 
     // Build TEST object as JavaScript code string for eval context
     // Inside contentWindow.eval, GS/PERSIST are directly accessible (same-origin iframe)

@@ -1,0 +1,10 @@
+{
+  "version": "2.0",
+  "dispatched_at": "2026-05-26T00:47:59.321825+00:00",
+  "agents": [
+    "ernie"
+  ],
+  "timeout_seconds": 1800,
+  "stagger_seconds": 5,
+  "status": "dispatched"
+}

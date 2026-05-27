@@ -1,0 +1,33 @@
+[2026-05-25 15:22:34] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:34] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:34] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:34] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:34] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:34] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:34] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:34] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:34] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+[2026-05-25 15:22:34] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+/home/kyle/.hermes/scripts/squad-monitor.sh: line 294: local: can only be used in a function
+[2026-05-25 15:22:42] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:42] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:42] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:42] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:42] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:42] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:42] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:42] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:42] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+[2026-05-25 15:22:42] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+/home/kyle/.hermes/scripts/squad-monitor.sh: line 294: local: can only be used in a function
+[2026-05-25 15:22:50] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:50] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/test-iframe-fix agents=ernie ===
+[2026-05-25 15:22:50] Dispatch age: 1m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:50] Dispatch age: 1m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 15:22:50] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:50] Progress: 0 / 1 agents complete
+[2026-05-25 15:22:50] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:50] [state] crashed:[] incomplete:[] silent:[ ernie]
+[2026-05-25 15:22:50] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+[2026-05-25 15:22:50] [ernie] SILENT TIMEOUT detected — scheduling auto-retry
+/home/kyle/.hermes/scripts/squad-monitor.sh: line 294: local: can only be used in a function

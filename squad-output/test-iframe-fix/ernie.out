@@ -1,0 +1,86 @@
+Query: Audit and fix TDZ (Temporal Dead Zone) errors in 
+/home/kyle/projects/rogue-pachinko/tests/tests/*.test.js files.
+
+ROOT CAUSE: Some test files declare const GS, const PERSIST, or const _boardSeed
+at the top level. These shadow the game's module-scope let bindings. When the 
+test runner executes (0, eval)(code) in the iframe, the const creates a TDZ — 
+any reference before initialization throws ReferenceError.
+
+YOUR TASK:
+1. Search for top-level const shadows of game globals:
+   grep -n "^const GS\|^const PERSIST\|^const _boardSeed\|^const W \|^const H 
+\|^const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js
+
+2. Change ALL of these to var (var has no TDZ):
+   - const GS -> var GS
+   - const PERSIST -> var PERSIST
+   - const _boardSeed -> var _boardSeed
+   - const W -> var W
+   - const H -> var H
+   - const BALL_RADIUS -> var BALL_RADIUS
+
+3. For each file you modify, verify: node --check 
+/home/kyle/projects/rogue-pachinko/tests/tests/FILENAME.test.js
+
+4. Files with NO top-level const shadows — just note "clean"
+
+IMPORTANT:
+- Only fix const->var for declarations that SHADOW game globals
+- Do NOT change const used for local variables inside functions
+- Do NOT change test file structure
+- Do NOT use git commands. Do NOT open PRs.
+
+
+MANDATORY FINAL STEP — do this last, after all other work is done:
+
+Execute this completion script (it writes the JSON output and posts to Discord 
+#operations):
+bash /tmp/squad-completion-ernie.sh
+
+This Discord post is MANDATORY. Do not end the session without producing this 
+terminal call.
+Initializing agent...
+────────────────────────────────────────
+
+  ┊ 💻 $         grep -n "^const GS\|^const PERSIST\|^const _boardSeed\|^const W \|^const H \|^const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js  0.1s [error]
+  ┊ 💻 $         grep -n "^const GS\|^const PERSIST\|^const _boardSeed\|^const W\b\|^const H\b\|^const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>&1; echo "exit: $?"  0.1s
+  ┊ 💻 $         ls /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>/dev/null | head -20  0.1s
+  ┊ 💻 $         grep -rn "^const GS\b\|^const PERSIST\b\|^const _boardSeed\b\|^const W\b\|^const H\b\|^const BALL_RADIUS\b" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js  0.1s [error]
+  ┊ 💻 $         grep -n "const GS\|const PERSIST\|const _boardSeed\|const W \|const H \|const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/a00_core.test.js | head -30  0.1s
+  ┊ 💻 $         grep -n "const " /home/kyle/projects/rogue-pachinko/tests/tests/a00_core.test.js | head -40  0.1s
+  ┊ 💻 $         for f in /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js; do echo "=== $f ==="; head -20 "$f"; echo; done  0.1s
+  ┊ 💻 $         grep -n "^const GS\b\|^const PERSIST\b\|^const _boardSeed\b\|^const W\b\|^const H\b\|^const BALL_RADIUS\b" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js  0.1s [error]
+  ┊ 💻 $         grep -rn "^\s*const GS\|^\s*const PERSIST\|^\s*const _boardSeed\|^\s*const W\s\|^\s*const H\s\|^\s*const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js | head -30  0.1s
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko -name "*.js" | xargs grep -l "eval.*code\|(0, eval)" 2>/dev/null | head -5  0.1s
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko/tests -name "*.js" | head -20  0.1s
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko/tests -name "*.js" -not -path "*/node_modules/*" | xargs grep -l "runTests\|eval\|iframe" 2>/dev/null  0.1s
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko/tests -name "*.js" -not -path "*/node_modules/*" | xargs grep -l "0, eval\|iframe" 2>/dev/null  0.1s [error]
+  ┊ 💻 $         ls /home/kyle/projects/rogue-pachinko/tests/  0.1s
+  ┊ 📖 read      /home/kyle/projects/rogue-pachinko/tests/index.html  0.1s
+  ┊ 📖 read      /home/kyle/projects/rogue-pachinko/tests/tests/b01_ball_physics.test.js  0.1s
+  ┊ 💻 $         grep -n "const GS\b\|const PERSIST\b\|const _boardSeed\b\|const W\b\|const H\b\|const BALL_RADIUS\b" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>&1 | head -30  0.1s
+  ┊ 💻 $         grep -n "^const GS\b\|^var GS\b\|^let GS\b\|^const PERSIST\b\|^var PERSIST\b\|^let PERSIST\b\|^const _boardSeed\b\|^var _boardSeed\b\|^let _boardSeed\b\|^const W\b\|^var W\b\|^let W\b\|^const H\b\|^var H\b\|^let H\b\|^const BALL_RADIUS\b\|^var BALL_RADIUS\b\|^let BALL_RADIUS\b" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>&1 | head -40  0.1s
+  ┊ 💻 $         grep -n "^const W\s\|^var W\s\|^let W\s\|^const H\s\|^var H\s\|^let H\s\|^const BALL_RADIUS\s\|^var BALL_RADIUS\s\|^let BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>&1  0.1s [error]
+  ┊ 🔎 grep      let GS|let PERSIST|let _boardSeed|let W\s|let H\s|let BALL_RADIUS  0.1s
+  ┊ 💻 $         grep -n "^let GS\|^let PERSIST\|^let _boardSeed\|^let W\s\|^let H\s\|^let BALL_RADIUS\|^var GS\|^var PERSIST\|^const GS\b\|const PERSIST\b" /home/kyle/projects/rogue-pachinko/src/*.js 2>/dev/null | head -20  0.1s
+  ┊ 💻 $         ls /home/kyle/projects/rogue-pachinko/src/  0.1s [error]
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko -name "*.js" -not -path "*/node_modules/*" -not -path "*/tests/*" | head -20  0.1s
+  ┊ 💻 $         find /home/kyle/projects/rogue-pachinko -name "*.js" -not -path "*/node_modules/*" 2>/dev/null  0.1s
+  ┊ 💻 $         ls /home/kyle/projects/rogue-pachinko/  0.1s
+  ┊ 💻 $         grep -rn "^\s*const\s\+GS\b\|^\s*var\s\+GS\b\|^\s*let\s\+GS\b\|^\s*const\s\+PERSIST\b\|^\s*var\s\+PERSIST\b\|^\s*let\s\+PERSIST\b\|^\s*const\s\+_boardSeed\b\|^\s*var\s\+_boardSeed\b\|^\s*let\s\+_boardSeed\b" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js 2>&1 | head -20  0.1s
+  ┊ 💻 $         grep -n "const GS\|const PERSIST\|const _boardSeed" /home/kyle/projects/rogue-pachinko/tests/tests/a00_core.test.js  0.1s [error]
+  ┊ 💻 $         for f in /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js; do
+  result=$(node --check "$f" 2>&1)
+  if [ $? -eq 0 ]; then
+    echo "OK: $(basename $f)"
+  else
+    echo "FAIL: $(basename $f): $result"
+  fi
+done  3.0s
+  ┊ 💻 $         bash /tmp/squad-completion-ernie.sh  1.6s
+ ─  ⚕ Hermes  ───────────────────────────────────────────────────────────────── 
+                                                                                
+     All 32 test files verified. No TDZ-relevant const shadows found            
+     anywhere.                                                                  
+                                                                                
+ ────────────────────────────────────────────────────────────────────────────── 

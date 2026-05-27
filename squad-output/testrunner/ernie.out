@@ -1,0 +1,172 @@
+Query: Audit TEST helper interface across all 33 test files.
+
+Repo: /home/kyle/projects/rogue-pachinko
+Branch: squad/test-iframe-fix
+Working dir: /home/kyle/projects/rogue-pachinko
+
+Do NOT edit any files. Audit only.
+
+1. Syntax check all test files:
+   cd /home/kyle/projects/rogue-pachinko
+   for f in tests/tests/*.test.js; do node --check "$f" 2>&1 && echo "PASS: $f" 
+|| echo "FAIL: $f"; done
+
+2. Find all TEST method calls:
+   grep -rh "TEST\." tests/tests/ | grep -v "^Binary" | sort | uniq -c | sort 
+-rn
+
+3. List every distinct method called on TEST (getGS, getPersist, ok, log, 
+others?)
+
+4. Report: complete table of method -> test files that use it.
+
+
+MANDATORY FINAL STEP — do this last, after all other work is done:
+
+Execute this completion script (it writes the JSON output and posts to Discord 
+#operations):
+bash /tmp/squad-completion-ernie.sh
+
+This Discord post is MANDATORY. Do not end the session without producing this 
+terminal call.
+Initializing agent...
+────────────────────────────────────────
+
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && for f in tests/tests/*.test.js; do node --check "$f" 2>&1 && echo "PASS: $f" || echo "FAIL: $f"; done  3.2s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && grep -rh "TEST\." tests/tests/ | grep -v "^Binary" | sort | uniq -c | sort -rn  0.1s
+  ┊ 🐍 exec      from hermes_tools import terminal  0.2s
+  ┊ 🐍 exec      from hermes_tools import terminal, read_file  0.2s
+  ┊ 🐍 exec      from hermes_tools import terminal  0.2s
+  ┊ 💻 $         bash /tmp/squad-completion-ernie.sh  1.8s
+ ─  ⚕ Hermes  ───────────────────────────────────────────────────────────────── 
+                                                                                
+     TEST Helper Interface Audit — 33 Test Files                                
+     1. Syntax Check                                                            
+     All 33 test files pass node --check with zero errors.                      
+     2. Distinct TEST Methods Found: 14                                         
+                                                                                
+     | Method            | Files | Description                 |                
+     |-------------------|-------|-----------------------------|                
+     | TEST.ok           | 27    | Assertion — condition check |                
+     | TEST.seed         | 23    | RNG seed initialization     |                
+     | TEST.startRun     | 22    | Start a new run             |                
+     | TEST.getGS        | 15    | Get game state reference    |                
+     | TEST.getPersist   | 15    | Get PERSIST state reference |                
+     | TEST.returnToMenu | 12    | Return to main menu         |                
+     | TEST.is           | 11    | Strict equality assertion   |                
+     | TEST.gotoFloor    | 6     | Jump to specific floor      |                
+     | TEST.setBalls     | 5     | Set ball count              |                
+     | TEST.setScore     | 5     | Set score value             |                
+     | TEST.gt           | 7     | Greater-than assertion      |                
+     | TEST.click        | 2     | DOM click simulation        |                
+     | TEST.setCombo     | 1     | Set combo multiplier        |                
+     | TEST.wait         | 1     | Async wait / polling        |                
+     3. Complete Method → Files Table                                           
+                                                                                
+     TEST.ok           | 27 files | a00_core, a01_persistence,                  
+     a02_game_flow, d01_payloads,                                               
+                       |          | d02_evolutions, d03_multipliers,            
+     e01_shop, e02_mastery,                                                     
+                       |          | e03_skins, e04_leaderboard,                 
+     e05_achievements, f01_hud,                                                 
+                       |          | f02_overlay_screens, f03_buttons,           
+     f04_tutorial_modals,                                                       
+                       |          | g01_audio, g02_visual_effects,              
+     g03_rendering, h01_board_generation,                                       
+                       |          | h02_daily_challenge, h03_timelock,          
+     h04_ghosts, h05_boss,                                                      
+                       |          | i01_prestige, i02_meta_progression,         
+     j01_known_bugs, k01_edge_cases                                             
+                                                                                
+     TEST.seed         | 23 files | a00_core, a02_game_flow,                    
+     b01_ball_physics, b02_drop_mechanics,                                      
+                       |          | b03_collision, b04_peg_types,               
+     c01_slot_collector, c02_jackpot,                                           
+                       |          | d01_payloads, d02_evolutions,               
+     d03_multipliers, e01_shop,                                                 
+                       |          | e02_mastery, e03_skins,                     
+     e04_leaderboard, e05_achievements,                                         
+                       |          | f01_hud, f02_overlay_screens,               
+     f03_buttons, f04_tutorial_modals,                                          
+                       |          | g03_rendering, h01_board_generation,        
+     k01_edge_cases                                                             
+                                                                                
+     TEST.startRun     | 22 files | a02_game_flow, d01_payloads,                
+     d02_evolutions, d03_multipliers,                                           
+                       |          | e01_shop, e02_mastery, e03_skins,           
+     e04_leaderboard, e05_achievements,                                         
+                       |          | f01_hud, f02_overlay_screens,               
+     f03_buttons, f04_tutorial_modals,                                          
+                       |          | g02_visual_effects,                         
+     h02_daily_challenge, h03_timelock, h04_ghosts,                             
+                       |          | h05_boss, i01_prestige,                     
+     i02_meta_progression, j01_known_bugs,                                      
+                       |          | k01_edge_cases                              
+                                                                                
+     TEST.getGS        | 15 files | a00_core, a01_persistence,                  
+     a02_game_flow, d01_payloads,                                               
+                       |          | d02_evolutions, d03_multipliers,            
+     e01_shop, e02_mastery,                                                     
+                       |          | e03_skins, e04_leaderboard,                 
+     e05_achievements, f01_hud,                                                 
+                       |          | f02_overlay_screens, f03_buttons,           
+     f04_tutorial_modals                                                        
+                                                                                
+     TEST.getPersist   | 15 files | (same 15 files as getGS above)              
+                                                                                
+     TEST.returnToMenu | 12 files | a00_core, a02_game_flow, d01_payloads,      
+     d02_evolutions,                                                            
+                       |          | d03_multipliers, e01_shop, e02_mastery,     
+     e03_skins,                                                                 
+                       |          | e04_leaderboard, e05_achievements,          
+     f02_overlay_screens, f03_buttons                                           
+                                                                                
+     TEST.is           | 11 files | g01_audio, g02_visual_effects,              
+     h01_board_generation,                                                      
+                       |          | h02_daily_challenge, h03_timelock,          
+     h04_ghosts, h05_boss,                                                      
+                       |          | i01_prestige, i02_meta_progression,         
+     j01_known_bugs, k01_edge_cases                                             
+                                                                                
+     TEST.gotoFloor    |  6 files | g03_rendering, h03_timelock,                
+     h04_ghosts, h05_boss,                                                      
+                       |          | j01_known_bugs, k01_edge_cases              
+                                                                                
+     TEST.gt           |  7 files | g02_visual_effects,                         
+     h01_board_generation, h02_daily_challenge,                                 
+                       |          | h03_timelock, h04_ghosts,                   
+     i02_meta_progression, k01_edge_cases                                       
+                                                                                
+     TEST.setBalls     |  5 files | f01_hud, h03_timelock, h04_ghosts,          
+     h05_boss, j01_known_bugs                                                   
+                                                                                
+     TEST.setScore     |  5 files | g02_visual_effects, h03_timelock,           
+     h04_ghosts, h05_boss,                                                      
+                       |          | j01_known_bugs                              
+                                                                                
+     TEST.click        |  2 files | e01_shop, e04_leaderboard                   
+                                                                                
+     TEST.setCombo     |  1 file  | g02_visual_effects                          
+                                                                                
+     TEST.wait         |  1 file  | e05_achievements                            
+                                                                                
+     Key Observations                                                           
+     - b01–b04, c01–c02 (physics/collision/slots): Only seed used — no game     
+     state assertions                                                           
+     - f01–f04, e01–e05, a00–a02, d01–d03: Full-featured tests using getGS,     
+     getPersist, ok, seed, startRun, returnToMenu                               
+     - g01–g03: Uses is/gt/ok assertions but no getGS/getPersist                
+     (render-level tests)                                                       
+     - h01–h05, i01–i02, j01, k01: Heavy use of gotoFloor, setBalls,            
+     setScore for floor/boss/prestige scenarios                                 
+     - No TEST.log found — assertions use TEST.ok(condition) pattern with       
+     string messages only                                                       
+                                                                                
+ ────────────────────────────────────────────────────────────────────────────── 
+
+Resume this session with:
+  hermes --resume 20260525_194901_e574f9
+
+Session:        20260525_194901_e574f9
+Duration:       1m 23s
+Messages:       13 (1 user, 11 tool calls)

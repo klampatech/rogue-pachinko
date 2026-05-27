@@ -1,0 +1,72 @@
+[2026-05-25 19:48:11] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:11] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:11] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:11] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:11] New completions: ernie
+[2026-05-25 19:48:11] New completions: ernie
+[2026-05-25 19:48:11] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:11] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:11] === ALL DONE ===
+[2026-05-25 19:48:11] === ALL DONE ===
+usage: hermes [-h] [--version] [-z PROMPT] [-m MODEL] [--provider PROVIDER]
+              [-t TOOLSETS] [--resume SESSION] [--continue [SESSION_NAME]]
+              [--worktree] [--accept-hooks] [--skills SKILLS] [--yolo]
+              [--pass-session-id] [--ignore-user-config] [--ignore-rules]
+              [--tui] [--dev]
+              {chat,model,fallback,migrate,gateway,proxy,lsp,setup,postinstall,whatsapp,slack,send,login,logout,auth,status,cron,webhook,kanban,hooks,doctor,dump,debug,backup,checkpoints,import,config,pairing,skills,bundles,plugins,curator,memory,tools,computer-use,mcp,sessions,insights,claw,version,update,uninstall,acp,profile,completion,dashboard,logs}
+              ...
+hermes: error: unrecognized arguments: --body
+[2026-05-25 19:48:49] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:49] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:49] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:49] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:49] New completions: ernie
+[2026-05-25 19:48:49] New completions: ernie
+[2026-05-25 19:48:49] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:49] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:49] === ALL DONE ===
+[2026-05-25 19:48:49] === ALL DONE ===
+usage: hermes [-h] [--version] [-z PROMPT] [-m MODEL] [--provider PROVIDER]
+              [-t TOOLSETS] [--resume SESSION] [--continue [SESSION_NAME]]
+              [--worktree] [--accept-hooks] [--skills SKILLS] [--yolo]
+              [--pass-session-id] [--ignore-user-config] [--ignore-rules]
+              [--tui] [--dev]
+              {chat,model,fallback,migrate,gateway,proxy,lsp,setup,postinstall,whatsapp,slack,send,login,logout,auth,status,cron,webhook,kanban,hooks,doctor,dump,debug,backup,checkpoints,import,config,pairing,skills,bundles,plugins,curator,memory,tools,computer-use,mcp,sessions,insights,claw,version,update,uninstall,acp,profile,completion,dashboard,logs}
+              ...
+hermes: error: unrecognized arguments: --body
+[2026-05-25 19:48:54] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:54] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:54] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:54] Dispatch age: 0m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:54] New completions: ernie
+[2026-05-25 19:48:54] New completions: ernie
+[2026-05-25 19:48:54] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:54] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:54] === ALL DONE ===
+[2026-05-25 19:48:54] === ALL DONE ===
+usage: hermes [-h] [--version] [-z PROMPT] [-m MODEL] [--provider PROVIDER]
+              [-t TOOLSETS] [--resume SESSION] [--continue [SESSION_NAME]]
+              [--worktree] [--accept-hooks] [--skills SKILLS] [--yolo]
+              [--pass-session-id] [--ignore-user-config] [--ignore-rules]
+              [--tui] [--dev]
+              {chat,model,fallback,migrate,gateway,proxy,lsp,setup,postinstall,whatsapp,slack,send,login,logout,auth,status,cron,webhook,kanban,hooks,doctor,dump,debug,backup,checkpoints,import,config,pairing,skills,bundles,plugins,curator,memory,tools,computer-use,mcp,sessions,insights,claw,version,update,uninstall,acp,profile,completion,dashboard,logs}
+              ...
+hermes: error: unrecognized arguments: --body
+[2026-05-25 19:48:59] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:59] === Monitor tick: project=/home/kyle/projects/rogue-pachinko/squad-output/testrunner agents=ernie ===
+[2026-05-25 19:48:59] Dispatch age: 1m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:59] Dispatch age: 1m | completed: [] | escalated: [] | silent: [] | retries: 0
+[2026-05-25 19:48:59] New completions: ernie
+[2026-05-25 19:48:59] New completions: ernie
+[2026-05-25 19:48:59] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:59] Progress: 1 / 1 agents complete
+[2026-05-25 19:48:59] === ALL DONE ===
+[2026-05-25 19:48:59] === ALL DONE ===
+usage: hermes [-h] [--version] [-z PROMPT] [-m MODEL] [--provider PROVIDER]
+              [-t TOOLSETS] [--resume SESSION] [--continue [SESSION_NAME]]
+              [--worktree] [--accept-hooks] [--skills SKILLS] [--yolo]
+              [--pass-session-id] [--ignore-user-config] [--ignore-rules]
+              [--tui] [--dev]
+              {chat,model,fallback,migrate,gateway,proxy,lsp,setup,postinstall,whatsapp,slack,send,login,logout,auth,status,cron,webhook,kanban,hooks,doctor,dump,debug,backup,checkpoints,import,config,pairing,skills,bundles,plugins,curator,memory,tools,computer-use,mcp,sessions,insights,claw,version,update,uninstall,acp,profile,completion,dashboard,logs}
+              ...
+hermes: error: unrecognized arguments: --body

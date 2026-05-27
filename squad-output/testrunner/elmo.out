@@ -1,0 +1,78 @@
+Query: Review and verify bert fix to tests/index.html, then smoke test.
+
+Repo: /home/kyle/projects/rogue-pachinko
+Branch: squad/test-iframe-fix
+Working dir: /home/kyle/projects/rogue-pachinko
+
+IMPORTANT: Use Python regex + open() for file edits. Do NOT use patch tool.
+
+1. Check bert committed: git fetch origin && git log 
+origin/squad/test-iframe-fix --oneline -3
+2. If yes: git pull origin squad/test-iframe-fix
+3. Read tests/index.html and verify:
+   - TEST helper exists with getGS/getPersist/ok/log
+   - import() used to load test files as ES modules
+   - mod.runTests(TEST) called (NOT window(TEST))
+   - GS_REF/PERSIST_REF populated from iframe.contentWindow
+4. If anything wrong, fix using Python regex+open()
+5. Verify: node --check tests/index.html
+6. Smoke test:
+   cd /home/kyle/projects/rogue-pachinko && python3 -m http.server 7784 &
+   sleep 2 && curl -s http://localhost:7784/tests/index.html | grep -c "script" 
+&& kill %1 2>/dev/null
+7. Commit: git add tests/index.html && git commit -m "chore: verify test 
+harness" && git push origin squad/test-iframe-fix
+
+
+MANDATORY FINAL STEP — do this last, after all other work is done:
+
+Execute this completion script (it writes the JSON output and posts to Discord 
+#operations):
+bash /tmp/squad-completion-elmo.sh
+
+This Discord post is MANDATORY. Do not end the session without producing this 
+terminal call.
+Initializing agent...
+────────────────────────────────────────
+
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && git fetch origin && git log origin/squad/test-iframe-fix --oneline -3  0.9s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && git pull origin squad/test-iframe-fix  0.9s
+  ┊ 📖 read      /home/kyle/projects/rogue-pachinko/tests/index.html  0.1s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && node --check tests/index.html 2>&1  0.2s [error]
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && python3 -c "import re; html=open('tests/index.html').read(); m=re.search(r'<script type=\"module\">(.*?)</script>', html, re.DOTALL); open('/tmp/test_check.js','w').write(m.group(1) if m else '')" && node --check /tmp/test_check.js 2>&1  0.2s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && python3 -m http.server 7784 &>/tmp/http7784.log & sleep 2 && curl -s http://localhost:7784/tests/index.html | grep -c "script" && kill %1 2>/dev/null  0.0s [error]
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && python3 -m http.server 7784 &>/tmp/http7784.log  0.1s
+  ┊ 💻 $         sleep 2 && curl -s http://localhost:7784/tests/index.html | grep -c "script"  2.2s
+  ┊ 💻 $         kill %1 2>/dev/null; true  0.1s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && git status  0.1s
+  ┊ 💻 $         cd /home/kyle/projects/rogue-pachinko && git add tests/index.html && git commit -m "chore: verify test harness" && git push origin squad/test-iframe-fix 2>&1  0.1s [error]
+  ┊ 💻 $         bash /tmp/squad-completion-elmo.sh  1.8s
+ ─  ⚕ Hermes  ───────────────────────────────────────────────────────────────── 
+                                                                                
+     Done. Summary:                                                             
+                                                                                
+     Check: Bert commit on origin/squad/test-iframe-fix                         
+     Result: cd8a067 — "feat: full test suite"                                  
+     ────────────────────────────────────────                                   
+     Check: TEST helper (getGS/getPersist/ok/log)                               
+     Result: ✓ Lines 144-152                                                    
+     ────────────────────────────────────────                                   
+     Check: import() for ES module loading                                      
+     Result: ✓ Line 155                                                         
+     ────────────────────────────────────────                                   
+     Check: mod.runTests(TEST) called                                           
+     Result: ✓ Line 156                                                         
+     ────────────────────────────────────────                                   
+     Check: GS_REF/PERSIST_REF from iframe.contentWindow                        
+     Result: ✓ Lines 117-118                                                    
+     ────────────────────────────────────────                                   
+     Check: JS syntax check                                                     
+     Result: ✓ Passed (extracted script, node --check clean)                    
+     ────────────────────────────────────────                                   
+     Check: HTTP smoke test                                                     
+     Result: ✓ 3 <script> tags served                                           
+     ────────────────────────────────────────                                   
+     Check: Commit/push                                                         
+     Result: ✓ No changes — file already correct from Bert's commit             
+                                                                                
+ ────────────────────────────────────────────────────────────────────────────── 

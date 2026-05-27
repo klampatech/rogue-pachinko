@@ -1,0 +1,25 @@
+Audit and fix TDZ (Temporal Dead Zone) errors in /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js files.
+
+ROOT CAUSE: Some test files declare const GS, const PERSIST, or const _boardSeed at the top level. These shadow the game's module-scope let bindings. When the test runner executes (0, eval)(code) in the iframe, the const creates a TDZ — any reference before initialization throws ReferenceError.
+
+YOUR TASK:
+1. Search for top-level const shadows of game globals:
+   grep -n "^const GS\|^const PERSIST\|^const _boardSeed\|^const W \|^const H \|^const BALL_RADIUS" /home/kyle/projects/rogue-pachinko/tests/tests/*.test.js
+
+2. Change ALL of these to var (var has no TDZ):
+   - const GS -> var GS
+   - const PERSIST -> var PERSIST
+   - const _boardSeed -> var _boardSeed
+   - const W -> var W
+   - const H -> var H
+   - const BALL_RADIUS -> var BALL_RADIUS
+
+3. For each file you modify, verify: node --check /home/kyle/projects/rogue-pachinko/tests/tests/FILENAME.test.js
+
+4. Files with NO top-level const shadows — just note "clean"
+
+IMPORTANT:
+- Only fix const->var for declarations that SHADOW game globals
+- Do NOT change const used for local variables inside functions
+- Do NOT change test file structure
+- Do NOT use git commands. Do NOT open PRs.

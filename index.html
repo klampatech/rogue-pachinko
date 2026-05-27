@@ -1,8 +1,42 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
-BUG FIX: compress_context force param
+BUG FIX: delta-time physics compensation for high-refresh displays
 ================================================================================
+
+FILE: index.html (Slot Protocol — Rogue Pachinko)
+COMPONENT: Physics engine — Ball.update(), updateParticles(), gameLoop()
+
+ISSUE:
+  Physics was frame-rate dependent. GRAVITY=0.18 was applied per frame, making
+  balls fall ~2.4x too fast on 144Hz Mac desktops vs 60fps mobile (144/60=2.4x).
+  Same issue affected particle gravity (p.vy += 0.05 per frame).
+
+CAUSE:
+  requestAnimationFrame fires at display refresh rate. On a 144Hz display,
+  Ball.update() is called 144 times/sec instead of 60. Each call added 0.18
+  to vy, so effective gravity was 0.18*144 = 25.92/sec vs intended 0.18*60=10.8/sec.
+
+FIX:
+  1. gameLoop(timestamp) captures elapsed ms between frames via lastTimestamp
+  2. update(dt) computes deltaTime = dt/1000 (seconds)
+  3. Ball.update() and updateParticles() scale physics by deltaTime * 60
+     so that GRAVITY_PER_SEC = GRAVITY * 60 always applies regardless of Hz
+
+  Conversion: GRAVITY_PER_SEC = GRAVITY * 60 = 0.18 * 60 = 10.8 px/sec²
+  Delta multiplier = deltaTime * 60 normalizes to 60fps baseline
+  On 144Hz: deltaTime≈6.94ms → multiplier≈0.416 → GRAVITY effective/sec = 10.8*0.416*144 ≈ 10.8 ✓
+  On 60Hz:  deltaTime≈16.67ms → multiplier≈1.0   → GRAVITY effective/sec = 10.8*1.0*60   ≈ 10.8 ✓
+
+SAME FIX APPLIED TO:
+  - Ball physics: vy += GRAVITY * dt60, position updates scaled by dt60
+  - Ball mini-balls: same delta-time scaling
+  - Particle physics: p.vy += 0.05 * dt60
+  - Preview arc simulation: frame loop replaced with time-based simulation
+
+================================================================================
+-->
+<!--
 
 FILE: index.html (Slot Protocol — Rogue Pachinko)
 COMPONENT: Web Audio — playSound() function
@@ -1746,7 +1780,7 @@ class Ball {
     this.trailBoost = comboBoost * frenzyBoost * payloadBoost;
   }
 
-  update() {
+  update(dt60) {
     if (!this.active) return;
 
     // ── HIGH-SPEED CLIP GUARD ───────────────────────────────────
@@ -1758,9 +1792,10 @@ class Ball {
     }
 
     // ── STUCK BALL DETECTION ────────────────────────────────────
+    // Stuck detection: scale threshold by dt60 so it works correctly at any Hz
     const moved = Math.sqrt((this.x - this.lastX)**2 + (this.y - this.lastY)**2);
     if (moved < STUCK_DIST_THRESHOLD) {
-      this.stuckFrames++;
+      this.stuckFrames += dt60;
       if (this.stuckFrames >= STUCK_FRAMES) {
         this.active = false;
         spawnFloatText(this.x, this.y, 'STUCK!', '#ff4400');
@@ -1773,8 +1808,8 @@ class Ball {
     } else {
       this.stuckFrames = 0;
     }
-    // Cooldown for teleport pegs — prevents instant re-trigger
-    if (this.teleportCooldown > 0) this.teleportCooldown--;
+    // Cooldown for teleport pegs — prevents instant re-trigger (decay rate independent of Hz)
+    if (this.teleportCooldown > 0) this.teleportCooldown -= dt60;
     this.lastX = this.x;
     this.lastY = this.y;
 
@@ -1783,11 +1818,11 @@ class Ball {
     const overclockMult = (GS.overclockActive && GS.overclockTimer > 0) ? 1.5 : 1.0;
     const timeScale = this.slowmoActive ? 0.5 : 1.0;
 
-    // Gravity (scaled)
-    this.vy += GRAVITY * timeScale * overclockMult;
+    // Gravity (delta-time scaled, then applied as if at 60fps baseline)
+    this.vy += GRAVITY * timeScale * overclockMult * dt60;
 
-    // Friction
-    this.vx *= FRICTION;
+    // Friction — apply per-frame equivalent but scaled by dt60 (friction/sec = -0.005vy/frame at 60Hz)
+    this.vx *= Math.pow(FRICTION, dt60);
 
     // Velocity cap
     const spd2 = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
@@ -1796,9 +1831,9 @@ class Ball {
       this.vy = (this.vy / spd2) * MAX_VEL;
     }
 
-    // Move (scaled)
-    this.x += this.vx * timeScale;
-    this.y += this.vy * timeScale;
+    // Move (scaled by dt60 and timeScale)
+    this.x += this.vx * timeScale * dt60;
+    this.y += this.vy * timeScale * dt60;
 
     // Trail — ghost trail stores RGB separate positions
     this.trail.unshift({ x: this.x, y: this.y, age: 0 });
@@ -1819,12 +1854,13 @@ class Ball {
     }
 
     // Mini-balls (cluster) — no gravity, no friction: linear trajectory per spec
+    // Position scaled by dt60 to be consistent with main ball physics
     for (let i = this.miniBalls.length - 1; i >= 0; i--) {
       const mb = this.miniBalls[i];
       const mbColor = getMultColor(mb.dropMultiplier || 1);
       const rgb = hexToRgb(mbColor.color);
-      mb.x += mb.vx;
-      mb.y += mb.vy;
+      mb.x += mb.vx * dt60;
+      mb.y += mb.vy * dt60;
       mb.trail.unshift({ x: mb.x, y: mb.y, age: 0 });
       if (mb.trail.length > Math.round(10 * (this.trailBoost || 1))) mb.trail.pop();
       mb.trail.forEach(t => t.age++);
@@ -2125,13 +2161,13 @@ function updateShockwaves() {
   }
 }
 
-function updateParticles() {
+function updateParticles(dt60) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.05;
-    p.life -= p.decay;
+    p.x += p.vx * dt60;
+    p.y += p.vy * dt60;
+    p.vy += 0.05 * dt60; // particle gravity scaled to 60fps baseline
+    p.life -= p.decay * dt60;
     if (p.life <= 0) particles.splice(i, 1);
   }
 }
@@ -4375,9 +4411,15 @@ function simulatePreviewArc(startX) {
   let px = startX, py = 80;
   let pvx = 0, pvy = 0;
   const hitPegs = new Set();
-  for (let f = 0; f < 80; f++) { // simulate 80 frames (~1.3s)
-    pvy += GRAVITY;
-    px += pvx; py += pvy;
+  // Simulate 1.3 seconds using delta-time logic (consistent with main physics)
+  const TOTAL_TIME = 1.3;
+  const FRAME_TIME = 1/60;
+  const frames = Math.ceil(TOTAL_TIME / FRAME_TIME);
+  for (let f = 0; f < frames; f++) {
+    // Delta-time scaled gravity (same formula as Ball.update)
+    pvy += GRAVITY * 60 * FRAME_TIME;
+    px += pvx * 60 * FRAME_TIME;
+    py += pvy * 60 * FRAME_TIME;
     if (py > H) break; // off screen
     // Peg collision
     for (const peg of GS.board) {
@@ -4393,7 +4435,8 @@ function simulatePreviewArc(startX) {
         const bounce = pegDef.bounce ?? 0.65;
         pvx = (pvx - 2*dot*nx) * bounce;
         pvy = (pvy - 2*dot*ny) * bounce;
-        pvx *= FRICTION; pvy *= FRICTION;
+        pvx *= Math.pow(FRICTION, 60 * FRAME_TIME);
+        pvy *= Math.pow(FRICTION, 60 * FRAME_TIME);
         break;
       }
     }
@@ -6562,12 +6605,15 @@ function render() {
 }
 
 // ─── GAME LOOP ───────────────────────────────────────────────
-function update() {
+function update(dt) {
   if (GS.screen !== 'playing') return;
+
+  // Normalize delta-time to 60fps baseline (1.0 = 16.67ms, 0.5 = 8.33ms, etc.)
+  const dt60 = dt * 60;
 
   // Update balls
   for (const ball of GS.ballsInPlay) {
-    ball.update();
+    ball.update(dt60);
   }
 
   // Check dormant peg activation (ball passes near dormant peg → activates it)
@@ -6611,7 +6657,7 @@ function update() {
   GS.ballsInPlay = GS.ballsInPlay.filter(b => b.active);
 
   // Update particles
-  updateParticles();
+  updateParticles(dt60);
   updateFragments();
   updateShockwaves();
   updateFloatTexts();
@@ -6751,9 +6797,16 @@ function updateGhostHUD() {
   }
 }
 
-function gameLoop() {
+let lastTimestamp = 0;
+
+function gameLoop(timestamp) {
   try {
-    update();
+    // Compute delta-time in seconds (0 on first frame)
+    const dt = lastTimestamp ? (timestamp - lastTimestamp) / 1000 : 0;
+    lastTimestamp = timestamp;
+    // Clamp to prevent spiral of death on tab blur/resume (max 100ms per step)
+    const dtClamped = Math.min(dt, 0.1);
+    update(dtClamped);
     render();
   } catch(e) { console.error('gameLoop error: ' + e.message); }
   requestAnimationFrame(gameLoop);

@@ -1,0 +1,25 @@
+Fix the iframe loading bug in /home/kyle/projects/rogue-pachinko/tests/index.html.
+
+ROOT CAUSE: Using iframe.src=url to load game HTML creates a cross-origin iframe that cannot load /index.html reliably — GS ends up undefined. The URL resolution with import.meta.url fails in non-module contexts.
+
+YOUR TASK: In runAll() (lines 279-361 of tests/index.html), replace the iframe loading approach with srcdoc injection:
+
+1. At the start of runAll(), BEFORE any iframe operations, fetch the game HTML:
+   const resp = await fetch(GAME_SRC);
+   const gameHtml = await resp.text();
+
+2. Instead of: iframe.src = url.href; await load;
+   Use: iframe.srcdoc = gameHtml; await new Promise(r => iframe.addEventListener('load', r, {once:true}));
+
+3. Keep these EXACTLY as-is:
+   - GAME_SRC = '/index.html' (line 45)
+   - The gsCheck/GS-undefined handling (lines 290-315)
+   - The seed/floor URL param logic (lines 283-285)
+   - getTestFiles(), runSuiteInIframe(), buildTestWrapper() — do NOT touch these
+   - The autorun trigger at the bottom
+
+4. If the fetch fails, log error and fall back to iframe.src approach as a safety net.
+
+Write the fixed tests/index.html to /home/kyle/projects/rogue-pachinko/tests/index.html
+Run: node --check /home/kyle/projects/rogue-pachinko/tests/index.html
+Do NOT use git commands. Do NOT open PRs.

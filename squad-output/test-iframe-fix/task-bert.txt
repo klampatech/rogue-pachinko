@@ -1,0 +1,23 @@
+Fix the autorun=1 timing race in /home/kyle/projects/rogue-pachinko/tests/index.html.
+
+ROOT CAUSE: When tests/index.html is opened with ?autorun=1, runAll() is called synchronously. The iframe load listener is set up AFTER iframe.src is assigned — if the iframe load event fires very fast (local server), the listener might be attached too late.
+
+YOUR TASK:
+1. In runAll(), set up the load promise BEFORE the iframe navigation fires:
+   const loadPromise = new Promise(r => iframe.addEventListener('load', r, {once: true}));
+   iframe.srcdoc = gameHtml; // or iframe.src = url.href
+   await loadPromise;
+
+2. Fix the autorun trigger at the bottom of the script to defer runAll() by one tick so DOM is ready:
+   if (new URL(location.href).searchParams.get('autorun') === '1') {
+     setTimeout(runAll, 0);
+   }
+
+3. Keep the gsCheck/GS-undefined handling — these are still valuable.
+
+IMPORTANT:
+- Do NOT change buildTestWrapper() or runSuiteInIframe()
+- Only change runAll() and the autorun trigger
+- Compatible with elmo's srcdoc injection fix
+- Verify: node --check /home/kyle/projects/rogue-pachinko/tests/index.html
+- Do NOT use git commands. Do NOT open PRs.

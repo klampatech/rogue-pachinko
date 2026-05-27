@@ -93,7 +93,11 @@ async function runSuite(file, TEST) {
     const mod = await import(file + '?t=' + Date.now());
     if (typeof mod.runTests === 'function') {
       const result = await mod.runTests(TEST);
-      for (const t of result.tests) {
+      // Support both {passed,failed,skipped,tests[]} and {passed,failed,skipped,errors[]}
+      const testList = result.tests
+        ? result.tests
+        : (result.errors || []).map(e => ({ name: e, status: 'FAIL', ms: 0, err: e }));
+      for (const t of testList) {
         logTest(t.name, t.status, t.ms, t.err);
       }
       return result;
@@ -111,7 +115,7 @@ function buildTestSummary(totals) {
   const { total, passed, failed, skipped } = totals;
   const all  = total  === passed + skipped ? ' style="color:#00ff88"' : '';
   const pStr = `<span class="pass">${passed} passed</span>`;
-  const fStr = fail > 0 ? `<span class="fail">${fail} failed</span>` : '';
+  const fStr = failed > 0 ? `<span class="fail">${failed} failed</span>` : '';
   const sStr = skipped > 0 ? `<span class="skip">${skipped} skipped</span>` : '';
   document.getElementById('summary').innerHTML =
     `<div${all}>TOTAL: ${passed}/${total}</div>${pStr} ${fStr} ${sStr}`;
@@ -157,8 +161,11 @@ async function runAll() {
   for (const file of files) {
     const r = await runSuite(file, TEST);
     // Support both {passed,failed,skipped,tests[]} and {passed,failed,skipped,errors[]}
-    const testList = r.tests || (r.errors ? r.errors.map(e => ({ name: e, status: 'FAIL' })) : []);
+    const testList = r.tests
+      ? r.tests
+      : (r.errors || []).map(e => ({ name: e, status: 'FAIL', ms: 0, err: e }));
     for (const t of testList) { logTest(t.name || file, t.status, t.ms, t.err); }
+    // total = passed + failed (test files don't return .tests)
     totals.total   += (r.tests ? r.tests.length : r.passed + r.failed);
     totals.passed += r.passed;
     totals.failed += r.failed;

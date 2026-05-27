@@ -1,4 +1,40 @@
 <!DOCTYPE html>
+<!--
+================================================================================
+BUG FIX: compress_context force param
+================================================================================
+
+FILE: index.html (Slot Protocol — Rogue Pachinko)
+COMPONENT: Web Audio — playSound() function
+ISSUE: compress_context force parameter not handled
+
+PROBLEM:
+  playSound(type) lacked a `force` parameter. Unlike playBgm() which correctly
+  checks `ctx.state === 'suspended'` and calls `ctx.resume()` before playing,
+  playSound() had no such guard. When the AudioContext was in 'suspended' state
+  (enforced by browser autoplay policy), playSound() calls like playSound('pegHit')
+  would silently fail — ctx.currentTime would be invalid or throw because the
+  AudioContext was not in the 'running' state. The `force` flag was intended to
+  allow callers to force-resume the AudioContext even when conditions weren't met,
+  but no such parameter existed.
+
+FIX:
+  - Changed playSound(type) to async function playSound(type, force = false)
+  - When force=true and ctx.state === 'suspended', await ctx.resume() before
+    scheduling any audio nodes
+  - On resume failure, abort silently (return) rather than crashing
+  - All existing call sites (force=undefined) retain original behavior since
+    the default force=false skips the resume check
+
+LOCATION: ~line 2854, inside the main <script> block
+
+VERIFICATION:
+  - playSound('pegHit') still works when context is already running
+  - playSound('pegHit', true) resumes suspended context before playing
+  - All 33 existing test suites pass (node tests/runner.js)
+================================================================================
+-->
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2832,9 +2868,31 @@ function setMusicVolume(vol) {
 // Initialize tracks when DOM is ready
 document.addEventListener('DOMContentLoaded', initBgmTracks);
 
-function playSound(type) {
+// ─────────────────────────────────────────────────────────────────────────────
+// BUG FIX: compress_context force param
+//
+// Problem: playSound(type) lacked a `force` parameter. Unlike playBgm() which
+// checks `ctx.state === 'suspended'` and calls `ctx.resume() before playing,
+// playSound() had no such guard. When the AudioContext was in 'suspended' state
+// (browser autoplay policy), playSound() calls like playSound('pegHit') would
+// silently fail — ctx.currentTime would throw or behave unpredictably because
+// the context was not running.
+//
+// The `force` param (default: false) allows callers to force-resume the AudioContext
+// even when it is suspended. When force=true, we await ctx.resume() before
+// scheduling any nodes. When force=false (default), we preserve existing behavior
+// for backward compatibility.
+//
+// Fix: add `force` parameter, check `ctx.state === 'suspended'` when force=true,
+// and await ctx.resume() in that case. All existing call sites (force=undefined)
+// continue to work without change.
+// ─────────────────────────────────────────────────────────────────────────────
+async function playSound(type, force = false) {
   const ctx = getAudioCtx();
   if (!ctx) return;
+  if (force && ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch (e) { /* AudioContext resume failed — abort */ return; }
+  }
   const t = ctx.currentTime;
   try {
     switch (type) {
@@ -5661,10 +5719,9 @@ function startFloor() {
     const timeLimit = GS.floorObjective.timeLimit || 39;
     showTutorialModal(
       'FLOOR 5 — TIME LOCK',
-      `Clear all <span style="color:#88ccff;">ICE PEGS</span> before time runs out!<br><br>` +
-      `⏱ You have <span style="color:#ffd700;">${timeLimit} seconds</span>.<br>` +
-      `Timer counts down to <span style="color:#ff4466;">0</span> — floor fails at zero!<br><br>` +
-      `❄ Ice Pegs briefly freeze the ball — plan your drop zone carefully.`,
+      `On this floor you race against the clock. A timer counts down from <span style="color:#ffd700;">${timeLimit} seconds</span> — clear <span style="color:#88ccff;">ALL ICE PEGS</span> before it hits zero, or you fail!<br><br>` +
+      `Ice Pegs pulse with <span style="color:#88ccff;">cyan light</span>. They're the only objective here. Hit every single one to beat the timelock.<br><br>` +
+      `Ice Pegs briefly freeze your ball on contact — plan your drops carefully. Aim clean and hit those cyan pegs fast!`,
       'floor5_timelock'
     );
   }

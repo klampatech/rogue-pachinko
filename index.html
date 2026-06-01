@@ -1096,6 +1096,7 @@ const C = {
 // ─── GAME STATE ─────────────────────────────────────────────
 const GS = {
   screen: 'menu', // menu | playing | shop | floor_complete | run_end
+  gravity: GRAVITY, // runtime gravity — modified by daily challenge modifiers (slow_grav, high_grav, no_gravity)
   floor: 1,
   score: 0,
   breachCredits: 0,
@@ -1115,6 +1116,8 @@ const GS = {
   payloadInventory: [],
   totalBallsUsed: 0,
   totalPegsCleared: 0,
+  livesLost: 0,
+  runMaxCombo: 0,
   // Slot Protocol 2.0
   timeScale: 1.0, // slow-mo scale
   slowmoBall: null, // reference to ball with slowmo active
@@ -1142,7 +1145,6 @@ const GS = {
   masteryPoints: 0,
   pegRadar: false,
   pegBonusMultiplier: 1.0,
-  comboThreshold: 3,
   shopDiscount: 1.0,
   // Daily challenge mode
   dailyMode: false,
@@ -1202,12 +1204,12 @@ const BALL_SKINS = {
 // Daily Challenge Modifiers — date-seeded so same challenge for all players on same day
 const DAILY_MODIFIERS = [
   { id: 'all_crumble',  name: 'ALL CRUMBLING',   desc: 'All pegs crumble on hit',       apply: (gs) => { gs.allCrumble = true; } },
-  { id: 'slow_grav',    name: 'LOW GRAVITY',     desc: 'Ball falls at 60% speed',        apply: (gs) => { gs.gravity *= 0.6; } },
-  { id: 'high_grav',    name: 'HIGH GRAVITY',    desc: 'Ball falls at 150% speed',       apply: (gs) => { gs.gravity *= 1.5; } },
+ { id: 'slow_grav',    name: 'LOW GRAVITY',     desc: 'Ball falls at 60% speed',        apply: (gs) => { gs.gravity = GRAVITY * 0.6; } },
+  { id: 'high_grav',   name: 'HIGH GRAVITY',    desc: 'Ball falls at 150% speed',       apply: (gs) => { gs.gravity = GRAVITY * 1.5; } },
   { id: 'tiny_ball',    name: 'TINY BALL',       desc: 'Ball radius halved',             apply: (gs) => { gs.ballRadius *= 0.5; } },
   { id: 'fat_ball',     name: 'FAT BALL',         desc: 'Ball radius 50% larger',        apply: (gs) => { gs.ballRadius *= 1.5; } },
   { id: 'multiplier',   name: 'MAX MULTIPLIER',  desc: 'Start at 5× multiplier',         apply: (gs) => { gs.multiplier = 5; gs.dropMultiplier = 5; } },
-  { id: 'no_gravity',   name: 'ZERO-G',          desc: 'Balls drift sideways, minimal gravity', apply: (gs) => { gs.gravity *= 0.1; } },
+  { id: 'no_gravity',   name: 'ZERO-G',          desc: 'Balls drift sideways, minimal gravity', apply: (gs) => { gs.gravity = GRAVITY * 0.1; } },
   { id: 'jackpot_1k',   name: 'MEGA JACKPOT',    desc: 'Jackpot starts at 1000',          apply: (gs) => { gs.jackpotPool = 1000; gs.jackpotBase = 1000; } },
   { id: 'blackout',     name: 'BLACKOUT',         desc: 'No peg glow, minimal lighting',  apply: (gs) => { gs.boardTheme = 'blackout'; } },
   { id: 'one_ball',     name: 'ONE CHANCE',      desc: 'Only 1 ball for the entire run',  apply: (gs) => { gs.startingBallsOverride = 1; gs.balls = 1; } },
@@ -1761,6 +1763,9 @@ class Ball {
     // Cluster payload state
     this.clusterSplit = false;
     this.miniBalls = [];
+    // Daemon payload state
+    this.daemonSplit = false;
+    this.daemonChild = false;
     // Explosive payload state
     this.explosiveTriggered = false;
     // Slow-mo payload state
@@ -1819,7 +1824,8 @@ class Ball {
     const timeScale = this.slowmoActive ? 0.5 : 1.0;
 
     // Gravity (delta-time scaled, then applied as if at 60fps baseline)
-    this.vy += GRAVITY * timeScale * overclockMult * dt60;
+    // Uses GS.gravity so daily challenge modifiers (slow_grav, high_grav, no_gravity) take effect
+    this.vy += GS.gravity * timeScale * overclockMult * dt60;
 
     // Friction — apply per-frame equivalent but scaled by dt60 (friction/sec = -0.005vy/frame at 60Hz)
     this.vx *= Math.pow(FRICTION, dt60);
@@ -3410,12 +3416,12 @@ function generateBoard(floor) {
   //   even row (7 pegs):   20 + 0*colSpacing ... 20 + 6*colSpacing = 460  → colSpacing = 73.3
   //   odd row (6 pegs):    70 + 0*colSpacing ... 70 + 5*colSpacing = 440  → colSpacing = 74
   // Use 70px spacing for both rows — gives even row end=440, odd row end=440+offset (with offset=50)
-  const floorColSpacing = 70;  // was 55 (too narrow, left-cramped)
+  const floorColSpacing = 66;  // was 70 — tuned so even row (7 pegs) ends near x=416 and odd row (6 pegs) ends near x=438, minimizing right-side bias
   if (floor <= 2) {
     for (let row = 0; row < 8; row++) {
       const cols = 7 - (row % 2);
       const y = 120 + row * 40;  // 40px row spacing
-      const offset = (row % 2) === 0 ? 0 : 50;  // was 30 — now properly interleaved
+      const offset = (row % 2) === 0 ? 0 : 38;  // was 50 — reduces right-side bias with colSpacing=66
       for (let col = 0; col < cols; col++) {
         const x = 20 + offset + col * floorColSpacing;  // starts at x=20, fills to x=460
         const r = rng.random();
@@ -3450,7 +3456,7 @@ function generateBoard(floor) {
       if (row < 8) {
         const midY = y + 20;  // halfway between this row and next
         const midCols = 5 - (row % 2);
-        const midOffset = (row % 2) === 0 ? 0 : 50;  // was 20 — now consistent with main row offset
+        const midOffset = (row % 2) === 0 ? 0 : 38;  // consistent with main row offset
         for (let col = 0; col < midCols; col++) {
           const x = 20 + midOffset + col * floorColSpacing + (rng.random() - 0.5) * 8;  // slight x jitter
           const r2 = rng.random();
@@ -3581,13 +3587,16 @@ function generateBoard(floor) {
   // peg exists exactly at y=320. This row uses sparse columns (4 pegs) to avoid
   // duplicating coverage already provided by adjacent main/mid rows.
   {
-    const existingYs = board.map(p => Math.round(p.y));
-    const has320 = existingYs.includes(320);
+    // Use a tolerance check instead of exact float match — peg y values are floats
+    // and Math.round(p.y)===320 always fails for non-integer y values.
+    const has320 = board.some(p => Math.abs(Math.round(p.y) - 320) < 1 && Math.abs(p.y - 320) < 5);
     if (!has320) {
-      // Sparse 4-peg row at y=320, centered with x offset
+      // Sparse supplementary row at y=320 — scales from 4 to 6 pegs based on tier
+      // Higher tiers have more columns (baseCols increases) so row needs more coverage
+      const supCols = Math.min(6, 4 + Math.floor(tier / 2));
       const xStep = baseXStep;
       const xOffset = Math.floor(xStep / 2);
-      for (let col = 0; col < 4; col++) {
+      for (let col = 0; col < supCols; col++) {
         const x = 40 + xOffset + col * xStep + (rng.random() - 0.5) * 8;
         board.push({
           x: Math.max(20, Math.min(W - 20, x)),
@@ -3602,11 +3611,16 @@ function generateBoard(floor) {
     }
   }
 
-  // Cache pegs
+  // Cache pegs — avoid overlapping existing pegs (check within 40px radius)
   for (let i = 0; i < cacheCount; i++) {
+    let x, y, attempts = 0;
+    do {
+      x = 60 + rng.random() * 360;
+      y = 140 + rng.random() * 280;
+      attempts++;
+    } while (attempts < 20 && board.some(p => Math.hypot(p.x - x, p.y - y) < 40));
     board.push({
-      x: 60 + rng.random() * 360,
-      y: 140 + rng.random() * 280,
+      x, y,
       type: 'cache',
       hitCount: 0, id: board.length,
       evolution: null
@@ -3626,15 +3640,22 @@ function pairTeleportPegs(board, floor) {
   if (floor < 3) return; // teleport starts on floor 3
   const teleportPegs = board.filter(p => p.type === 'teleport');
   if (teleportPegs.length < 2) return;
-  // Try to pair them up with minimum 200px separation
+  // Find boss peg position if this is a boss floor (avoid pairing near boss peg)
+  const bossPeg = board.find(p => p.boss);
+  const bossDistThreshold = 120; // don't pair teleport pegs too close to boss peg
+  // Try to pair them up with minimum 200px separation (and away from boss)
   const pairCount = Math.floor(floor / 2);
   let paired = 0;
   for (let i = 0; i < teleportPegs.length && paired < pairCount; i++) {
     const pegA = teleportPegs[i];
     if (pegA.teleportPartner) continue; // already paired
+    // Skip if pegA is too close to boss peg
+    if (bossPeg && Math.hypot(pegA.x - bossPeg.x, pegA.y - bossPeg.y) < bossDistThreshold) continue;
     for (let j = i + 1; j < teleportPegs.length; j++) {
       const pegB = teleportPegs[j];
       if (pegB.teleportPartner) continue;
+      // Skip if pegB is too close to boss peg
+      if (bossPeg && Math.hypot(pegB.x - bossPeg.x, pegB.y - bossPeg.y) < bossDistThreshold) continue;
       const dist = Math.hypot(pegA.x - pegB.x, pegA.y - pegB.y);
       if (dist >= 200) {
         const pairId = `tp_${paired}`;
@@ -3698,7 +3719,9 @@ function checkCollisions() {
     // ── Spatial narrow-phase: only check pegs in ball's vertical band ──
     // Reduces O(balls×pegs) brute-force to O(balls×nearby_pegs).
     // Ball travels vertically so horizontal band is the effective culling axis.
-    const BAND_PX = 40; // px either side of ball.y to include pegs from
+    // Scale band by ball speed — fast balls need wider search window to prevent tunneling
+    const ballSpeed = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy);
+    const BAND_PX = 40 + ballSpeed * 2;
     const visiblePegs = GS.board.filter(peg =>
       !peg.destroyed &&
       !ball.hitPegs.has(peg.id) &&
@@ -3720,9 +3743,90 @@ function checkCollisions() {
   }
 }
 
+// ─── BALL-TO-BALL COLLISION ─────────────────────────────────────────────────
+function checkBallCollisions() {
+  const activeBalls = GS.ballsInPlay.filter(b => b.active);
+  for (let i = 0; i < activeBalls.length; i++) {
+    for (let j = i + 1; j < activeBalls.length; j++) {
+      const a = activeBalls[i];
+      const b = activeBalls[j];
+      // Ghost balls phase through each other — skip collision
+      if (a.ghostPhasing && a.ghostPhaseRemaining > 0) continue;
+      if (b.ghostPhasing && b.ghostPhaseRemaining > 0) continue;
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const minDist = BALL_RADIUS * 2;
+
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const dvx = a.vx - b.vx;
+        const dvy = a.vy - b.vy;
+        const dvn = dvx * nx + dvy * ny;
+        if (dvn > 0) {
+          const restitution = 0.8;
+          const impulse = dvn * restitution;
+          a.vx -= impulse * nx;
+          a.vy -= impulse * ny;
+          b.vx += impulse * nx;
+          b.vy += impulse * ny;
+          const overlap = minDist - dist;
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+          const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+          spawnParticles(midX, midY, '#ffffff', 6, 3);
+        }
+      }
+    }
+  }
+
+  // Mini-ball collision with pegs — was completely missing, mini-balls fell through pegs
+  for (const ball of GS.ballsInPlay) {
+    if (!ball.active) continue;
+    for (const mb of ball.miniBalls) {
+      const mbSpeed = Math.sqrt(mb.vx*mb.vx + mb.vy*mb.vy);
+      const mbBand = 30 + mbSpeed * 2;
+      const nearbyPegs = GS.board.filter(peg =>
+        !peg.destroyed &&
+        Math.abs(peg.y - mb.y) < mbBand + (PEG_TYPES[peg.type].radius || 6) + 4
+      );
+      for (const peg of nearbyPegs) {
+        const dx = mb.x - peg.x;
+        const dy = mb.y - peg.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const pegR = PEG_TYPES[peg.type].radius || 6;
+        const minDist = 4 + pegR;
+        if (dist < minDist && dist > 0) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const dot = mb.vx * nx + mb.vy * ny;
+          const bounce = (PEG_TYPES[peg.type].bounce || 0.65) * 0.8;
+          mb.vx -= (1 + bounce) * dot * nx;
+          mb.vy -= (1 + bounce) * dot * ny;
+          mb.x += nx * (minDist - dist + 1);
+          mb.y += ny * (minDist - dist + 1);
+          spawnParticles(mb.x, mb.y, PEG_TYPES[peg.type]?.color || '#00f0ff', 4, 2);
+          GS.score += 25 * GS.multiplier * GS.pegBonusMultiplier;
+          GS.comboCount++;
+          checkFrenzy();
+          GS.totalPegsCleared++;
+          peg.hitCount++;
+          if (peg.id !== undefined) GS.pegsHit.add(peg.id);
+          if (GS.floorObjective.progress < GS.floorObjective.target) GS.floorObjective.progress++;
+          updateHUD();
+          updateObjectiveBar();
+        }
+      }
+    }
+  }
+}
+
 function handlePegHit(ball, peg, dx, dy, dist, minDist) {
   const pegDef = PEG_TYPES[peg.type];
-  ball.hitPegs.add(peg.id);
 
   // Normalize collision vector
   const nx = dx / dist;
@@ -4259,6 +4363,7 @@ function resolveBallExit(ball) {
     // All balls done
     GS.multiplier = 1;
     GS.multiplierTimer = 0;
+    GS.chainTimer = 0; // reset with multiplier to avoid visual inconsistency
     // ── Clear frenzy state ──
     GS.frenzyActive = false;
     GS.frenzyReady = false;
@@ -4408,7 +4513,8 @@ const TAP_DELAY_MS = 300;      // tap must last 300ms+ before drop fires
 function simulatePreviewArc(startX) {
   if (!GS.board || GS.board.length === 0) return [];
   const pts = [];
-  let px = startX, py = 80;
+  const DROP_Y = 70; // must match Ball constructor drop position: new Ball(dropX, 70, ...)
+  let px = startX, py = DROP_Y;
   let pvx = 0, pvy = 0;
   const hitPegs = new Set();
   // Simulate 1.3 seconds using delta-time logic (consistent with main physics)
@@ -4417,7 +4523,7 @@ function simulatePreviewArc(startX) {
   const frames = Math.ceil(TOTAL_TIME / FRAME_TIME);
   for (let f = 0; f < frames; f++) {
     // Delta-time scaled gravity (same formula as Ball.update)
-    pvy += GRAVITY * 60 * FRAME_TIME;
+    pvy += GS.gravity * 60 * FRAME_TIME;
     px += pvx * 60 * FRAME_TIME;
     py += pvy * 60 * FRAME_TIME;
     if (py > H) break; // off screen
@@ -4539,13 +4645,34 @@ function spawnReplacementBall() {
   canDrop = true;
 }
 
+// ─── HUD CLEANUP ─────────────────────────────────────────────
+// Remove transient overlay HUD elements that accumulate across screen transitions.
+// Call this on every screen transition (floor start, game over, run end).
+function cleanupHUDOverlays() {
+  ['streak-banner', 'ghost-display', 'timelock-display', 'jp-spin-counter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+}
+
 // ─── MULTIPLIER ──────────────────────────────────────────────
 function updateMultiplierDisplay() {
-  const el = document.getElementById('multiplier-display');
-  el.textContent = `x${GS.multiplier}`;
-  el.classList.toggle('show', GS.multiplier > 1);
-  el.classList.toggle('xhigh', GS.multiplier >= 4);
-  el.classList.toggle('xmax', GS.multiplier >= 6);
+  const multEl = document.getElementById('multiplier-display');
+  const newMult = GS.multiplier;
+  const prevMult = multEl.dataset.mult | 0;
+  if (newMult !== prevMult) {
+    multEl.textContent = `x${newMult}`;
+    multEl.classList.toggle('show', newMult > 1);
+    multEl.classList.toggle('xhigh', newMult >= 4);
+    multEl.classList.toggle('xmax', newMult >= 6);
+    multEl.dataset.mult = newMult;
+    // Restart pulse animation only on actual multiplier change (avoids 1 synchronous reflow per call)
+    if (newMult > 1) {
+      multEl.style.animation = 'none';
+      multEl.offsetHeight; // force reflow to restart CSS animation
+      multEl.style.animation = '';
+    }
+  }
 
   // Cascade Overload: show OVERLOAD ACTIVE indicator when any ball is overloaded
   let overloadEl = document.getElementById('overload-indicator');
@@ -4611,18 +4738,22 @@ function updateHUD() {
   const spins = GS.totalJackpotSpins || 0;
   jpEl.textContent = spins > 0 ? `SPINS: ${spins}` : '';
 
-  // Balls display
+  // Balls display — skip DOM rebuild if ball count unchanged
   const ballsEl = document.getElementById('balls-display');
-  ballsEl.innerHTML = '';
-  // Text label
-  const label = document.createElement('span');
-  label.style.cssText = 'color:#00f0ff;font-size:10px;margin-right:6px;letter-spacing:1px;text-shadow:0 0 6px #00f0ff;' + (GS.balls === 0 ? 'color:#ff4444;text-shadow:0 0 6px #ff4444;' : '');
-  label.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
-  ballsEl.appendChild(label);
-  for (let i = 0; i < 5; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'ball-dot' + (i >= GS.balls ? ' empty' : '');
-    ballsEl.appendChild(dot);
+  const prevBallCount = ballsEl.dataset.balls | 0;
+  if (prevBallCount !== GS.balls) {
+    ballsEl.innerHTML = '';
+    // Text label
+    const label = document.createElement('span');
+    label.style.cssText = 'color:#00f0ff;font-size:10px;margin-right:6px;letter-spacing:1px;text-shadow:0 0 6px #00f0ff;' + (GS.balls === 0 ? 'color:#ff4444;text-shadow:0 0 6px #ff4444;' : '');
+    label.textContent = GS.balls + ' BALL' + (GS.balls !== 1 ? 'S' : '');
+    ballsEl.appendChild(label);
+    for (let i = 0; i < 5; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'ball-dot' + (i >= GS.balls ? ' empty' : '');
+      ballsEl.appendChild(dot);
+    }
+    ballsEl.dataset.balls = GS.balls;
   }
 
   // Combo counter (Slot Protocol 2.0)
@@ -4786,8 +4917,8 @@ function completeFloor() {
   if (GS.floor === 1) showAchievement('firstFloor');
   if (GS.floor === 3) showAchievement('floor3');
 
-  // Win condition: clear floor 10 = win
-  if (GS.floor >= 10) {
+  // Win condition: clear floor 5 = win (SPEC.md: "5 floors per run")
+  if (GS.floor >= 5) {
     showGameOverInterstitial(() => endRun(true));
     return;
   }
@@ -4931,8 +5062,8 @@ function initJackpotSlots() {
       if (jpContinueBtn) jpContinueBtn.style.display = 'inline-block';
       canReroll = false;
 } else {
-      // No match — pool grows 15%
-      GS.jackpotPool = Math.floor(GS.jackpotPool * 1.15);
+      // No match — pool grows by base rate × jackpotGrowthBonus
+      GS.jackpotPool = Math.floor(GS.jackpotPool * (1.15 * GS.jackpotGrowthBonus));
       playSound('jpNoMatch');
       // No match — offer one re-roll
       if (canReroll) {
@@ -5065,8 +5196,7 @@ const REP_SHOP_ITEMS = [
 ];
 
 function openShop(tab = 'credits') {
-  _shopContinueBusy = false; // reset debounce flag so CONTINUE works fresh
-  _shopContinueDebounce = false; // also reset debounce flag
+  _shopContinueDebounce = false; // reset debounce flag
   const btn = document.getElementById('shop-continue-btn');
   if (btn) btn.disabled = false;
   GS.screen = 'shop';
@@ -6633,10 +6763,11 @@ function update(dt) {
     }
   }
 
-  // Collision check
+  // Collision check — ball-to-ball and mini-ball collisions included
   checkCollisions();
+  checkBallCollisions();
 
-// Multiplier chain timer
+  // ── TEMP_EXPLOSIVE DECAY
   if (GS.chainTimer > 0) {
     GS.chainTimer--;
   } else if (GS.multiplier > 1) {

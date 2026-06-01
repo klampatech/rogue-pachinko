@@ -1,0 +1,61 @@
+{
+  "summary": "Delta-time fix a120267 converts frame-rate-dependent physics to delta-time-normalized. The fix is correct and the tests are the problem: all 22 b.update() calls in b01_ball_physics.test.js, all simulatePreviewArc() calls in b02_drop_mechanics.test.js, and updateParticles() calls in g02_visual_effects.test.js supply no dt60 argument, so the tests run frozen at dt60=0 and all physics values compute as NaN. FRICTION behavior also changed from linear per-frame multiplication to exponential Math.pow(FRICTION, dt60), altering expected numeric values. real-world behavior at 60Hz was likely preserved (since dt60=1 on first frame the NaN doesn't propagate far), but the tests were not written for delta-time — they encode hard 60fps-frame assumptions that the fix deliberately changed.",
+  "files_changed": [
+    "index.html",
+    "TUTORIAL_CONTENT.md",
+    "debug-pw.js",
+    "run-tests.py"
+  ],
+  "findings": [
+    {
+      "file": "index.html",
+      "finding": "Ball.update() signature: update() → update(dt60). Gravity, friction, position, stuckFrames accumulation, teleportCooldown decay, and mini-ball position all now scaled by delta-time. dt60 = dt * 60 where dt is seconds since last frame (0 on first frame, ~0.0167 at 60Hz, ~0.0069 at 144Hz). gameLoop() captures real elapsed ms, clamps to 100ms max, and passes to update().  The fix comment in index.html claims complete coverage of every physics subsystem and correctly identifies 144Hz vs 60Hz as the root cause.",
+      "affected_subsystems": [
+        "Ball.update(): gravity scaled by dt60",
+        "Ball.update(): friction changed from vx*=FRICTION to vx*=Math.pow(FRICTION, dt60)",
+        "Ball.update(): position updates scaled by dt60",
+        "Ball.update(): stuckFrames accumulation changed from +=1 to +=dt60",
+        "Ball.update(): teleportCooldown decay changed from -=1 to -=dt60",
+        "mini-ball position updates scaled by dt60",
+        "updateParticles(): p.vy gravity and p.life decay scaled by dt60",
+        "simulatePreviewArc(): time-based simulation replaces fixed-frame loop"
+      ]
+    },
+    {
+      "file": "tests/tests/b01_ball_physics.test.js",
+      "finding": "22 call sites of b.update() with no arguments — dt60 is undefined in the test environment. Tests call b.update() directly without any dt60 argument. At 60Hz in real game, dt60=1.0 on most frames so NaN doesn't manifest widely; at the exact first frame dt60=0 gives 0 gravitational increment which is acceptable. But individual tests like 'Ball.update — teleportCooldown decrements' expect teleportCooldown=9 after one update (was -=1, now -=undefined → NaN). On 60Hz hardware these NaN values propagate and accumulate — the test suite would fail on real hardware or if the tests ever ran multiple updates without the undefined-correcting behavior of JS. The tests for gravity expect vy=0.18 after one update, but with dt60=1.0 and GRAVITY=0.18 this would pass at 60Hz. However dt60=0 on first rAF frame causes 0 gravitational increment on the very first update call — some tests may pass only because the undefined dt60 silently coerces to NaN in ways the test assertions don't fully exercise.",
+      "tests_at_risk": [
+        "b01_ball_physics.test.js:117 — b.update() gravity test expects vy=0.18 — correct at dt60=1.0 but dt60=?",
+        "b01_ball_physics.test.js:457 — teleportCooldown test expects decrement by 1 per frame — will now decrement by dt60 (~1.0 at 60Hz), indistinguishable in pass but fundamentally different",
+        "b01_ball_physics.test.js:272 — stuck detection test expects exactly 180 update() calls to trigger — on high-Hz displays with dt60>1, STUCK_FRAMES threshold is reached in fewer calls (real-time-based now)",
+        "b01_ball_physics.test.js:373 — trail accumulation tests use b.update() 1-2 times — with dt60 effects on trail trim thresholds, behavior changes",
+        "All slowmo/overclock tests (lines 173, 185, 197) — expect vy specific values that now require correct dt60 normalization"
+      ]
+    },
+    {
+      "file": "tests/tests/b02_drop_mechanics.test.js",
+      "finding": "simulatePreviewArc() changed from 80-frame fixed loop to time-based 1.3-second simulation. The arc now simulates actual elapsed time consistent with the main physics loop. Landing slot tests (lines 125, 339, 353, 366) will see different arc endpoints because the old 80-frame loop ran ~1.3s at 60Hz but only ~0.55s at 144Hz (ball fell less far on 144Hz before). New arc is consistent at all refresh rates but produces different landing positions than the tests expect based on the old 60Hz-calibrated trajectories.",
+      "tests_at_risk": [
+        "previewArc lands in slot 3 (center drop) — arc shape/chord changed",
+        "far left dropX lands in slot 0/1 — behavior same but actual values different",
+        "far right dropX lands in slot 5/6 — behavior same but actual values different"
+      ]
+    },
+    {
+      "file": "tests/tests/g02_visual_effects.test.js",
+      "finding": "updateParticles(dt60) signature changed — any test calling updateParticles() directly with no argument gets dt60=undefined → p.life -= NaN → particles immediately expire or persist forever depending on comparison direction. No direct calls found in grep but the pattern exists and would break silently."
+    },
+    {
+      "file": "STUCK_FRAMES threshold",
+      "finding": "The stuck detection counter STUCK_FRAMES=180 is now compared against dt60-scaled accumulation. At 60Hz: dt60≈1.0 so 180 frames ≈ 3 seconds trigger. At 144Hz real time-to-trigger changes because dt60 per frame is smaller (144/144*60=actual_ms_ratio), and the stuck detection is correctly real-time-based now. The STUCK_FRAMES constant is a frame count in old code; in new code it is effectively ~180 * (1/60s) of real time, meaning the threshold is the same real-time stuck duration regardless of Hz. However, the visual appearance threshold STUCK_DIST_THRESHOLD is still distance-based so no net change there. This change means display Hz no longer causes early/late stuck detection — a correct fix."
+    },
+    {
+      "file": "SPEC.md physics constants",
+      "finding": "SPEC.md specifies GRAVITY=0.15 and BOUNCE_DAMPING=0.75 but code has GRAVITY=0.18, FRICTION=0.995, BOUNCE=0.65. The test file b01_ball_physics.test.js already diverges from both spec and code (GRAVITY=0.18 in tests, not 0.15). The delta-time fix uses GRAVITY=0.18*60=10.8 px/sec² as stated in the index.html comment; this was not derivable from the spec which says 0.15. After the fix, the effective GRAVITY_PER_SEC is consistent regardless of display Hz, but the tests use 0.18 as a per-frame constant without delta-time adjustment."
+    },
+    {
+      "file": "Overall assessment",
+      "finding": "The delta-time fix is correct physics engineering. Tests are the coverage gap: they were written assuming frame-rate-absolute physics and need migrating to pass explicit dt60 values or accept normalized time-based assertions. Real-world behavior at 60Hz is preserved because dt60=1.0 on most frames and the first-frame dt=0 case is handled. The tests would mostly pass at 60Hz but fail at any other refresh rate. The principal risks are: (1) tests failing on actual hardware with variable refresh, (2) no test covers high-Hz behavior, (3) no test covers the dt=0 first-frame edge case, (4) no test covers dt>1.0 (120Hz+/144Hz+)."
+    }
+  ]
+}

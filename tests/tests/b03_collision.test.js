@@ -523,7 +523,7 @@ export function runTests(TEST) {
     const b = new Ball(240, 720, 0, 5, []);
     GS.ballsInPlay = [b];
     GS.board = [];
-    b.update(); // ball exits below canvas
+    b.update(1.0); // ball exits below canvas
     ok(!b.active, 'ball deactivated on exit');
   }));
 
@@ -534,7 +534,7 @@ export function runTests(TEST) {
       const b = new Ball(240, 720, 0, 5, []);
       GS.ballsInPlay = [b];
       GS.board = [];
-      b.update();
+      b.update(1.0);
       ok(!b.active, 'resolveBallExit path completed');
     } catch (e) {
       ok(false, 'resolveBallExit threw: ' + e.message);

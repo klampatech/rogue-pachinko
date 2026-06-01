@@ -102,13 +102,13 @@ export function runTests(TEST) {
 
   results.push(TEST('previewArc — simulatePreviewArc fills array with points', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     gt(previewArc.length, 0, 'simulatePreviewArc populates previewArc');
   }));
 
   results.push(TEST('previewArc — points have x and y properties', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     for (const pt of previewArc) {
       ok(typeof pt.x === 'number', 'point has x');
       ok(typeof pt.y === 'number', 'point has y');
@@ -117,14 +117,14 @@ export function runTests(TEST) {
 
   results.push(TEST('previewArc — first point starts at dropX,y=46', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     is(previewArc[0].x, 240, 'first point x = dropX');
     is(previewArc[0].y, 46, 'first point y = drop zone top');
   }));
 
   results.push(TEST('previewArc — last point reaches SLOT_START_Y (560)', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     let reached = false;
     for (const pt of previewArc) {
       if (pt.y >= 560) { reached = true; break; }
@@ -134,7 +134,7 @@ export function runTests(TEST) {
 
   results.push(TEST('previewArc — trajectory follows parabolic arc (gravity)', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     // Check that y values increase (arc falling)
     for (let i = 1; i < previewArc.length; i++) {
       ok(previewArc[i].y >= previewArc[i-1].y - 1, `y[${i}] consistent with gravity`);
@@ -143,10 +143,10 @@ export function runTests(TEST) {
 
   results.push(TEST('previewArc — different dropX gives different arc', () => {
     resetGS();
-    simulatePreviewArc(100);
+    simulatePreviewArc(100, 1.0);
     const arcLeft = previewArc.map(p => p.x);
     resetGS();
-    simulatePreviewArc(400);
+    simulatePreviewArc(400, 1.0);
     const arcRight = previewArc.map(p => p.x);
     ok(arcLeft[arcLeft.length - 1] < arcRight[arcRight.length - 1],
        'left arc lands further left than right arc');
@@ -155,7 +155,7 @@ export function runTests(TEST) {
   results.push(TEST('previewArc — simulatePreviewArc uses GRAVITY physics', () => {
     resetGS();
     // Preview arc should use same gravity constant as ball physics
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     // At least some vertical acceleration should be visible
     const firstFew = previewArc.slice(0, 5);
     let totalDy = 0;
@@ -320,25 +320,25 @@ export function runTests(TEST) {
   // ─────────────────────────────────────────────────────────────────────────
   results.push(TEST('simulatePreviewArc — extreme left dropX', () => {
     resetGS();
-    simulatePreviewArc(10);
+    simulatePreviewArc(10, 1.0);
     gt(previewArc.length, 0, 'arc computed for x=10');
   }));
 
   results.push(TEST('simulatePreviewArc — extreme right dropX', () => {
     resetGS();
-    simulatePreviewArc(470);
+    simulatePreviewArc(470, 1.0);
     gt(previewArc.length, 0, 'arc computed for x=470');
   }));
 
   results.push(TEST('simulatePreviewArc — center dropX', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     gt(previewArc.length, 0, 'arc computed for x=240');
   }));
 
   results.push(TEST('simulatePreviewArc — arc lands in correct slot region', () => {
     resetGS();
-    simulatePreviewArc(240);
+    simulatePreviewArc(240, 1.0);
     // Center drop should land near slot 3 (center)
     let landSlot = -1;
     for (let i = previewArc.length - 1; i >= 0; i--) {
@@ -352,7 +352,7 @@ export function runTests(TEST) {
 
   results.push(TEST('simulatePreviewArc — far left dropX lands in slot 0/1', () => {
     resetGS();
-    simulatePreviewArc(20);
+    simulatePreviewArc(20, 1.0);
     let landSlot = -1;
     for (let i = previewArc.length - 1; i >= 0; i--) {
       if (previewArc[i].y >= 560) {
@@ -365,7 +365,7 @@ export function runTests(TEST) {
 
   results.push(TEST('simulatePreviewArc — far right dropX lands in slot 5/6', () => {
     resetGS();
-    simulatePreviewArc(460);
+    simulatePreviewArc(460, 1.0);
     let landSlot = -1;
     for (let i = previewArc.length - 1; i >= 0; i--) {
       if (previewArc[i].y >= 560) {

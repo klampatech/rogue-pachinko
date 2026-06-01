@@ -114,9 +114,9 @@ export function runTests(TEST) {
     b.vx = 0; b.vy = 0;
     GS.ballsInPlay = [b];
     const GRAV = 0.18;
-    b.update();
+    b.update(1.0);
     is(b.vy, GRAV, 'vy += GRAVITY after one update');
-    b.update();
+    b.update(1.0);
     is(b.vy, GRAV * 2, 'vy += GRAVITY after two updates');
   }));
 
@@ -125,7 +125,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 0; b.vy = 14;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
     lt(spd, 14.01, 'velocity capped at MAX_VEL=14');
   }));
@@ -135,7 +135,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 10; b.vy = 0;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     // FRICTION=0.995
     ok(Math.abs(b.vx - 10 * 0.995) < 0.001, 'vx multiplied by FRICTION=0.995');
   }));
@@ -145,7 +145,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 14; b.vy = 0;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
     lt(spd, 14.01, 'velocity still capped after friction');
   }));
@@ -155,7 +155,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 3; b.vy = 4;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     is(b.x, 243, 'x updated by vx');
     is(b.y, 104, 'y updated by vy');
   }));
@@ -165,7 +165,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 20; b.vy = 20; // speed > MAX_BALL_SPEED (14*1.5=21)
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
     lt(spd, 21.01, 'speed clipped to MAX_BALL_SPEED');
   }));
@@ -176,7 +176,7 @@ export function runTests(TEST) {
     b.vx = 0; b.vy = 0;
     b.slowmoActive = true;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     // GRAVITY * 0.5 applied to vy (plus friction)
     // With vy=0 and GRAV=0.18: after update, vy = 0 + 0.18*0.5 = 0.09
     is(b.vy, 0.09, 'slowmoActive halves gravity effect');
@@ -189,7 +189,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 0; b.vy = 0;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     // GRAVITY * 1.5 = 0.27
     is(b.vy, 0.27, 'overclock gives 1.5x gravity');
   }));
@@ -201,7 +201,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.slowmoActive = true;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     // timeScale=0.5, overclockMult=1.5 → GRAVITY * 0.5 * 1.5 = 0.135
     is(b.vy, 0.135, 'combined slowmo+overclock');
   }));
@@ -214,7 +214,7 @@ export function runTests(TEST) {
     const b = makeBall(5, 200); // near left wall
     b.vx = -5; b.vy = 0;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     is(b.x, 7, 'x clamped to BALL_RADIUS (7) on left wall bounce');
     ok(b.vx >= 0, 'vx reversed to positive on left wall bounce');
   }));
@@ -224,7 +224,7 @@ export function runTests(TEST) {
     const b = makeBall(475, 200); // near right wall
     b.vx = 5; b.vy = 0;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     is(b.x, 473, 'x clamped to W-BALL_RADIUS (473) on right wall bounce');
     ok(b.vx <= 0, 'vx reversed to negative on right wall bounce');
   }));
@@ -239,7 +239,7 @@ export function runTests(TEST) {
     b.vx = 0; b.vy = 2;
     GS.ballsInPlay = [b];
     GS.board = []; // empty board so no collisions
-    b.update();
+    b.update(1.0);
     ok(!b.active, 'ball deactivated after exit below canvas');
   }));
 
@@ -250,7 +250,7 @@ export function runTests(TEST) {
     GS.ballsInPlay = [b];
     GS.board = [];
     // Slot 3 = center, x=240 should map to slot 3
-    b.update();
+    b.update(1.0);
     // Ball should be deactivated and slot animation triggered
     ok(!b.active, 'ball exits into slot at SLOT_START_Y');
   }));
@@ -261,7 +261,7 @@ export function runTests(TEST) {
     b.vx = 0; b.vy = 2;
     GS.ballsInPlay = [b];
     GS.board = [];
-    b.update();
+    b.update(1.0);
     ok(!b.active, 'ball deactivated after passing through slot zone');
     // triggerOverflow deducts balls on higher floors
   }));
@@ -279,7 +279,7 @@ export function runTests(TEST) {
 
     // Move ball to a position then simulate stuck (barely moving)
     for (let i = 0; i < 180; i++) {
-      b.update();
+      b.update(1.0);
     }
     ok(!b.active, 'ball stuck detected after STUCK_FRAMES=180');
   }));
@@ -374,9 +374,9 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 2; b.vy = 2;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     is(b.trail.length, 1, 'trail has 1 entry after 1 update');
-    b.update();
+    b.update(1.0);
     is(b.trail.length, 2, 'trail has 2 entries after 2 updates');
   }));
 
@@ -385,8 +385,8 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.vx = 2; b.vy = 2;
     GS.ballsInPlay = [b];
-    b.update();
-    b.update();
+    b.update(1.0);
+    b.update(1.0);
     ok(b.trail[0].age > 0, 'trail entries age');
   }));
 
@@ -396,7 +396,7 @@ export function runTests(TEST) {
     b.vx = 2; b.vy = 2;
     GS.ballsInPlay = [b];
     // Base trail max = 16 * trailBoost
-    for (let i = 0; i < 30; i++) b.update();
+    for (let i = 0; i < 30; i++) b.update(1.0);
     lt(b.trail.length, 20, 'trail trims to max length');
   }));
 
@@ -459,7 +459,7 @@ export function runTests(TEST) {
     const b = makeBall(240, 100);
     b.teleportCooldown = 10;
     GS.ballsInPlay = [b];
-    b.update();
+    b.update(1.0);
     is(b.teleportCooldown, 9, 'teleportCooldown decrements each frame');
   }));
 

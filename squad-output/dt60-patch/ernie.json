@@ -1,0 +1,70 @@
+{
+  "summary": "Applied dt60=1.0 patch to all b.update(), simulatePreviewArc(), and b.update(1.0) calls across b01_ball_physics.test.js, b02_drop_mechanics.test.js, and b03_collision.test.js. Added dt60=1.0 to 20 b.update() calls in b01, 13 simulatePreviewArc() calls in b02, and 2 b.update() calls in b03. g02_visual_effects.test.js had no b.update() or updateParticles() calls to patch. Syntax validated with node --check on all patched files. Live test server not running (localhost:7779 not available) so runtime test skipped.",
+  "files_changed": [
+    "/home/kyle/projects/rogue-pachinko/tests/tests/b01_ball_physics.test.js",
+    "/home/kyle/projects/rogue-pachinko/tests/tests/b02_drop_mechanics.test.js",
+    "/home/kyle/projects/rogue-pachinko/tests/tests/b03_collision.test.js"
+  ],
+  "findings": [
+    {
+      "file": "/home/kyle/projects/rogue-pachinko/tests/tests/b01_ball_physics.test.js",
+      "changes": [
+        {"line_approx": 117, "change": "b.update() → b.update(1.0) [gravity test, double update]"},
+        {"line_approx": 128, "change": "b.update() → b.update(1.0) [MAX_VEL cap test]"},
+        {"line_approx": 138, "change": "b.update() → b.update(1.0) [FRICTION test]"},
+        {"line_approx": 148, "change": "b.update() → b.update(1.0) [velocity cap after friction]"},
+        {"line_approx": 158, "change": "b.update() → b.update(1.0) [position update by velocity]"},
+        {"line_approx": 168, "change": "b.update() → b.update(1.0) [HIGH_SPEED clip guard]"},
+        {"line_approx": 179, "change": "b.update() → b.update(1.0) [slowmo halves physics]"},
+        {"line_approx": 192, "change": "b.update() → b.update(1.0) [OVERCLOCK 1.5x gravity]"},
+        {"line_approx": 204, "change": "b.update() → b.update(1.0) [OVERCLOCK + slowmo combined]"},
+        {"line_approx": 217, "change": "b.update() → b.update(1.0) [left wall bounce]"},
+        {"line_approx": 227, "change": "b.update() → b.update(1.0) [right wall bounce]"},
+        {"line_approx": 242, "change": "b.update() → b.update(1.0) [exit below canvas]"},
+        {"line_approx": 253, "change": "b.update() → b.update(1.0) [SLOT_START_Y triggers getSlotForX]"},
+        {"line_approx": 264, "change": "b.update() → b.update(1.0) [overflow zone triggers triggerOverflow]"},
+        {"line_approx": 281, "change": "b.update() → b.update(1.0) inside 180-iteration stuck detection loop"},
+        {"line_approx": 377, "change": "b.update() → b.update(1.0) [trail accumulates, 2 calls]"},
+        {"line_approx": 388, "change": "b.update() → b.update(1.0) [trail ages, 2 calls]"},
+        {"line_approx": 399, "change": "b.update() → b.update(1.0) inside 30-iteration trail trim loop"},
+        {"line_approx": 462, "change": "b.update() → b.update(1.0) [teleportCooldown decrements]"}
+      ],
+      "total": 20
+    },
+    {
+      "file": "/home/kyle/projects/rogue-pachinko/tests/tests/b02_drop_mechanics.test.js",
+      "changes": [
+        {"line_approx": 105, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0)"},
+        {"line_approx": 111, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [points have x/y]"},
+        {"line_approx": 120, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [first point]"},
+        {"line_approx": 127, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [last point reaches slot]"},
+        {"line_approx": 137, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [parabolic arc]"},
+        {"line_approx": 146, "change": "simulatePreviewArc(100) → simulatePreviewArc(100, 1.0) [different arc left]"},
+        {"line_approx": 149, "change": "simulatePreviewArc(400) → simulatePreviewArc(400, 1.0) [different arc right]"},
+        {"line_approx": 158, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [gravity physics]"},
+        {"line_approx": 323, "change": "simulatePreviewArc(10) → simulatePreviewArc(10, 1.0) [extreme left]"},
+        {"line_approx": 329, "change": "simulatePreviewArc(470) → simulatePreviewArc(470, 1.0) [extreme right]"},
+        {"line_approx": 335, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [center]"},
+        {"line_approx": 341, "change": "simulatePreviewArc(240) → simulatePreviewArc(240, 1.0) [lands in slot 3]"},
+        {"line_approx": 355, "change": "simulatePreviewArc(20) → simulatePreviewArc(20, 1.0) [far left slot 0/1]"},
+        {"line_approx": 368, "change": "simulatePreviewArc(460) → simulatePreviewArc(460, 1.0) [far right slot 5/6]"}
+      ],
+      "note": "Tests checking slot assertions (slot 3 for center drop, slot 0/1 for left, slot 5/6 for right) use seed(42) for deterministic RNG. With dt60=1.0 the arc simulation still uses the same deterministic seed path so slot predictions remain consistent — no assertion value changes needed beyond adding the dt60 argument.",
+      "total": 14
+    },
+    {
+      "file": "/home/kyle/projects/rogue-pachinko/tests/tests/b03_collision.test.js",
+      "changes": [
+        {"line_approx": 526, "change": "b.update() → b.update(1.0) [resolveBallExit — ball deactivated on exit]"},
+        {"line_approx": 537, "change": "b.update() → b.update(1.0) [resolveBallExit — does not throw on null ball]"}
+      ],
+      "total": 2
+    },
+    {
+      "file": "/home/kyle/projects/rogue-pachinko/tests/tests/g02_visual_effects.test.js",
+      "changes": [],
+      "note": "No b.update() calls or updateParticles() calls found. Visual effects tests are independent of ball physics delta-time."
+    }
+  ],
+  "fix": "Added dt60=1.0 as second argument to all Ball.update() calls (simulating 60Hz frame-step behavior) and all simulatePreviewArc() calls in test files. The value 1.0 represents one frame at 60fps baseline, consistent with the tests' original assumptions before the delta-time physics fix in commit a120267. No test assertion values were changed."
+}
